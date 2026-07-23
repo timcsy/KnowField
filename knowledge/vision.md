@@ -31,10 +31,12 @@ LearnNews 是**分診工具**，不是消化工具。透過**推**（每日匯�
 
 ## 架構
 
-已於階段 1 定案（2026-07-23）：**Python 3.12＋薄 CLI／核心函式庫、SQLite 儲存**；
-去重與興趣排序用**本地 embedding**、封頂摘要用小型 LLM（Claude Haiku）。重量級後端
-（真實 embedding／LLM）藏在可插拔介面後，MVP 預設離線後端。技術脈絡見
-`specs/001-daily-triage-digest/plan.md`，決策理由見 `history/002-架構選型與務實偏離.md`。
+已於階段 1 定案（2026-07-23）：**Python 3.12＋薄 CLI／核心函式庫、SQLite 儲存**。
+去重／興趣排序的 embedding 與封頂摘要都藏在**可插拔介面**（`Embedder`／`Summarizer`）後：
+預設離線 stub（確定性、零安裝），真實後端走**使用者的 OpenAI 格式 API**
+（embedding＋chat，stdlib urllib、零新增相依）。技術脈絡見
+`specs/001-daily-triage-digest/plan.md`；真實後端決策見
+`history/004-真實後端改用-OpenAI-格式-API.md`（取代 002 的 Claude Haiku/ST 計畫）。
 
 ## 路線圖
 
