@@ -32,6 +32,21 @@ class TestOpenAIBackend(unittest.TestCase):
         self.assertEqual(positioning, "定位一句")
         self.assertEqual(why, "為何值得看一句")
 
+    def test_summarizer_strips_scaffold_labels(self):
+        # 模型把「第一行＝」「為何值得看：第二行：」等鷹架吐出來 → 應剝除
+        openai_api._post = lambda *a, **k: {"choices": [{"message": {"content":
+            "第一行＝這篇在談 RL 潛在推理\n第二行：值得看它的效率延展性"}}]}
+        s = openai_api.OpenAISummarizer("http://x/v1", "k", "m")
+        positioning, why = s.summarize("t", "a", "LLM 推理")
+        self.assertEqual(positioning, "這篇在談 RL 潛在推理")
+        self.assertEqual(why, "值得看它的效率延展性")
+
+    def test_clean_line_variants(self):
+        self.assertEqual(openai_api._clean_line("第一行：內容"), "內容")
+        self.assertEqual(openai_api._clean_line("定位＝內容"), "內容")
+        self.assertEqual(openai_api._clean_line("1. 內容"), "內容")
+        self.assertEqual(openai_api._clean_line("正常一句話"), "正常一句話")
+
     def test_factory_offline_without_key(self):
         cfg = Config(backend="offline")
         self.assertIsInstance(make_embedder(cfg), HashingEmbedder)

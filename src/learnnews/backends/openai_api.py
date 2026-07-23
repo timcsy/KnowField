@@ -8,10 +8,25 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 
 from ..ranking.embeddings import Vector, _l2_normalize
+
+# 剝除模型可能吐出的鷹架前綴。標籤字（第一行/定位/…）只有在後面接分隔符時才算
+# 鷹架而剝除——避免把內容裡本就以「定位」「為何值得看」開頭的正常句子誤刪。
+_LABEL_RE = re.compile(
+    r"^\s*"
+    r"(?:[-•*]+\s*)?"                                              # 項目符號
+    r"(?:\d+[.、)]\s*)?"                                           # 編號 1. / 1、
+    r"(?:(?:第[一二]行|定位|為何值得看|why|positioning)\s*[＝=：:\-–、.]+\s*)?"  # 標籤＋必要分隔符
+    r"(?:[＝=：]+\s*)?"                                            # 殘留的起首分隔符
+)
+
+
+def _clean_line(text: str) -> str:
+    return _LABEL_RE.sub("", text).strip()
 
 
 class OpenAIError(RuntimeError):
@@ -66,9 +81,10 @@ class OpenAISummarizer:
         "嚴禁做任何結論式判斷、評價或深度分析——你的工作只是分診，不是代替使用者思考。"
     )
     _USER = (
-        "為這則內容產生兩行：\n"
-        "第一行＝一句定位（這則在談什麼）。\n"
-        "第二行＝一句為何值得看。\n"
+        "直接輸出兩行純文字，不要加任何標籤、編號或引號：\n"
+        "第一行：一句定位（這則在談什麼）。\n"
+        "第二行：一句為何值得看。\n"
+        "（只要內容本身，不要把「第一行」「定位」等字樣寫進去。）\n"
         "標題：{title}\n摘要：{abstract}\n關注主題：{topic}"
     )
 
@@ -89,7 +105,7 @@ class OpenAISummarizer:
             ],
         })
         text = data["choices"][0]["message"]["content"].strip()
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        lines = [_clean_line(ln) for ln in text.splitlines() if _clean_line(ln)]
         positioning = lines[0] if lines else f"這則談的是「{title}」"
         why = lines[1] if len(lines) > 1 else "值得快速判斷"
         return positioning, why
