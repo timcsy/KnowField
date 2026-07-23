@@ -19,6 +19,7 @@ knowie-next／judge 連續多次把它標為 skill candidate（重複手動操�
 ## 待辦（另記）
 - 真實後端散文忠實度抽查仍待做——API 額度 `allocation_quarantined`（403）尚未解除
   （2026-07-23 再測仍隔離）。解除後執行，見 experience 教訓 2、history/010。
+  **（後續：同日稍後隔離解除，抽查已完成並通過，見 `history/012`。此待辦關閉。）**
 
 ## 狀態
 ✅ 已採用
