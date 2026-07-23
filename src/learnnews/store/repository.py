@@ -136,6 +136,27 @@ class Repository:
             (d.date, d.truncated_count,
              json.dumps(d.missing_sources, ensure_ascii=False)),
         )
+        digest_id = cur.lastrowid or 0
+        for e in d.entries:
+            self.conn.execute(
+                "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic)"
+                " VALUES (?,?,?,?,?)",
+                (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic),
+            )
         self.conn.commit()
-        d.id = cur.lastrowid
-        return cur.lastrowid or 0
+        d.id = digest_id
+        return digest_id
+
+    def get_last_digest_entry(self, rank: int) -> dict | None:
+        """US2：取最近一次匯整的第 rank 則（title＋matched_topic）。"""
+        row = self.conn.execute("SELECT MAX(id) AS mid FROM digests").fetchone()
+        if not row or row["mid"] is None:
+            return None
+        entry = self.conn.execute(
+            "SELECT title, url, matched_topic FROM digest_entries"
+            " WHERE digest_id=? AND rank=?", (row["mid"], rank)
+        ).fetchone()
+        if entry is None:
+            return None
+        return {"title": entry["title"], "url": entry["url"],
+                "matched_topic": entry["matched_topic"]}

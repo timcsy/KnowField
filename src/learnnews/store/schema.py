@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS digests (
     missing_sources TEXT DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS digest_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    digest_id INTEGER NOT NULL,
+    rank INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    matched_topic TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS behavior_signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL,

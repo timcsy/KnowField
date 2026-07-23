@@ -98,6 +98,7 @@ class DigestEntry:
     rank: int
     relevance_score: float
     summary: Summary | None = None
+    matched_topic: str = ""
 
 
 @dataclass

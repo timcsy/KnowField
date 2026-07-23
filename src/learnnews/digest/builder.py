@@ -75,7 +75,8 @@ class DigestBuilder:
         for rank, s in enumerate(top, start=1):
             summary = self.summary_builder.build(s.item, s.matched_topic)
             entries.append(DigestEntry(
-                item=s.item, rank=rank, relevance_score=s.score, summary=summary))
+                item=s.item, rank=rank, relevance_score=s.score, summary=summary,
+                matched_topic=s.matched_topic))
 
         digest = Digest(date=date, entries=entries, truncated_count=truncated,
                         missing_sources=missing)

@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from ..backends.factory import make_embedder, make_summarizer
+from ..backends.openai_api import OpenAIError
 from ..config import Config
 from ..digest.builder import DigestBuilder
 from ..logging_setup import get_logger
@@ -73,7 +74,15 @@ def handle(args) -> int:
     adapters = build_adapters(sources)
     date = args.date or datetime(2026, 7, 23).date().isoformat()
     builder = build_backend_builder(config)
-    digest = run_digest(repo, adapters, date, limit=args.limit, builder=builder)
+    try:
+        digest = run_digest(repo, adapters, date, limit=args.limit, builder=builder)
+    except OpenAIError as e:
+        _log.error("後端失敗", extra={"extra": {"reason": str(e)}})
+        print(f"❌ 真實後端（OpenAI 格式 API）失敗：{e}\n"
+              f"　可稍後重試，或設 LEARNNEWS_BACKEND=offline 用離線後端。")
+        repo.close()
+        return 1
+    repo.save_digest(digest)  # 落庫供拉模式 --from-digest 使用（US2）
     fmt = "json" if args.json else args.format
     output = render(digest, fmt)
     if args.output:

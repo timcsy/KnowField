@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import digest_cmd, interests_cmd, sources_cmd
+from . import digest_cmd, interests_cmd, pull_cmd, sources_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,6 +33,18 @@ def build_parser() -> argparse.ArgumentParser:
     iset = isub.add_parser("set")
     iset.add_argument("topics", nargs="+")
     i.set_defaults(func=interests_cmd.handle)
+
+    # pull
+    pl = sub.add_parser("pull", help="對主題擴展、去重、溯源（拉模式）")
+    pl.add_argument("topic", nargs="?", default=None, help="要深挖的主題")
+    pl.add_argument("--limit", type=int, default=30)
+    pl.add_argument("--raw", "--no-summary", dest="raw", action="store_true",
+                    help="純原礦：僅標題＋來源＋連結，不生成任何文字")
+    pl.add_argument("--from-digest", dest="from_digest", type=int, default=None,
+                    help="以最近匯整第 N 則的主題發起拉取")
+    pl.add_argument("--format", choices=["terminal", "markdown"], default="terminal")
+    pl.add_argument("--output", default=None)
+    pl.set_defaults(func=pull_cmd.handle)
 
     # sources
     s = sub.add_parser("sources", help="檢視/啟用來源")

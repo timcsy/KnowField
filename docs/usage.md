@@ -35,9 +35,21 @@ uv run learnnews digest --date 2026-07-23 --limit 15
 
 | 指令 | 說明 |
 |---|---|
-| `learnnews digest [--date D] [--limit N] [--format terminal\|markdown] [--output PATH] [--json]` | 產出當日匯整 |
+| `learnnews digest [--date D] [--limit N] [--format terminal\|markdown] [--output PATH] [--json]` | 產出當日匯整（推模式：分診） |
+| `learnnews pull <主題> [--limit N] [--raw] [--from-digest N] [--format ...] [--json]` | 對主題擴展、去重、溯源（拉模式：深挖） |
 | `learnnews interests list\|add <主題>\|remove <主題>\|set <主題...>` | 管理興趣清單（明講優先於學習） |
 | `learnnews sources list\|enable <id>\|disable <id>` | 檢視／啟用來源 |
+
+### 拉模式（深挖某主題）
+
+```bash
+uv run learnnews pull "latent reasoning" --limit 20   # 預設每則附一句定位
+uv run learnnews pull "latent reasoning" --raw        # 純原礦：只給標題＋來源＋連結
+uv run learnnews pull --from-digest 3                  # 從最近匯整第 3 則的主題深挖
+```
+
+拉是**溯源**：跨來源擴展搜尋該主題（arXiv 用主題查詢、其餘依相關性過濾）、去重、排序、
+直達原文；工具只鋪原礦、不下結論（原則 4）。與推（每日分診）互補。
 
 ## 設計原則（為什麼這樣做）
 
