@@ -15,13 +15,18 @@ __all__ = ["Article", "Figure", "ArticleBackend", "StubArticleBackend", "Article
 
 
 class ArticleBackend(Protocol):
-    def write_article(self, title: str, abstract: str, matched_topic: str) -> str: ...
+    def write_article(self, title: str, abstract: str,
+                      matched_topic: str) -> tuple[str, str]:
+        """回傳 (整理過的新聞式標題, 散文本體)。"""
+        ...
 
 
 class StubArticleBackend:
-    """確定性散文（離線、可測）。只依原文標題/前文，不捏造、不下結論。"""
+    """確定性散文（離線、可測）。只依原文標題/前文，不捏造、不下結論。
+    離線無法真正「整理」標題，headline 退回原標題（渲染端會避免重複顯示）。"""
 
-    def write_article(self, title: str, abstract: str, matched_topic: str) -> str:
+    def write_article(self, title: str, abstract: str,
+                      matched_topic: str) -> tuple[str, str]:
         parts = [f"這篇在談「{title.strip()}」。"]
         if abstract.strip():
             parts.append(abstract.strip())
@@ -29,7 +34,7 @@ class StubArticleBackend:
             parts.append(f"它與你關注的「{matched_topic}」相關；完整細節見原文。")
         else:
             parts.append("完整細節見原文。")
-        return " ".join(parts)
+        return title.strip(), " ".join(parts)
 
 
 # 抓圖／AI 圖為可注入的 callable，預設 None（US1 無圖）
@@ -57,9 +62,11 @@ class ArticleBuilder:
     ) -> Article:
         # 散文：後端失敗 → 優雅降級為精簡呈現（FR-011），不中斷
         try:
-            body = self.backend.write_article(item.title, item.abstract, matched_topic)
+            headline, body = self.backend.write_article(
+                item.title, item.abstract, matched_topic)
             degraded = False
         except OpenAIError as e:
+            headline = item.title
             body = f"（消化暫不可用：{e}）標題：{item.title}"
             degraded = True
 
@@ -70,5 +77,5 @@ class ArticleBuilder:
             if figure is None and ai_image and self.ai_image_gen:
                 figure = self.ai_image_gen(item)              # 退 AI 示意（必標示）
 
-        return Article(item_id=item.id or 0, body=body,
-                       source_url=item.url, figure=figure, degraded=degraded)
+        return Article(item_id=item.id or 0, body=body, source_url=item.url,
+                       headline=headline, figure=figure, degraded=degraded)

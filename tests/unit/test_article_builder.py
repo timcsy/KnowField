@@ -30,6 +30,20 @@ class TestArticleBuilder(unittest.TestCase):
         # 不應憑空出現百分比等數據
         self.assertNotIn("%", a.body)
 
+    def test_headline_from_backend(self):
+        class _Backend:
+            def write_article(self, title, abstract, matched_topic):
+                return "整理過的新聞標題", "本體散文。"
+        item = make_item("Some English Paper Title", external_id="9", url="https://a/9")
+        a = ArticleBuilder(backend=_Backend()).build(item, "agent")
+        self.assertEqual(a.headline, "整理過的新聞標題")
+        self.assertEqual(a.body, "本體散文。")
+
+    def test_stub_headline_defaults_to_title(self):
+        item = make_item("原標題", external_id="8", url="https://a/8", abstract="x")
+        a = ArticleBuilder().build(item, "agent")
+        self.assertEqual(a.headline, "原標題")   # 離線無法整理 → 退回原標題
+
     def test_graceful_degrade_on_backend_failure(self):
         item = make_item("agent", external_id="3", url="https://a/3")
         a = ArticleBuilder(backend=_FailBackend()).build(item, "agent")

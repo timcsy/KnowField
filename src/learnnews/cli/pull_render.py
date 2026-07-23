@@ -34,7 +34,11 @@ def _entry_block(e: PullEntry, is_md: bool, raw: bool) -> list[str]:
         lines.append(f"    原文：{e.item.url}")
         return lines
     a = e.article
+    headline = a.headline or e.item.title
+    head = f"{'## ' if is_md else '• '}[{e.rank}] {headline}"
     lines.append(head)
+    if headline.strip() != e.item.title.strip():          # 原標題保留供溯源
+        lines.append(f"{'*原標題：' if is_md else '    原標題：'}{e.item.title}{'*' if is_md else ''}")
     if a.figure:
         if is_md:
             lines.append(f"![{a.figure.label()}]({a.figure.url})")
@@ -50,6 +54,7 @@ def _render_json(result: PullResult, raw: bool) -> str:
         d = {"rank": e.rank, "relevance_score": round(e.relevance_score, 4),
              "title": e.item.title, "url": e.item.url}
         if not raw and e.article is not None:
+            d["headline"] = e.article.headline or e.item.title
             d["article"] = e.article.body
             if e.article.figure:
                 d["figure"] = {"kind": e.article.figure.kind,

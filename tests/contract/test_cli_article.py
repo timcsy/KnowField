@@ -35,6 +35,22 @@ class TestCliArticle(unittest.TestCase):
         self.assertIn("agent 記憶研究前文", out)
         self.assertIn("原文：https://a/2", out)
 
+    def test_curated_headline_with_original_subtitle(self):
+        # 整理過的標題當標頭，原標題保留為副標（溯源）
+        from learnnews.pull.service import PullService
+        from learnnews.summarize.article import ArticleBuilder
+
+        class _Backend:
+            def write_article(self, title, abstract, matched_topic):
+                return "整理過的新聞標題", "本體。"
+        item = make_item("agent 原始標題", external_id="3",
+                         url="https://a/3", abstract="x")
+        svc = PullService(article_builder=ArticleBuilder(backend=_Backend()))
+        result = run_pull([FakeAdapter("s", [item])], "agent", service=svc)
+        out = pull_render(result, "markdown")
+        self.assertIn("整理過的新聞標題", out)          # 新聞式標題當標頭
+        self.assertIn("原標題：agent 原始標題", out)     # 原標題保留供溯源
+
 
 if __name__ == "__main__":
     unittest.main()

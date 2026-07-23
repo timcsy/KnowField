@@ -114,6 +114,7 @@ class Article:
     item_id: int
     body: str
     source_url: str
+    headline: str = ""          # 整理過的新聞式標題（消化產出；原標題另存於 item.title）
     figure: Figure | None = None
     degraded: bool = False
 

@@ -80,12 +80,16 @@ class OpenAIArticleWriter:
 
     _SYSTEM = (
         "你是 AI 新聞/論文的消化助手。**只用{lang}**（無論原文是什麼語言，都翻譯／改寫成"
-        "{lang}），把一則材料寫成一篇可讀的散文短文（連貫段落，不要列點）。要求：\n"
+        "{lang}）。輸出格式：\n"
+        "第一行：一個整理過、像新聞標題的精煉標題（{lang}，不要加「標題：」等字樣、不要引號）。\n"
+        "空一行。\n"
+        "接著：一篇可讀的散文短文（連貫段落，不要列點）。\n"
+        "要求：\n"
         "1) 忠實傳達原文的重點、關鍵數據與適用時機；**原文沒有的數據絕對不要寫**。\n"
         "2) **不要下你自己的結論、評價或趨勢外推**——你在傳達原文，不是給觀點。\n"
         "3) 完整傳達重要訊息優先於長短，但不要為湊字數灌水。"
     )
-    _USER = "標題：{title}\n原文前文/摘要：{abstract}\n讀者關注主題：{topic}\n\n請寫成散文短文。"
+    _USER = "原標題：{title}\n原文前文/摘要：{abstract}\n讀者關注主題：{topic}"
 
     def __init__(self, base_url: str, api_key: str, model: str,
                  lang: str = "繁體中文") -> None:
@@ -94,10 +98,11 @@ class OpenAIArticleWriter:
         self.model = model
         self.lang = lang
 
-    def write_article(self, title: str, abstract: str, matched_topic: str) -> str:
+    def write_article(self, title: str, abstract: str,
+                      matched_topic: str) -> tuple[str, str]:
         data = _post(self.base_url, "/chat/completions", self.api_key, {
             "model": self.model,
-            "max_tokens": 800,
+            "max_tokens": 900,
             "temperature": 0.3,
             "messages": [
                 {"role": "system", "content": self._SYSTEM.format(lang=self.lang)},
@@ -105,7 +110,12 @@ class OpenAIArticleWriter:
                     title=title, abstract=(abstract or "")[:2000], topic=matched_topic)},
             ],
         })
-        return data["choices"][0]["message"]["content"].strip()
+        text = data["choices"][0]["message"]["content"].strip()
+        # 第一段（到第一個空行）為標題，其餘為本體
+        parts = text.split("\n", 1)
+        headline = parts[0].strip().lstrip("#").strip() or title
+        body = parts[1].strip() if len(parts) > 1 else text
+        return headline, body
 
 
 class OpenAISummarizer:
