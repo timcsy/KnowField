@@ -1,27 +1,43 @@
-"""匯整輸出渲染（繁中終端／Markdown／JSON）。面向使用者文字皆繁中（FR-010）。"""
+"""匯整輸出渲染（繁中終端／Markdown／JSON）。散文文章＋圖；--raw 純原礦（FR-010）。"""
 
 from __future__ import annotations
 
 import json
 
-from ..models import Digest
+from ..models import Digest, DigestEntry
 
 
-def render(digest: Digest, fmt: str = "terminal") -> str:
+def render(digest: Digest, fmt: str = "terminal", raw: bool = False) -> str:
     if fmt == "json":
-        return _render_json(digest)
-    if fmt == "markdown":
-        return _render_markdown(digest)
-    return _render_terminal(digest)
+        return _render_json(digest, raw)
+    is_md = fmt == "markdown"
+    header = f"{'# ' if is_md else '📰 '}{digest.date} 每日分診匯整"
+    lines = [header, ""]
+    if digest.is_empty:
+        lines.append("（今日沒有符合你興趣的新條目。）")
+    else:
+        for e in digest.entries:
+            lines.extend(_entry_block(e, is_md, raw))
+            lines.append("")
+    lines.extend(_footer(digest))
+    return "\n".join(lines).rstrip() + "\n"
 
 
-def _entry_lines(digest: Digest, bullet: str) -> list[str]:
+def _entry_block(e: DigestEntry, is_md: bool, raw: bool) -> list[str]:
     lines: list[str] = []
-    for e in digest.entries:
-        s = e.summary
-        lines.append(f"{bullet} [{e.rank}] {s.positioning}")
-        lines.append(f"    為何值得看：{s.why_worth}")
+    if raw or e.article is None:
+        lines.append(f"{'## ' if is_md else '• '}[{e.rank}] {e.item.title}")
         lines.append(f"    原文：{e.item.url}")
+        return lines
+    a = e.article
+    lines.append(f"{'## ' if is_md else '• '}[{e.rank}] {e.item.title}")
+    if a.figure:
+        if is_md:
+            lines.append(f"![{a.figure.label()}]({a.figure.url})")
+        else:
+            lines.append(f"    圖：{a.figure.url}（{a.figure.label()}）")
+    lines.append(a.body)
+    lines.append(f"{'' if is_md else '    '}原文：{a.source_url}")
     return lines
 
 
@@ -34,40 +50,24 @@ def _footer(digest: Digest) -> list[str]:
     return lines
 
 
-def _render_terminal(digest: Digest) -> str:
-    header = f"📰 {digest.date} 每日分診匯整"
-    if digest.is_empty:
-        body = ["（今日沒有符合你興趣的新條目。）"]
-    else:
-        body = _entry_lines(digest, "•")
-    return "\n".join([header, ""] + body + [""] + _footer(digest)).rstrip() + "\n"
+def _render_json(digest: Digest, raw: bool) -> str:
+    def entry(e: DigestEntry) -> dict:
+        d = {"rank": e.rank, "relevance_score": round(e.relevance_score, 4),
+             "title": e.item.title, "url": e.item.url}
+        if not raw and e.article is not None:
+            d["article"] = e.article.body
+            d["degraded"] = e.article.degraded
+            if e.article.figure:
+                d["figure"] = {"kind": e.article.figure.kind,
+                               "url": e.article.figure.url,
+                               "label": e.article.figure.label()}
+        return d
 
-
-def _render_markdown(digest: Digest) -> str:
-    header = f"# {digest.date} 每日分診匯整"
-    if digest.is_empty:
-        body = ["_今日沒有符合你興趣的新條目。_"]
-    else:
-        body = _entry_lines(digest, "-")
-    return "\n".join([header, ""] + body + [""] + _footer(digest)).rstrip() + "\n"
-
-
-def _render_json(digest: Digest) -> str:
     payload = {
         "date": digest.date,
         "is_empty": digest.is_empty,
         "truncated_count": digest.truncated_count,
         "missing_sources": digest.missing_sources,
-        "entries": [
-            {
-                "rank": e.rank,
-                "relevance_score": round(e.relevance_score, 4),
-                "title": e.item.title,
-                "url": e.item.url,
-                "positioning": e.summary.positioning,
-                "why_worth": e.summary.why_worth,
-            }
-            for e in digest.entries
-        ],
+        "entries": [entry(e) for e in digest.entries],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)

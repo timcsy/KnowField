@@ -5,18 +5,18 @@
 
 from __future__ import annotations
 
-from ..backends.factory import make_embedder, make_summarizer
+from ..backends.factory import make_article_backend, make_ai_image_gen, make_embedder
 from ..backends.openai_api import OpenAIError
 from ..config import Config
 from ..logging_setup import get_logger
+from ..media.figure_extract import extract_figure
 from ..pull.service import PullService
 from ..pull.topic_query import endpoint_for
 from ..pull.types import PullResult
 from ..ranking.relevance import RelevanceRanker
 from ..sources.base import SourceAdapter
 from ..store.repository import Repository
-from ..summarize.summarizer import SummaryBuilder
-from .render import render as _unused  # noqa: F401  (保持 cli 匯入一致)
+from ..summarize.article import ArticleBuilder
 from .pull_render import render
 
 _log = get_logger("learnnews.cli")
@@ -24,11 +24,15 @@ _log = get_logger("learnnews.cli")
 
 def build_backend_pull_service(config: Config) -> PullService:
     embedder = make_embedder(config)
-    summarizer = make_summarizer(config)
+    article_builder = ArticleBuilder(
+        backend=make_article_backend(config),
+        figure_extractor=extract_figure,
+        ai_image_gen=make_ai_image_gen(config),
+    )
     return PullService(
         embedder=embedder,
         ranker=RelevanceRanker(embedder=embedder, threshold=config.relevance_threshold),
-        summary_builder=SummaryBuilder(backend=summarizer),
+        article_builder=article_builder,
         dedup_threshold=config.dedup_similarity,
     )
 
@@ -53,9 +57,11 @@ def run_pull(
     limit: int = 30,
     with_summary: bool = True,
     service: PullService | None = None,
+    ai_image: bool = False,
 ) -> PullResult:
     service = service or PullService()
-    return service.pull(topic, adapters, limit=limit, with_summary=with_summary)
+    return service.pull(topic, adapters, limit=limit, with_summary=with_summary,
+                        with_image=with_summary, ai_image=ai_image)
 
 
 def _resolve_topic(args, repo: Repository) -> str | None:
@@ -84,12 +90,13 @@ def handle(args) -> int:
         return 2
 
     with_summary = not args.raw
+    ai_image = getattr(args, "ai_image", False)
     sources = repo.list_sources(enabled_only=True)
     adapters = build_pull_adapters(sources, topic, max_results=args.limit)
     service = build_backend_pull_service(config)
     try:
         result = run_pull(adapters, topic, limit=args.limit,
-                          with_summary=with_summary, service=service)
+                          with_summary=with_summary, service=service, ai_image=ai_image)
     except OpenAIError as e:
         _log.error("後端失敗", extra={"extra": {"reason": str(e)}})
         print(f"❌ 真實後端（OpenAI 格式 API）失敗：{e}\n"

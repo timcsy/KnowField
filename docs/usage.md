@@ -49,7 +49,21 @@ uv run learnnews pull --from-digest 3                  # 從最近匯整第 3 �
 ```
 
 拉是**溯源**：跨來源擴展搜尋該主題（arXiv 用主題查詢、其餘依相關性過濾）、去重、排序、
-直達原文；工具只鋪原礦、不下結論（原則 4）。與推（每日分診）互補。
+直達原文。與推（每日分診）互補。
+
+### 消化＝可讀散文＋圖（`--format markdown`）
+
+推與拉的每則材料，預設消化成**一篇可讀散文**（完整傳達重點/數據/適用時機），每則一鍵
+直達原文。`markdown` 格式可內嵌配圖：
+
+```bash
+uv run learnnews digest --format markdown            # 散文消化
+uv run learnnews digest --format markdown --ai-image # 無原文圖時允許 AI 示意圖（會標「AI 示意・非原文」）
+uv run learnnews digest --raw                        # 純原礦：只標題＋來源＋連結，不生成文字/圖
+```
+
+原則：消化以省時，但**每則保留一鍵原文**（原則 3/4）；散文忠實原文、不下工具自己的
+結論；配圖優先取自原文，AI 圖必明確標示。
 
 ## 設計原則（為什麼這樣做）
 

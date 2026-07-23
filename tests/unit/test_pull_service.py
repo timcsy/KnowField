@@ -27,16 +27,16 @@ class TestPullService(unittest.TestCase):
         result = self.svc.pull("agent", [FakeAdapter("s1", [a]), FakeAdapter("s2", [b])])
         self.assertEqual(len(result.entries), 1)
 
-    def test_with_summary_default(self):
+    def test_with_article_default(self):
         item = make_item("agent 記憶", external_id="1", url="https://a/1")
         result = self.svc.pull("agent", [FakeAdapter("s", [item])])
-        self.assertIsNotNone(result.entries[0].summary)
-        self.assertLessEqual(count_sentences(result.entries[0].summary.text()), 2)
+        self.assertIsNotNone(result.entries[0].article)
+        self.assertTrue(result.entries[0].article.body.strip())
 
-    def test_raw_no_summary(self):
+    def test_raw_no_article(self):
         item = make_item("agent 記憶", external_id="1", url="https://a/1")
         result = self.svc.pull("agent", [FakeAdapter("s", [item])], with_summary=False)
-        self.assertIsNone(result.entries[0].summary)
+        self.assertIsNone(result.entries[0].article)
 
     def test_limit_and_truncation(self):
         # 彼此不同的 agent 相關標題（避免語義去重合併）

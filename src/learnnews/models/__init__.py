@@ -93,11 +93,37 @@ class InterestProfile:
 
 
 @dataclass
+class Figure:
+    """配圖（spec 003）。kind＝原文/AI 示意。"""
+
+    kind: str          # "原文" | "AI 示意"
+    url: str
+    source_note: str = ""
+
+    def label(self) -> str:
+        """渲染標籤；AI 圖必帶明確標示（FR-007）。"""
+        if self.kind == "AI 示意":
+            return "AI 示意・非原文"
+        return self.source_note or "取自原文"
+
+
+@dataclass
+class Article:
+    """可讀文章式消化（spec 003），取代 Summary 為預設消化產物。"""
+
+    item_id: int
+    body: str
+    source_url: str
+    figure: Figure | None = None
+    degraded: bool = False
+
+
+@dataclass
 class DigestEntry:
     item: Item
     rank: int
     relevance_score: float
-    summary: Summary | None = None
+    article: Article | None = None    # 取代 summary（--raw 時為 None）
     matched_topic: str = ""
 
 

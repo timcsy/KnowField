@@ -1,11 +1,10 @@
-"""T019：原文連結 100%（情境 C）＋摘要封頂不代勞（情境 D）。"""
+"""T019：原文連結 100%（情境 C）＋散文消化（spec 003 後不再封頂）。"""
 
 import unittest
 
 from learnnews.cli.digest_cmd import run_digest
 from learnnews.models import InterestProfile
 from learnnews.store.repository import Repository
-from learnnews.summarize.summarizer import count_sentences
 from tests.helpers import FakeAdapter, make_item
 
 
@@ -27,11 +26,15 @@ class TestDigestQuality(unittest.TestCase):
         for e in digest.entries:
             self.assertTrue(e.item.url.strip())  # SC-003：100% 有原文連結
 
-    def test_summary_capped_two_sentences(self):
-        item = make_item("agent 記憶機制", external_id="3", url="https://a/3")
+    def test_every_entry_has_readable_article(self):
+        # spec 003：改為可讀散文（不再封頂於一句定位），每則附一鍵原文
+        item = make_item("agent 記憶機制", external_id="3", url="https://a/3",
+                         abstract="這是關於 agent 記憶的研究前文。")
         digest = run_digest(self.repo, [FakeAdapter("s", [item])], "2026-07-23")
         for e in digest.entries:
-            self.assertLessEqual(count_sentences(e.summary.text()), 2)  # SC-004
+            self.assertIsNotNone(e.article)
+            self.assertTrue(e.article.body.strip())
+            self.assertEqual(e.article.source_url, e.item.url)  # 一鍵原文
 
 
 if __name__ == "__main__":

@@ -8,11 +8,11 @@ from tests.helpers import FakeAdapter, make_item
 
 
 class TestPullModes(unittest.TestCase):
-    def test_raw_produces_no_summary(self):
+    def test_raw_produces_no_article(self):
         item = make_item("agent 規劃", external_id="1", url="https://a/1")
         result = run_pull([FakeAdapter("s", [item])], "agent", with_summary=False)
         for e in result.entries:
-            self.assertIsNone(e.summary)   # 未生成任何文字（未呼叫 LLM）
+            self.assertIsNone(e.article)   # 未生成任何文字（未呼叫 LLM）
 
     def test_missing_source_recorded(self):
         good = make_item("agent 規劃", external_id="1", url="https://a/1")

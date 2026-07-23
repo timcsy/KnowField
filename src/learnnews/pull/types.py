@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..models import Item, Summary
+from ..models import Article, Item
 
 
 @dataclass
@@ -19,7 +19,7 @@ class PullEntry:
     item: Item
     rank: int
     relevance_score: float
-    summary: Summary | None = None  # --raw 時為 None
+    article: Article | None = None  # 取代 summary（--raw 時為 None）
 
 
 @dataclass

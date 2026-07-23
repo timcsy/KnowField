@@ -19,3 +19,21 @@ def make_summarizer(config: Config) -> Summarizer:
         from .openai_api import OpenAISummarizer
         return OpenAISummarizer(config.api_base_url, config.api_key, config.chat_model)
     return StubSummarizer()
+
+
+def make_article_backend(config: Config):
+    """散文後端：真實走 OpenAI 格式 chat，否則離線 stub。"""
+    from ..summarize.article import StubArticleBackend
+    if config.backend == "openai" and config.api_key:
+        from .openai_api import OpenAIArticleWriter
+        return OpenAIArticleWriter(config.api_base_url, config.api_key, config.chat_model)
+    return StubArticleBackend()
+
+
+def make_ai_image_gen(config: Config):
+    """AI 示意圖產生器：真實走 OpenAI 格式 images，否則離線 stub。"""
+    if config.backend == "openai" and config.api_key:
+        from ..media.ai_image import OpenAIAIImage
+        return OpenAIAIImage(config)
+    from ..media.ai_image import StubAIImage
+    return StubAIImage()

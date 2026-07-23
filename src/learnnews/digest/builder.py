@@ -14,7 +14,7 @@ from ..models import Digest, DigestEntry, Item
 from ..ranking.embeddings import Embedder, HashingEmbedder
 from ..ranking.relevance import RelevanceRanker
 from ..sources.base import SourceAdapter, SourceUnavailable
-from ..summarize.summarizer import SummaryBuilder
+from ..summarize.article import ArticleBuilder
 
 _log = get_logger("learnnews.digest")
 
@@ -24,12 +24,12 @@ class DigestBuilder:
         self,
         embedder: Embedder | None = None,
         ranker: RelevanceRanker | None = None,
-        summary_builder: SummaryBuilder | None = None,
+        article_builder: ArticleBuilder | None = None,
         dedup_threshold: float = 0.82,
     ) -> None:
         self.embedder = embedder or HashingEmbedder()
         self.ranker = ranker or RelevanceRanker(embedder=self.embedder)
-        self.summary_builder = summary_builder or SummaryBuilder()
+        self.article_builder = article_builder or ArticleBuilder()
         self.dedup_threshold = dedup_threshold
 
     def build(
@@ -40,6 +40,9 @@ class DigestBuilder:
         learned_weights: dict[str, float] | None = None,
         limit: int = 15,
         since: datetime | None = None,
+        with_article: bool = True,
+        with_image: bool = True,
+        ai_image: bool = False,
     ) -> Digest:
         since = since or datetime(1970, 1, 1)
         collected: list[Item] = []
@@ -73,9 +76,12 @@ class DigestBuilder:
 
         entries: list[DigestEntry] = []
         for rank, s in enumerate(top, start=1):
-            summary = self.summary_builder.build(s.item, s.matched_topic)
+            # --raw（with_article=False）：完全不呼叫散文/圖後端（SC-006）
+            article = (self.article_builder.build(
+                s.item, s.matched_topic, with_image=with_image, ai_image=ai_image)
+                if with_article else None)
             entries.append(DigestEntry(
-                item=s.item, rank=rank, relevance_score=s.score, summary=summary,
+                item=s.item, rank=rank, relevance_score=s.score, article=article,
                 matched_topic=s.matched_topic))
 
         digest = Digest(date=date, entries=entries, truncated_count=truncated,

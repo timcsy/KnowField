@@ -57,7 +57,10 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     rank INTEGER NOT NULL,
     title TEXT NOT NULL,
     url TEXT NOT NULL,
-    matched_topic TEXT DEFAULT ''
+    matched_topic TEXT DEFAULT '',
+    article_body TEXT DEFAULT '',
+    figure_url TEXT DEFAULT '',
+    figure_kind TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS behavior_signals (

@@ -17,14 +17,15 @@ class TestCliDigest(unittest.TestCase):
     def tearDown(self):
         self.repo.close()
 
-    def test_digest_has_entries_with_links_and_capped_summary(self):
+    def test_digest_has_entries_with_links_and_article(self):
         item = make_item("LLM 推理 最佳化", external_id="2401.1",
                          url="https://arxiv.org/abs/2401.1")
         digest = run_digest(self.repo, [FakeAdapter("arxiv", [item])], "2026-07-23")
         self.assertFalse(digest.is_empty)
         for e in digest.entries:
             self.assertTrue(e.item.url)             # SC-003 原文連結
-            self.assertIsNotNone(e.summary)
+            self.assertIsNotNone(e.article)         # 散文消化（spec 003）
+            self.assertTrue(e.article.body)
 
     def test_render_terminal_is_chinese(self):
         item = make_item("LLM 推理 教學", external_id="2401.2",

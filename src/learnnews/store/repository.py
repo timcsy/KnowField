@@ -138,10 +138,14 @@ class Repository:
         )
         digest_id = cur.lastrowid or 0
         for e in d.entries:
+            body = e.article.body if e.article else ""
+            fig_url = e.article.figure.url if (e.article and e.article.figure) else ""
+            fig_kind = e.article.figure.kind if (e.article and e.article.figure) else ""
             self.conn.execute(
-                "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic)"
-                " VALUES (?,?,?,?,?)",
-                (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic),
+                "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
+                " article_body, figure_url, figure_kind) VALUES (?,?,?,?,?,?,?,?)",
+                (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic,
+                 body, fig_url, fig_kind),
             )
         self.conn.commit()
         d.id = digest_id

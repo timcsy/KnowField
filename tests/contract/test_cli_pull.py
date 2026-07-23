@@ -9,13 +9,14 @@ from tests.helpers import FakeAdapter, make_item
 
 
 class TestCliPull(unittest.TestCase):
-    def test_entries_have_links_and_default_summary(self):
+    def test_entries_have_links_and_default_article(self):
         item = make_item("agent 規劃框架", external_id="1", url="https://arxiv.org/abs/1")
         result = run_pull([FakeAdapter("arxiv", [item])], "agent")
         self.assertFalse(result.is_empty)
         for e in result.entries:
             self.assertTrue(e.item.url)          # 溯源
-            self.assertIsNotNone(e.summary)      # 預設附定位
+            self.assertIsNotNone(e.article)      # 預設附散文
+            self.assertTrue(e.article.body)
 
     def test_raw_mode_no_generated_text(self):
         item = make_item("agent 規劃", external_id="1", url="https://a/1")
@@ -31,13 +32,13 @@ class TestCliPull(unittest.TestCase):
         result = run_pull([FakeAdapter("s", [item])], "agent")
         parsed = json.loads(render(result, "json"))
         self.assertEqual(parsed["topic"], "agent")
-        self.assertIn("positioning", parsed["entries"][0])
+        self.assertIn("article", parsed["entries"][0])
 
-    def test_json_raw_omits_positioning(self):
+    def test_json_raw_omits_article(self):
         item = make_item("agent", external_id="1", url="https://a/1")
         result = run_pull([FakeAdapter("s", [item])], "agent", with_summary=False)
         parsed = json.loads(render(result, "json", raw=True))
-        self.assertNotIn("positioning", parsed["entries"][0])
+        self.assertNotIn("article", parsed["entries"][0])
 
 
 if __name__ == "__main__":

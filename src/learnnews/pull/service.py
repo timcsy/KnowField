@@ -14,7 +14,7 @@ from ..logging_setup import get_logger
 from ..ranking.embeddings import Embedder, HashingEmbedder
 from ..ranking.relevance import RelevanceRanker
 from ..sources.base import SourceAdapter, SourceUnavailable
-from ..summarize.summarizer import SummaryBuilder
+from ..summarize.article import ArticleBuilder
 from .types import PullEntry, PullResult
 
 _log = get_logger("learnnews.pull")
@@ -25,12 +25,12 @@ class PullService:
         self,
         embedder: Embedder | None = None,
         ranker: RelevanceRanker | None = None,
-        summary_builder: SummaryBuilder | None = None,
+        article_builder: ArticleBuilder | None = None,
         dedup_threshold: float = 0.82,
     ) -> None:
         self.embedder = embedder or HashingEmbedder()
         self.ranker = ranker or RelevanceRanker(embedder=self.embedder)
-        self.summary_builder = summary_builder or SummaryBuilder()
+        self.article_builder = article_builder or ArticleBuilder()
         self.dedup_threshold = dedup_threshold
 
     def pull(
@@ -40,6 +40,8 @@ class PullService:
         limit: int = 30,
         with_summary: bool = True,
         since: datetime | None = None,
+        with_image: bool = True,
+        ai_image: bool = False,
     ) -> PullResult:
         since = since or datetime(1970, 1, 1)
         collected = []
@@ -69,10 +71,12 @@ class PullService:
 
         entries: list[PullEntry] = []
         for rank, s in enumerate(top, start=1):
-            # 預設附一句定位；--raw（with_summary=False）完全不呼叫 LLM（SC-007）
-            summary = self.summary_builder.build(s.item, s.matched_topic) if with_summary else None
+            # 預設產可讀散文；--raw（with_summary=False）完全不呼叫後端（SC-006/007）
+            article = (self.article_builder.build(
+                s.item, s.matched_topic, with_image=with_image, ai_image=ai_image)
+                if with_summary else None)
             entries.append(PullEntry(item=s.item, rank=rank,
-                                     relevance_score=s.score, summary=summary))
+                                     relevance_score=s.score, article=article))
 
         result = PullResult(topic=topic, entries=entries,
                             truncated_count=truncated, missing_sources=missing)

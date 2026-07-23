@@ -1,9 +1,8 @@
-"""T007：原文連結 100%（情境 D）＋不代勞不下結論（情境 E）。"""
+"""T007：原文連結 100%（情境 D）＋散文消化（spec 003 後不再封頂）。"""
 
 import unittest
 
 from learnnews.cli.pull_cmd import run_pull
-from learnnews.summarize.summarizer import count_sentences
 from tests.helpers import FakeAdapter, make_item
 
 
@@ -16,12 +15,14 @@ class TestPullQuality(unittest.TestCase):
         for e in result.entries:
             self.assertTrue(e.item.url.strip())      # SC-002 100% 溯源
 
-    def test_default_summary_capped_no_analysis(self):
-        item = make_item("agent 記憶機制", external_id="1", url="https://a/1")
+    def test_default_article_present_with_source(self):
+        item = make_item("agent 記憶機制", external_id="1", url="https://a/1",
+                         abstract="agent 記憶研究前文。")
         result = run_pull([FakeAdapter("s", [item])], "agent")
-        s = result.entries[0].summary
-        # 一句定位、封頂（stub 不做結論式分析）
-        self.assertLessEqual(count_sentences(s.text()), 2)
+        a = result.entries[0].article
+        self.assertIsNotNone(a)
+        self.assertTrue(a.body.strip())
+        self.assertEqual(a.source_url, "https://a/1")  # 一鍵原文
 
     def test_item_without_link_excluded(self):
         from learnnews.models import Item

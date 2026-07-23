@@ -15,11 +15,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     # digest
-    d = sub.add_parser("digest", help="產出當日匯整")
+    d = sub.add_parser("digest", help="產出當日匯整（推：分診＋散文消化）")
     d.add_argument("--date", default=None)
     d.add_argument("--limit", type=int, default=15)
     d.add_argument("--format", choices=["terminal", "markdown"], default="terminal")
     d.add_argument("--output", default=None)
+    d.add_argument("--raw", "--no-summary", dest="raw", action="store_true",
+                   help="純原礦：僅標題＋來源＋連結，不生成散文或圖")
+    d.add_argument("--ai-image", dest="ai_image", action="store_true",
+                   help="無原文圖時允許 AI 示意圖（必標示）")
     d.set_defaults(func=digest_cmd.handle)
 
     # interests
@@ -42,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="純原礦：僅標題＋來源＋連結，不生成任何文字")
     pl.add_argument("--from-digest", dest="from_digest", type=int, default=None,
                     help="以最近匯整第 N 則的主題發起拉取")
+    pl.add_argument("--ai-image", dest="ai_image", action="store_true",
+                    help="無原文圖時允許 AI 示意圖（必標示）")
     pl.add_argument("--format", choices=["terminal", "markdown"], default="terminal")
     pl.add_argument("--output", default=None)
     pl.set_defaults(func=pull_cmd.handle)
