@@ -1,0 +1,32 @@
+[project]
+name = "learnnews"
+version = "0.1.0"
+description = "LearnNews — AI 新聞/論文的每日分診工具（推模式 MVP）"
+requires-python = ">=3.12"
+# MVP 核心以標準函式庫實作，零必要外部相依（YAGNI，離線可測）。
+# 可選的重量級後端（真實 embedding／LLM）以 extras 提供，介面可插拔。
+dependencies = []
+
+[project.optional-dependencies]
+# 生產環境可插拔的真實後端；MVP 與測試不需要。
+backends = [
+    "sentence-transformers>=2.2",
+    "anthropic>=0.40",
+]
+dev = ["pytest>=8"]
+
+[project.scripts]
+learnnews = "learnnews.cli.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
