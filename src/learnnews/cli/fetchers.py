@@ -48,8 +48,9 @@ def build_adapters(sources: list[Source]) -> list[SourceAdapter]:
 
 # 預設來源（2026-07-23 依真實可用性盤點，決策見 knowledge/history/005、006）：
 # 論文骨幹：arXiv API（https，依投稿日排序）＋ HF Daily Papers。
-# 精選新聞（廣度差異化）：Import AI、Last Week in AI——AI 專門策展電子報，訊噪比高，
-#   取代先前雜訊較多的 Google News（見競品地貌研究點名的策展源）。
+# 精選新聞（廣度差異化）：
+#   策展週報：Import AI、Last Week in AI（訊噪比高，取代先前雜訊多的 Google News）；
+#   日更產業新聞：Ars Technica AI（補週報的每日新鮮度，見 history/007）。
 # Semantic Scholar 因 free 端點持續 429 已移除。
 _ARXIV = ("https://export.arxiv.org/api/query?search_query=cat:{cat}"
           "&sortBy=submittedDate&sortOrder=descending&max_results=25")
@@ -65,4 +66,6 @@ DEFAULT_SOURCES = [
            "https://importai.substack.com/feed"),
     Source("last-week-in-ai", "Last Week in AI（策展）", "news", "rss",
            "https://lastweekin.ai/feed"),
+    Source("ars-ai", "Ars Technica AI（日更產業新聞）", "news", "rss",
+           "https://arstechnica.com/ai/feed/"),
 ]
