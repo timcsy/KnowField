@@ -38,6 +38,7 @@ class Config:
     api_key: str = ""
     chat_model: str = "gpt-4o-mini"
     embed_model: str = "text-embedding-3-small"
+    article_lang: str = "繁體中文"      # 消化散文的輸出語言（預設繁中，可由 --lang 指定）
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
@@ -57,4 +58,5 @@ class Config:
             api_key=api_key,
             chat_model=os.environ.get("LEARNNEWS_CHAT_MODEL", "gpt-4o-mini"),
             embed_model=os.environ.get("LEARNNEWS_EMBED_MODEL", "text-embedding-3-small"),
+            article_lang=os.environ.get("LEARNNEWS_LANG", "繁體中文"),
         )

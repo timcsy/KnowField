@@ -60,7 +60,11 @@ uv run learnnews pull --from-digest 3                  # 從最近匯整第 3 �
 uv run learnnews digest --format markdown            # 散文消化
 uv run learnnews digest --format markdown --ai-image # 無原文圖時允許 AI 示意圖（會標「AI 示意・非原文」）
 uv run learnnews digest --raw                        # 純原礦：只標題＋來源＋連結，不生成文字/圖
+uv run learnnews digest --lang English               # 指定消化語言（預設繁體中文）
 ```
+
+消化散文**預設繁體中文**（原文是英文也會翻譯／改寫成繁中）；`--lang` 可指定其他語言。
+註：語言由真實後端（OpenAI 格式 API）產生；離線 stub 無法翻譯，會保留原文語言。
 
 原則：消化以省時，但**每則保留一鍵原文**（原則 3/4）；散文忠實原文、不下工具自己的
 結論；配圖優先取自原文，AI 圖必明確標示。

@@ -26,7 +26,8 @@ def make_article_backend(config: Config):
     from ..summarize.article import StubArticleBackend
     if config.backend == "openai" and config.api_key:
         from .openai_api import OpenAIArticleWriter
-        return OpenAIArticleWriter(config.api_base_url, config.api_key, config.chat_model)
+        return OpenAIArticleWriter(config.api_base_url, config.api_key, config.chat_model,
+                                   lang=config.article_lang)
     return StubArticleBackend()
 
 

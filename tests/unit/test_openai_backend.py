@@ -57,6 +57,24 @@ class TestOpenAIBackend(unittest.TestCase):
         self.assertIsInstance(make_embedder(cfg), openai_api.OpenAIEmbedder)
         self.assertIsInstance(make_summarizer(cfg), openai_api.OpenAISummarizer)
 
+    def test_article_writer_uses_configured_language(self):
+        captured = {}
+
+        def fake_post(base, path, key, payload, timeout=60):
+            captured["payload"] = payload
+            return {"choices": [{"message": {"content": "文章"}}]}
+
+        openai_api._post = fake_post
+        w = openai_api.OpenAIArticleWriter("http://x/v1", "k", "m", lang="日本語")
+        w.write_article("t", "a", "agent")
+        system_msg = captured["payload"]["messages"][0]["content"]
+        self.assertIn("日本語", system_msg)   # 指定語言進入提示
+
+    def test_article_backend_default_language_is_zh(self):
+        from learnnews.backends.factory import make_article_backend
+        w = make_article_backend(Config(backend="openai", api_key="sk-x"))
+        self.assertEqual(w.lang, "繁體中文")  # 預設繁中（FR-010）
+
 
 if __name__ == "__main__":
     unittest.main()

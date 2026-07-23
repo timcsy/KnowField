@@ -79,18 +79,20 @@ class OpenAIArticleWriter:
     """
 
     _SYSTEM = (
-        "你是 AI 新聞/論文的消化助手。只用繁體中文，把一則材料寫成一篇**可讀的散文短文**"
-        "（連貫段落，不要列點）。要求：\n"
+        "你是 AI 新聞/論文的消化助手。**只用{lang}**（無論原文是什麼語言，都翻譯／改寫成"
+        "{lang}），把一則材料寫成一篇可讀的散文短文（連貫段落，不要列點）。要求：\n"
         "1) 忠實傳達原文的重點、關鍵數據與適用時機；**原文沒有的數據絕對不要寫**。\n"
         "2) **不要下你自己的結論、評價或趨勢外推**——你在傳達原文，不是給觀點。\n"
         "3) 完整傳達重要訊息優先於長短，但不要為湊字數灌水。"
     )
     _USER = "標題：{title}\n原文前文/摘要：{abstract}\n讀者關注主題：{topic}\n\n請寫成散文短文。"
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+    def __init__(self, base_url: str, api_key: str, model: str,
+                 lang: str = "繁體中文") -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
+        self.lang = lang
 
     def write_article(self, title: str, abstract: str, matched_topic: str) -> str:
         data = _post(self.base_url, "/chat/completions", self.api_key, {
@@ -98,7 +100,7 @@ class OpenAIArticleWriter:
             "max_tokens": 800,
             "temperature": 0.3,
             "messages": [
-                {"role": "system", "content": self._SYSTEM},
+                {"role": "system", "content": self._SYSTEM.format(lang=self.lang)},
                 {"role": "user", "content": self._USER.format(
                     title=title, abstract=(abstract or "")[:2000], topic=matched_topic)},
             ],

@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="純原礦：僅標題＋來源＋連結，不生成散文或圖")
     d.add_argument("--ai-image", dest="ai_image", action="store_true",
                    help="無原文圖時允許 AI 示意圖（必標示）")
+    d.add_argument("--lang", default=None, help="消化散文的語言（預設繁體中文）")
     d.set_defaults(func=digest_cmd.handle)
 
     # interests
@@ -48,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="以最近匯整第 N 則的主題發起拉取")
     pl.add_argument("--ai-image", dest="ai_image", action="store_true",
                     help="無原文圖時允許 AI 示意圖（必標示）")
+    pl.add_argument("--lang", default=None, help="消化散文的語言（預設繁體中文）")
     pl.add_argument("--format", choices=["terminal", "markdown"], default="terminal")
     pl.add_argument("--output", default=None)
     pl.set_defaults(func=pull_cmd.handle)

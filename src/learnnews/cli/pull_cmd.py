@@ -79,6 +79,8 @@ def handle(args) -> int:
     from .fetchers import DEFAULT_SOURCES
 
     config = Config.from_env()
+    if getattr(args, "lang", None):
+        config.article_lang = args.lang       # --lang 覆寫消化語言
     repo = Repository(args.db)
     if not repo.list_sources():
         for s in DEFAULT_SOURCES:
