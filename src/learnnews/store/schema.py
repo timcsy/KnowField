@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     url TEXT NOT NULL,
     matched_topic TEXT DEFAULT '',
     article_body TEXT DEFAULT '',
+    article_headline TEXT DEFAULT '',
     figure_url TEXT DEFAULT '',
     figure_kind TEXT DEFAULT ''
 );

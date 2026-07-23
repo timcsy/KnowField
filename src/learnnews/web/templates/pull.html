@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ topic or "主題深挖" }} — LearnNews{% endblock %}
+{% block content %}
+  {% if topic %}
+    <h1 class="text-xl font-bold mb-4">🔎 主題「{{ topic }}」拉取結果</h1>
+    {% if entries %}
+      {% for e in entries %}{% include "_entry.html" %}{% endfor %}
+    {% else %}
+      <div class="bg-white border rounded-lg p-8 text-center text-slate-500">
+        查無與「{{ topic }}」相關的材料。
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="bg-white border rounded-lg p-8 text-center text-slate-500">
+      在上方輸入一個主題，即時拉取跨來源的相關材料（散文＋一鍵原文）。
+    </div>
+  {% endif %}
+{% endblock %}

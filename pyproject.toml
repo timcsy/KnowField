@@ -8,7 +8,9 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "httpx>=0.27"]   # httpx：FastAPI TestClient 需要
+# web 介面（階段 6）——框架相依只在此層，核心仍零相依
+web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1", "python-multipart>=0.0.12"]
 
 [project.scripts]
 learnnews = "learnnews.cli.__main__:main"

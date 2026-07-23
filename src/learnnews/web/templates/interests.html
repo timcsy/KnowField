@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}興趣主題 — LearnNews{% endblock %}
+{% block content %}
+  <h1 class="text-xl font-bold mb-4">興趣主題</h1>
+  <form action="/interests/add" method="post" class="flex gap-2 mb-4">
+    <input name="topic" placeholder="新增一個主題…"
+           class="border rounded px-2 py-1 flex-1">
+    <button class="bg-blue-600 text-white rounded px-3 py-1">新增</button>
+  </form>
+  {% if topics %}
+    <ul class="bg-white border rounded-lg divide-y">
+      {% for t in topics %}
+        <li class="flex items-center justify-between px-4 py-2">
+          <span>{{ t }}</span>
+          <form action="/interests/remove" method="post">
+            <input type="hidden" name="topic" value="{{ t }}">
+            <button class="text-sm text-red-500 hover:underline">刪除</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-slate-500">尚未設定任何興趣主題（匯整會採用預設清單）。</p>
+  {% endif %}
+{% endblock %}

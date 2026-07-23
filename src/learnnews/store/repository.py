@@ -7,8 +7,11 @@ import sqlite3
 from datetime import datetime
 
 from ..models import (
+    Article,
     BehaviorSignal,
     Digest,
+    DigestEntry,
+    Figure,
     InterestProfile,
     Item,
     Source,
@@ -139,17 +142,47 @@ class Repository:
         digest_id = cur.lastrowid or 0
         for e in d.entries:
             body = e.article.body if e.article else ""
+            headline = e.article.headline if e.article else ""
             fig_url = e.article.figure.url if (e.article and e.article.figure) else ""
             fig_kind = e.article.figure.kind if (e.article and e.article.figure) else ""
             self.conn.execute(
                 "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
-                " article_body, figure_url, figure_kind) VALUES (?,?,?,?,?,?,?,?)",
+                " article_body, article_headline, figure_url, figure_kind)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
                 (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic,
-                 body, fig_url, fig_kind),
+                 body, headline, fig_url, fig_kind),
             )
         self.conn.commit()
         d.id = digest_id
         return digest_id
+
+    def get_last_digest(self) -> Digest | None:
+        """讀最近一次落庫匯整的全部 entries，組回 Digest（供 web 首頁，data-model.md）。"""
+        row = self.conn.execute(
+            "SELECT id, date, truncated_count, missing_sources FROM digests"
+            " ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        rows = self.conn.execute(
+            "SELECT rank, title, url, matched_topic, article_body, article_headline,"
+            " figure_url, figure_kind FROM digest_entries WHERE digest_id=? ORDER BY rank",
+            (row["id"],),
+        ).fetchall()
+        entries: list[DigestEntry] = []
+        for r in rows:
+            figure = None
+            if r["figure_url"]:
+                figure = Figure(kind=r["figure_kind"], url=r["figure_url"],
+                                source_note="")
+            article = Article(item_id=0, body=r["article_body"], source_url=r["url"],
+                              headline=r["article_headline"], figure=figure)
+            item = Item(source_id="", external_id="", title=r["title"], url=r["url"])
+            entries.append(DigestEntry(item=item, rank=r["rank"], relevance_score=0.0,
+                                       article=article, matched_topic=r["matched_topic"]))
+        return Digest(id=row["id"], date=row["date"], entries=entries,
+                      truncated_count=row["truncated_count"],
+                      missing_sources=json.loads(row["missing_sources"]))
 
     def get_last_digest_entry(self, rank: int) -> dict | None:
         """US2：取最近一次匯整的第 rank 則（title＋matched_topic）。"""

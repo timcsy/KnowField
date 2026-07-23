@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LearnNews{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <header class="bg-white border-b sticky top-0 z-10">
+    <nav class="max-w-3xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
+      <a href="/" class="text-lg font-bold text-slate-900">📰 LearnNews</a>
+      <div class="flex gap-3 text-sm">
+        <a href="/" class="hover:text-blue-600">今日匯整</a>
+        <a href="/pull" class="hover:text-blue-600">主題深挖</a>
+        <a href="/interests" class="hover:text-blue-600">興趣</a>
+      </div>
+      <form action="/pull" method="get" class="ml-auto flex gap-2 w-full sm:w-auto">
+        <input name="topic" placeholder="輸入主題即時拉…" value="{{ topic|default('') }}"
+               class="border rounded px-2 py-1 text-sm flex-1 sm:w-56">
+        <button class="bg-blue-600 text-white text-sm rounded px-3 py-1">拉</button>
+      </form>
+    </nav>
+  </header>
+  <main class="max-w-3xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-3xl mx-auto px-4 py-8 text-xs text-slate-400">
+    LearnNews — 消化以省時，溯源不可省。
+  </footer>
+</body>
+</html>

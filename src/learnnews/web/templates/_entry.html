@@ -1,0 +1,25 @@
+{# 一則消化的呈現，供 digest.html 與 pull.html 共用 #}
+<article class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+  <h2 class="text-lg font-semibold text-slate-900">
+    <a href="{{ e.source_url }}" target="_blank" rel="noopener" class="hover:text-blue-600">{{ e.headline }}</a>
+  </h2>
+  {% if e.show_original %}
+    <p class="text-xs text-slate-400 mt-0.5">原標題：{{ e.original_title }}</p>
+  {% endif %}
+  {% if e.figure %}
+    <figure class="my-3">
+      <img src="{{ e.figure.url }}" loading="lazy" alt="{{ e.figure.label }}"
+           class="rounded max-w-full h-auto border">
+      <figcaption class="text-xs mt-1 {% if e.figure.is_ai %}text-amber-600{% else %}text-slate-400{% endif %}">
+        {{ e.figure.label }}
+      </figcaption>
+    </figure>
+  {% endif %}
+  {% for p in e.paragraphs %}
+    <p class="mt-2 leading-relaxed">{{ p }}</p>
+  {% endfor %}
+  <p class="mt-3 text-sm">
+    <a href="{{ e.source_url }}" target="_blank" rel="noopener"
+       class="text-blue-600 hover:underline">一鍵直達原文 →</a>
+  </p>
+</article>

@@ -4,6 +4,18 @@ LearnNews 是**分診工具**：把 AI 新聞與論文的洪流去重、依你�
 值得點的幾則」，每則附直達原文。深加工（第一性、歸納偏置、外推）由你自己做——
 工具只負責把有價值的原礦準確鋪到你面前。
 
+## Web 介面（階段 6）
+
+```bash
+uv sync --extra web            # 裝 fastapi/uvicorn/jinja2
+uv run learnnews digest        # 先產一份匯整（首頁會讀它）
+uv run uvicorn learnnews.web.app:app --reload   # 開 http://127.0.0.1:8000
+```
+
+首頁看今日匯整（散文＋原文圖內嵌＋一鍵原文）、上方輸入框即時「拉」主題、`/interests`
+管理興趣。RWD（手機/桌面）、全繁中；後端失敗會顯示友善頁面而非錯誤堆疊。框架相依只在
+web 這層，核心仍零相依。
+
 ## 安裝（uv）
 
 本專案以 [uv](https://docs.astral.sh/uv/) 管理環境。MVP 核心零外部相依（純標準函式庫）。
