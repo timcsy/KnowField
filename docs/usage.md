@@ -4,25 +4,29 @@ LearnNews 是**分診工具**：把 AI 新聞與論文的洪流去重、依你�
 值得點的幾則」，每則附直達原文。深加工（第一性、歸納偏置、外推）由你自己做——
 工具只負責把有價值的原礦準確鋪到你面前。
 
-## 安裝
+## 安裝（uv）
 
-MVP 核心零外部相依（純標準函式庫）。
+本專案以 [uv](https://docs.astral.sh/uv/) 管理環境。MVP 核心零外部相依（純標準函式庫）。
 
 ```bash
-pip install -e .
+uv sync --extra dev        # 建立 .venv、安裝專案與 pytest
 ```
 
-真實 embedding／LLM 後端為可選（`pip install -e ".[backends]"`）；MVP 預設使用
-離線的確定性後端即可運作。
+真實 embedding／LLM 後端為可選：`uv sync --extra backends`；MVP 預設使用離線的
+確定性後端即可運作。
+
+執行測試：`uv run pytest`
 
 ## 快速開始
 
+用 `uv run` 執行 CLI（免手動啟用 venv）：
+
 ```bash
 # 1. 設定你關注的主題（明講清單，主控權在你）
-learnnews interests set "LLM 推理" "agent" "編譯器"
+uv run learnnews interests set "LLM 推理" "agent" "編譯器"
 
 # 2. 產出今天的分診匯整
-learnnews digest --date 2026-07-23 --limit 15
+uv run learnnews digest --date 2026-07-23 --limit 15
 ```
 
 輸出每則含：一句定位、一句為何值得看、直達原文連結。結尾標示缺漏來源與未納入則數。
