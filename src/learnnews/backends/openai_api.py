@@ -63,8 +63,10 @@ class OpenAIEmbedder:
         self.dim = 0  # 由第一次回應決定
 
     def embed(self, text: str) -> Vector:
+        # 截斷過長輸入（新聞長文），省成本與延遲；分診相關性靠前段已足夠
+        text = (text or " ")[:2000]
         data = _post(self.base_url, "/embeddings", self.api_key,
-                     {"model": self.model, "input": text or " "})
+                     {"model": self.model, "input": text})
         vec = data["data"][0]["embedding"]
         self.dim = len(vec)
         return _l2_normalize([float(x) for x in vec])

@@ -46,9 +46,11 @@ def build_adapters(sources: list[Source]) -> list[SourceAdapter]:
     return adapters
 
 
-# 預設來源（2026-07-23 依真實可用性盤點，見 history/005）：
-# arXiv API（https，依投稿日排序）＋ HF Daily Papers ＋ Google News AI（廣度：真實新聞）。
-# Semantic Scholar 因 free 端點持續 429 已移除（改由使用者自行加入並自架/退避）。
+# 預設來源（2026-07-23 依真實可用性盤點，決策見 knowledge/history/005、006）：
+# 論文骨幹：arXiv API（https，依投稿日排序）＋ HF Daily Papers。
+# 精選新聞（廣度差異化）：Import AI、Last Week in AI——AI 專門策展電子報，訊噪比高，
+#   取代先前雜訊較多的 Google News（見競品地貌研究點名的策展源）。
+# Semantic Scholar 因 free 端點持續 429 已移除。
 _ARXIV = ("https://export.arxiv.org/api/query?search_query=cat:{cat}"
           "&sortBy=submittedDate&sortOrder=descending&max_results=25")
 
@@ -59,6 +61,8 @@ DEFAULT_SOURCES = [
            _ARXIV.format(cat="cs.CL")),
     Source("hf-papers", "Hugging Face Daily Papers", "paper", "hf_papers",
            "https://huggingface.co/api/daily_papers"),
-    Source("gnews-ai", "Google News：AI（新聞）", "news", "rss",
-           "https://news.google.com/rss/search?q=artificial+intelligence+when:2d&hl=en-US"),
+    Source("import-ai", "Import AI（Jack Clark 策展）", "news", "rss",
+           "https://importai.substack.com/feed"),
+    Source("last-week-in-ai", "Last Week in AI（策展）", "news", "rss",
+           "https://lastweekin.ai/feed"),
 ]
