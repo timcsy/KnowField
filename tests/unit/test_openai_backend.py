@@ -1,0 +1,47 @@
+"""OpenAI 格式後端：解析回應、正規化、後端選擇（mock，不打真實 API）。"""
+
+import math
+import unittest
+
+from learnnews.backends import openai_api
+from learnnews.backends.factory import make_embedder, make_summarizer
+from learnnews.config import Config
+from learnnews.ranking.embeddings import HashingEmbedder
+from learnnews.summarize.llm import StubSummarizer
+
+
+class TestOpenAIBackend(unittest.TestCase):
+    def setUp(self):
+        self._orig = openai_api._post
+
+    def tearDown(self):
+        openai_api._post = self._orig
+
+    def test_embedder_normalizes(self):
+        openai_api._post = lambda *a, **k: {"data": [{"embedding": [3.0, 4.0]}]}
+        emb = openai_api.OpenAIEmbedder("http://x/v1", "k", "text-embedding-3-small")
+        vec = emb.embed("hello")
+        self.assertAlmostEqual(math.sqrt(sum(v * v for v in vec)), 1.0, places=6)
+        self.assertEqual(emb.dim, 2)
+
+    def test_summarizer_parses_two_lines(self):
+        openai_api._post = lambda *a, **k: {
+            "choices": [{"message": {"content": "定位一句\n為何值得看一句"}}]}
+        s = openai_api.OpenAISummarizer("http://x/v1", "k", "gpt-4o-mini")
+        positioning, why = s.summarize("標題", "摘要", "agent")
+        self.assertEqual(positioning, "定位一句")
+        self.assertEqual(why, "為何值得看一句")
+
+    def test_factory_offline_without_key(self):
+        cfg = Config(backend="offline")
+        self.assertIsInstance(make_embedder(cfg), HashingEmbedder)
+        self.assertIsInstance(make_summarizer(cfg), StubSummarizer)
+
+    def test_factory_openai_with_key(self):
+        cfg = Config(backend="openai", api_key="sk-x")
+        self.assertIsInstance(make_embedder(cfg), openai_api.OpenAIEmbedder)
+        self.assertIsInstance(make_summarizer(cfg), openai_api.OpenAISummarizer)
+
+
+if __name__ == "__main__":
+    unittest.main()
