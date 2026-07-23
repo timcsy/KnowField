@@ -27,8 +27,9 @@ _ADAPTERS = {
 
 def _http_fetch_raw(endpoint: str):
     def fetch_raw(_since: datetime) -> str:
+        req = urllib.request.Request(endpoint, headers={"User-Agent": "LearnNews/0.1"})
         try:
-            with urllib.request.urlopen(endpoint, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 return resp.read().decode("utf-8", errors="replace")
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise SourceUnavailable(f"取得 {endpoint} 失敗：{e}") from e
@@ -45,11 +46,19 @@ def build_adapters(sources: list[Source]) -> list[SourceAdapter]:
     return adapters
 
 
+# 預設來源（2026-07-23 依真實可用性盤點，見 history/005）：
+# arXiv API（https，依投稿日排序）＋ HF Daily Papers ＋ Google News AI（廣度：真實新聞）。
+# Semantic Scholar 因 free 端點持續 429 已移除（改由使用者自行加入並自架/退避）。
+_ARXIV = ("https://export.arxiv.org/api/query?search_query=cat:{cat}"
+          "&sortBy=submittedDate&sortOrder=descending&max_results=25")
+
 DEFAULT_SOURCES = [
-    Source("arxiv-cs", "arXiv cs（AI 相關）", "paper", "arxiv_api",
-           "http://export.arxiv.org/api/query?search_query=cat:cs.LG&max_results=25"),
+    Source("arxiv-cs", "arXiv cs.LG（機器學習）", "paper", "arxiv_api",
+           _ARXIV.format(cat="cs.LG")),
+    Source("arxiv-cl", "arXiv cs.CL（自然語言）", "paper", "arxiv_api",
+           _ARXIV.format(cat="cs.CL")),
     Source("hf-papers", "Hugging Face Daily Papers", "paper", "hf_papers",
            "https://huggingface.co/api/daily_papers"),
-    Source("s2-ai", "Semantic Scholar（AI）", "paper", "semantic_scholar",
-           "https://api.semanticscholar.org/graph/v1/paper/search?query=large+language+model"),
+    Source("gnews-ai", "Google News：AI（新聞）", "news", "rss",
+           "https://news.google.com/rss/search?q=artificial+intelligence+when:2d&hl=en-US"),
 ]
