@@ -14,7 +14,7 @@ from ..models import Digest, DigestEntry, Item
 from ..ranking.embeddings import Embedder, HashingEmbedder
 from ..ranking.relevance import RelevanceRanker
 from ..sources.base import SourceAdapter, SourceUnavailable
-from ..summarize.article import ArticleBuilder
+from ..summarize.article import ArticleBuilder, build_articles
 
 _log = get_logger("learnnews.digest")
 
@@ -74,15 +74,17 @@ class DigestBuilder:
         top = scored[:limit]
         truncated = max(0, len(scored) - limit)
 
-        entries: list[DigestEntry] = []
-        for rank, s in enumerate(top, start=1):
-            # --raw（with_article=False）：完全不呼叫散文/圖後端（SC-006）
-            article = (self.article_builder.build(
-                s.item, s.matched_topic, with_image=with_image, ai_image=ai_image)
-                if with_article else None)
-            entries.append(DigestEntry(
-                item=s.item, rank=rank, relevance_score=s.score, article=article,
-                matched_topic=s.matched_topic))
+        # 消化：預設並行（--raw 時完全不呼叫散文/圖後端，SC-006）
+        if with_article:
+            arts = build_articles(
+                self.article_builder, [(s.item, s.matched_topic) for s in top],
+                with_image=with_image, ai_image=ai_image)
+        else:
+            arts = [None] * len(top)
+        entries: list[DigestEntry] = [
+            DigestEntry(item=s.item, rank=rank, relevance_score=s.score,
+                        article=a, matched_topic=s.matched_topic)
+            for rank, (s, a) in enumerate(zip(top, arts), start=1)]
 
         digest = Digest(date=date, entries=entries, truncated_count=truncated,
                         missing_sources=missing)

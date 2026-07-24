@@ -14,7 +14,7 @@ from ..logging_setup import get_logger
 from ..ranking.embeddings import Embedder, HashingEmbedder
 from ..ranking.relevance import RelevanceRanker
 from ..sources.base import SourceAdapter, SourceUnavailable
-from ..summarize.article import ArticleBuilder
+from ..summarize.article import ArticleBuilder, build_articles
 from .types import PullEntry, PullResult
 
 _log = get_logger("learnnews.pull")
@@ -69,14 +69,16 @@ class PullService:
         top = scored[:limit]
         truncated = max(0, len(scored) - limit)
 
-        entries: list[PullEntry] = []
-        for rank, s in enumerate(top, start=1):
-            # 預設產可讀散文；--raw（with_summary=False）完全不呼叫後端（SC-006/007）
-            article = (self.article_builder.build(
-                s.item, s.matched_topic, with_image=with_image, ai_image=ai_image)
-                if with_summary else None)
-            entries.append(PullEntry(item=s.item, rank=rank,
-                                     relevance_score=s.score, article=article))
+        # 預設並行產散文；--raw（with_summary=False）完全不呼叫後端（SC-006/007）
+        if with_summary:
+            arts = build_articles(
+                self.article_builder, [(s.item, s.matched_topic) for s in top],
+                with_image=with_image, ai_image=ai_image)
+        else:
+            arts = [None] * len(top)
+        entries: list[PullEntry] = [
+            PullEntry(item=s.item, rank=rank, relevance_score=s.score, article=a)
+            for rank, (s, a) in enumerate(zip(top, arts), start=1)]
 
         result = PullResult(topic=topic, entries=entries,
                             truncated_count=truncated, missing_sources=missing)

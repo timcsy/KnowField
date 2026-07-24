@@ -6,12 +6,31 @@ Article 取代 Summary 為預設消化產物：一則材料 → 一篇可讀散�
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Protocol
 
 from ..backends.openai_api import OpenAIError
 from ..models import Article, Figure, Item
 
-__all__ = ["Article", "Figure", "ArticleBackend", "StubArticleBackend", "ArticleBuilder"]
+__all__ = ["Article", "Figure", "ArticleBackend", "StubArticleBackend",
+           "ArticleBuilder", "build_articles"]
+
+
+def build_articles(builder: "ArticleBuilder", pairs: list[tuple[Item, str]],
+                   with_image: bool = True, ai_image: bool = False,
+                   max_workers: int = 8) -> list[Article]:
+    """並行消化多則（LLM 呼叫是 I/O bound，用執行緒池同時打，大幅省牆鐘時間）。
+    順序與輸入一致。每則的失敗由 builder.build 內部降級處理，不中斷其他則。"""
+    if not pairs:
+        return []
+    if len(pairs) == 1:
+        return [builder.build(pairs[0][0], pairs[0][1],
+                              with_image=with_image, ai_image=ai_image)]
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(pairs))) as ex:
+        return list(ex.map(
+            lambda p: builder.build(p[0], p[1], with_image=with_image,
+                                    ai_image=ai_image),
+            pairs))
 
 
 class ArticleBackend(Protocol):
