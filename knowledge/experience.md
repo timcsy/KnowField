@@ -126,6 +126,17 @@
 - **來源**：`history/021-RAG-MVP-實作完成.md`、`specs/005-rag-qa/research.md` R4、
   `concepts/有吸引子的場.md`（根因萃取紀律）
 
+### 擴充已出貨功能時，選「免動既有資料結構」的設計，即使略醜
+
+- **理論說**：加種子這種新語料，乾淨做法是開一張獨立的 `seeds` 表，語義清爽。
+- **實際發生**：增量 1 的 `entry_embeddings` 主鍵是 `digest_entries.id`；獨立 `seeds` 表的 id
+  會**跟它撞**，得改**已出貨**的嵌入表結構（加 kind 欄或改鍵）——侵入正在用的功能、要遷移。
+- **解決方式**：讓種子存進**哨兵「種子容器」digest**、復用 `digest_entries` → `entry_id` 仍
+  唯一 → **嵌入表免動、免遷移**。語義略醜（種子假裝成 digest），以哨兵 date＋`--today` 排除緩解。
+- **教訓**：擴充已出貨功能時，**遷移風險 > 優雅**——優先選不動既有資料結構/不改已出貨表的
+  設計，把「醜但隔離」的成本記在明處（research/history），勝過「漂亮但要動全表」的風險。
+- **來源**：`history/025-種子ingest完成.md`、`specs/006-seed-ingest/research.md` R1
+
 <!--
   範例：
 
