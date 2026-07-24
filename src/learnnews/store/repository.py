@@ -59,6 +59,11 @@ class Repository:
         )
         self.conn.commit()
 
+    def delete_source(self, source_id: str) -> None:
+        """刪除一個來源（spec 008）。digest 僅在來源全空時重種預設 → 刪除被尊重。"""
+        self.conn.execute("DELETE FROM sources WHERE id=?", (source_id,))
+        self.conn.commit()
+
     def list_sources(self, enabled_only: bool = False) -> list[Source]:
         sql = "SELECT * FROM sources"
         if enabled_only:

@@ -107,6 +107,11 @@ def create_app() -> FastAPI:
     app.state.seed_ingest_factory = lambda ref, explainer: _default_seed_ingest(
         app.state.config, app.state.repo_factory, ref, explainer)
 
+    def _default_subscribe(url):
+        from ..sources.subscribe import subscribe
+        return subscribe(url)
+    app.state.subscribe_factory = _default_subscribe
+
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
@@ -220,6 +225,53 @@ def create_app() -> FastAPI:
             repo.set_seed_class(entry_id, source_class)
             repo.close()
         return RedirectResponse("/library", status_code=303)
+
+    @app.get("/sources", response_class=HTMLResponse)
+    async def sources_get(request: Request):
+        repo = app.state.repo_factory(app.state.config)
+        srcs = repo.list_sources()
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="sources.html", context={"sources": srcs})
+
+    @app.post("/sources/add", response_class=HTMLResponse)
+    async def sources_add(request: Request, url: str = Form("")):
+        from ..sources.base import SourceUnavailable
+        url = url.strip()
+        msg = err = None
+        repo = app.state.repo_factory(app.state.config)
+        if url:
+            try:
+                src = app.state.subscribe_factory(url)      # 探測＋驗證有料才回 Source
+                if any(s.id == src.id for s in repo.list_sources()):
+                    msg = f"已在追蹤：{src.name}"
+                else:
+                    repo.upsert_source(src)                 # 驗證過才落庫（不加壞來源）
+                    msg = f"已加入來源：{src.name}"
+            except SourceUnavailable as e:
+                _log.error("web 加來源失敗", extra={"extra": {"reason": str(e)}})
+                err = str(e)
+        srcs = repo.list_sources()
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="sources.html",
+            context={"sources": srcs, "msg": msg, "err": err})
+
+    @app.post("/sources/toggle")
+    async def sources_toggle(source_id: str = Form(""), enabled: str = Form("1")):
+        if source_id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.set_source_enabled(source_id, enabled == "1")
+            repo.close()
+        return RedirectResponse("/sources", status_code=303)
+
+    @app.post("/sources/remove")
+    async def sources_remove(source_id: str = Form("")):
+        if source_id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.delete_source(source_id)
+            repo.close()
+        return RedirectResponse("/sources", status_code=303)
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):

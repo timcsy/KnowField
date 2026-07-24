@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}來源 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-bold">🚰 來源</h1>
+    <span class="text-sm text-base-content/60">追蹤站台/部落格；匯整會抓所有啟用的來源</span>
+  </div>
+  <p class="text-xs text-base-content/50 mb-4">貼一個部落格首頁或 RSS 網址，系統會自動找 feed、實測有料才加入。</p>
+
+  <form action="/sources/add" method="post" class="join w-full mb-3">
+    <input name="url" placeholder="https://某研究者部落格 或 RSS 網址…"
+           class="input input-bordered join-item flex-1" autofocus>
+    <button class="btn btn-primary join-item">追蹤</button>
+  </form>
+
+  {% if msg %}<div class="alert alert-success mb-4"><span>✅ {{ msg }}</span></div>{% endif %}
+  {% if err %}<div class="alert alert-error mb-4"><span>❌ 加來源失敗：{{ err }}（未加入任何來源）</span></div>{% endif %}
+
+  {% if sources %}
+    <div class="card bg-base-100 shadow-sm">
+      <ul class="divide-y divide-base-200">
+        {% for s in sources %}
+          <li class="flex items-center justify-between gap-3 px-5 py-3">
+            <div class="min-w-0">
+              <span class="font-medium">{{ s.name }}</span>
+              <span class="badge badge-sm badge-ghost ml-1">{{ s.access_method }}</span>
+              {% if not s.enabled %}<span class="badge badge-sm badge-warning ml-1">已停用</span>{% endif %}
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <form action="/sources/toggle" method="post">
+                <input type="hidden" name="source_id" value="{{ s.id }}">
+                <input type="hidden" name="enabled" value="{{ 0 if s.enabled else 1 }}">
+                <button class="btn btn-ghost btn-xs">{{ '停用' if s.enabled else '啟用' }}</button>
+              </form>
+              <form action="/sources/remove" method="post"
+                    onsubmit="return confirm('刪除這個來源？');">
+                <input type="hidden" name="source_id" value="{{ s.id }}">
+                <button class="btn btn-ghost btn-xs text-error">刪除</button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% else %}
+    <div class="alert"><span class="opacity-70">還沒有來源。貼一個部落格網址追蹤看看。</span></div>
+  {% endif %}
+{% endblock %}

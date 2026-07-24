@@ -21,14 +21,14 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 
 ## Phase 1: Setup
 
-- [ ] T001 確認 `tests/{unit,contract}/` 就緒（無新 schema/相依）
+- [x] T001 確認 `tests/{unit,contract}/` 就緒（無新 schema/相依）
 
 ---
 
 ## Phase 2: Foundational（阻塞所有 user story）
 
-- [ ] T002 repository：`delete_source(source_id)`（`DELETE FROM sources WHERE id=?`）in `src/learnnews/store/repository.py`
-- [ ] T003 [P] `sources/subscribe.py` 骨架：`_FeedLinkParser`（html.parser 找 `<link rel=alternate rss/atom>`）＋`discover_feed(url, http_get)` in `src/learnnews/sources/subscribe.py`
+- [x] T002 repository：`delete_source(source_id)`（`DELETE FROM sources WHERE id=?`）in `src/learnnews/store/repository.py`
+- [x] T003 [P] `sources/subscribe.py` 骨架：`_FeedLinkParser`（html.parser 找 `<link rel=alternate rss/atom>`）＋`discover_feed(url, http_get)` in `src/learnnews/sources/subscribe.py`
 
 **Checkpoint**：探測與刪除底層就緒。
 
@@ -41,14 +41,14 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 **Independent Test**：假 http_get 給「首頁 HTML（含 feed link）＋feed 內容」→ `subscribe` 建出 Source；web `POST /sources/add` 後來源出現在清單。
 
 ### Tests（先寫、先失敗）
-- [ ] T004 [P] [US1] 單元測試 `tests/unit/test_feed_discovery.py`：`discover_feed`（url 即 feed／HTML alternate link／找不到→None）；`validate_feed`（≥1 條有效、空/壞→拋）；`subscribe`（建 Source、無 feed/無料→SourceUnavailable）
-- [ ] T005 [P] [US1] 契約測試 `tests/contract/test_web_sources.py`：`GET /sources` 列出；`POST /sources/add`（注入 subscribe_factory）→ 來源加入並顯示；種入該假來源後 `build_adapters` 能抓到（自動帶入匯整）
+- [x] T004 [P] [US1] 單元測試 `tests/unit/test_feed_discovery.py`：`discover_feed`（url 即 feed／HTML alternate link／找不到→None）；`validate_feed`（≥1 條有效、空/壞→拋）；`subscribe`（建 Source、無 feed/無料→SourceUnavailable）
+- [x] T005 [P] [US1] 契約測試 `tests/contract/test_web_sources.py`：`GET /sources` 列出；`POST /sources/add`（注入 subscribe_factory）→ 來源加入並顯示；種入該假來源後 `build_adapters` 能抓到（自動帶入匯整）
 
 ### Implementation
-- [ ] T006 [US1] `sources/subscribe.py`：`validate_feed`（復用 `RssAdapter`＋注入 fetch，≥1 條）＋`subscribe(url, http_get)`（discover→validate→建 `Source(id=網域 slug, name=feed 標題)`；失敗拋 `SourceUnavailable`）
-- [ ] T007 [US1] `templates/sources.html`（來源清單＋加來源框；結果/錯誤訊息）in `src/learnnews/web/templates/`
-- [ ] T008 [US1] `GET /sources`＋`POST /sources/add`（`app.state.subscribe_factory`→已存提示/否則 `upsert_source`；攔 `SourceUnavailable` 頁內友善不落庫）in `src/learnnews/web/app.py`
-- [ ] T009 [US1] 導覽加「來源」in `src/learnnews/web/templates/base.html`
+- [x] T006 [US1] `sources/subscribe.py`：`validate_feed`（復用 `RssAdapter`＋注入 fetch，≥1 條）＋`subscribe(url, http_get)`（discover→validate→建 `Source(id=網域 slug, name=feed 標題)`；失敗拋 `SourceUnavailable`）
+- [x] T007 [US1] `templates/sources.html`（來源清單＋加來源框；結果/錯誤訊息）in `src/learnnews/web/templates/`
+- [x] T008 [US1] `GET /sources`＋`POST /sources/add`（`app.state.subscribe_factory`→已存提示/否則 `upsert_source`；攔 `SourceUnavailable` 頁內友善不落庫）in `src/learnnews/web/app.py`
+- [x] T009 [US1] 導覽加「來源」in `src/learnnews/web/templates/base.html`
 
 **Checkpoint**：離線貼假來源 → 加入 → digest 抓得到。**MVP 達成。**
 
@@ -61,10 +61,10 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 **Independent Test**：種幾個來源 → `/sources` 列出 → 停用一個（enabled_only 不含它）→ 刪除一個（消失）→ 重啟用。
 
 ### Tests（先寫、先失敗）
-- [ ] T010 [P] [US2] 契約測試 `tests/contract/test_web_sources.py`（追加）：`POST /sources/toggle` 停用→`list_sources(enabled_only=True)` 不含；`POST /sources/remove`→清單消失；重啟用恢復
+- [x] T010 [P] [US2] 契約測試 `tests/contract/test_web_sources.py`（追加）：`POST /sources/toggle` 停用→`list_sources(enabled_only=True)` 不含；`POST /sources/remove`→清單消失；重啟用恢復
 
 ### Implementation
-- [ ] T011 [US2] `POST /sources/toggle`（`set_source_enabled`）＋`POST /sources/remove`（`delete_source`）in `app.py`；`sources.html` 加停用/啟用/刪除鈕
+- [x] T011 [US2] `POST /sources/toggle`（`set_source_enabled`）＋`POST /sources/remove`（`delete_source`）in `app.py`；`sources.html` 加停用/啟用/刪除鈕
 
 **Checkpoint**：US1＋US2 皆可獨立運作。
 
@@ -77,10 +77,10 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 **Independent Test**：假 http_get 分別回「無 feed 首頁」「探測到 feed 但空」「拋例外」→ `POST /sources/add` 皆友善提示、`list_sources` 未增。
 
 ### Tests（先寫、先失敗）
-- [ ] T012 [P] [US3] 契約測試 `tests/contract/test_web_sources.py`（追加）：三種失敗 → 200＋友善繁中、無 `Traceback`、**來源數不變**；重複加同 feed → 「已在追蹤」不重複
+- [x] T012 [P] [US3] 契約測試 `tests/contract/test_web_sources.py`（追加）：三種失敗 → 200＋友善繁中、無 `Traceback`、**來源數不變**；重複加同 feed → 「已在追蹤」不重複
 
 ### Implementation
-- [ ] T013 [US3] 確保 `POST /sources/add` 對 `SourceUnavailable` 頁內攔（含網路失敗）、去重（同 id 提示已在追蹤）in `app.py`／`subscribe.py`
+- [x] T013 [US3] 確保 `POST /sources/add` 對 `SourceUnavailable` 頁內攔（含網路失敗）、去重（同 id 提示已在追蹤）in `app.py`／`subscribe.py`
 
 **Checkpoint**：三個 user story 皆獨立可用。
 
@@ -88,9 +88,9 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T014 [P] `docs/usage.md` 補 `/sources`（貼 URL 加來源、探測/驗證、停用/刪除）
-- [ ] T015 真跑：在 web 貼一個真實部落格 RSS → 加入 → digest 帶入（真實後端抽查，留使用者）
-- [ ] T016 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 177 不回歸**）
+- [x] T014 [P] `docs/usage.md` 補 `/sources`（貼 URL 加來源、探測/驗證、停用/刪除）
+- [x] T015 真跑：離線端到端＋build_adapters 帶入已驗；貼真實部落格 RSS 真跑留使用者（網路）
+- [x] T016 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 177 不回歸**）
 
 ---
 

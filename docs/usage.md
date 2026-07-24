@@ -10,7 +10,7 @@ LearnNews 是**消化＋溯源工具**：把 AI 新聞與論文的洪流去重�
 ```bash
 uv sync --extra web            # 裝 fastapi/uvicorn/jinja2
 uv run learnnews digest        # 先產一份匯整（首頁會讀它）
-# 導覽列：今日匯整 / 主題深挖 / 問答（RAG）/ 收進 / 知識庫（管理種子）/ 興趣
+# 導覽列：今日匯整 / 主題深挖 / 問答（RAG）/ 收進 / 知識庫 / 來源（自助訂閱）/ 興趣
 uv run uvicorn learnnews.web.app:app --reload   # 開 http://127.0.0.1:8000
 ```
 
