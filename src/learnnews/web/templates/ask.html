@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}問答 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-4">
+    <h1 class="text-2xl font-bold">💬 問答</h1>
+    <span class="text-sm text-base-content/60">對已收錄的知識庫發問，答案可回溯來源</span>
+  </div>
+
+  <form action="/ask" method="get" class="mb-6">
+    <div class="join w-full">
+      <input name="q" value="{{ q|default('') }}" autofocus
+             placeholder="例：最近 agent 記憶體有什麼進展？"
+             class="input input-bordered join-item w-full">
+      <button class="btn btn-primary join-item">問</button>
+    </div>
+    <label class="label cursor-pointer justify-start gap-2 mt-2 w-fit">
+      <input type="checkbox" name="today" value="1" class="checkbox checkbox-sm"
+             {% if today %}checked{% endif %}>
+      <span class="label-text">只問今天這份匯整</span>
+    </label>
+  </form>
+
+  {% if q %}
+    {% if answer and answer.no_material %}
+      <div class="alert bg-base-100">
+        <span>沒有相關材料。庫中找不到與「{{ q }}」相關的內容；若尚未產生匯整，請先跑一次今日匯整。</span>
+      </div>
+    {% elif answer %}
+      <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body">
+          <div class="whitespace-pre-wrap leading-relaxed">{{ answer.text }}</div>
+        </div>
+      </div>
+      <div class="text-sm">
+        <div class="font-semibold text-base-content/70 mb-1">來源</div>
+        <ul class="space-y-1">
+          {% for s in answer.sources %}
+            <li>
+              <span class="badge badge-sm badge-outline">{{ s.n }}</span>
+              <a href="{{ s.url }}" target="_blank" rel="noopener"
+                 class="link link-primary">{{ s.title }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="text-base-content/50 text-sm">輸入問題，工具會從你已收錄的匯整裡找相關材料、合成一段可溯源的回答。</div>
+  {% endif %}
+{% endblock %}

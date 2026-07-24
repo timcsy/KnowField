@@ -64,6 +64,21 @@ def _default_pull_stream(config: Config, repo_factory, service_factory, topic: s
         repo.close()
 
 
+def _default_rag_answer(config: Config, repo_factory, question: str, today: bool,
+                        lang: str):
+    """web 問答：組 embedder/answerer＋RagService→answer。可被 rag_answer_factory 覆寫（測試）。"""
+    from ..backends.factory import make_answerer, make_embedder
+    from ..rag.service import RagService
+    from ..rag.types import Scope
+    repo = repo_factory(config)
+    try:
+        service = RagService(repo, make_embedder(config), make_answerer(config),
+                             top_k=config.rag_top_k, min_score=config.rag_min_score)
+        return service.answer(question, Scope(today=today), lang=lang)
+    finally:
+        repo.close()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="LearnNews")
     app.state.config = Config.from_env()
@@ -72,6 +87,8 @@ def create_app() -> FastAPI:
     app.state.pull_service_factory = _default_pull_service_factory
     app.state.pull_stream_factory = lambda topic: _default_pull_stream(
         app.state.config, app.state.repo_factory, app.state.pull_service_factory, topic)
+    app.state.rag_answer_factory = lambda question, today, lang: _default_rag_answer(
+        app.state.config, app.state.repo_factory, question, today, lang)
 
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
@@ -132,6 +149,17 @@ def create_app() -> FastAPI:
                 yield _sse({"type": "error", "text": str(e)})
 
         return StreamingResponse(gen(), media_type="text/event-stream")
+
+    @app.get("/ask", response_class=HTMLResponse)
+    async def ask(request: Request, q: str = "", today: bool = False):
+        # 問答幾秒內就回，不需 SSE；後端失敗經全域 OpenAIError 處理器攔成友善頁。
+        question = q.strip()
+        answer = None
+        if question:
+            answer = app.state.rag_answer_factory(
+                question, today, app.state.config.article_lang)
+        return _TEMPLATES.TemplateResponse(request=request, name="ask.html", context={
+            "q": question, "today": today, "answer": answer})
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):
