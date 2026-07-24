@@ -7,22 +7,33 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from ..backends.openai_api import OpenAIError
 from ..config import Config
 from ..interests.service import InterestService
 from ..logging_setup import get_logger
+from ..pull.types import PullResult
 from ..store.repository import Repository
 from .cache import TTLCache
 from .views import entry_to_page
 
 _log = get_logger("learnnews.web")
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def render_entry(entry) -> str:
+    """把一則 PullEntry/DigestEntry 渲染成卡片 HTML 片段（供 SSE 逐則推送）。"""
+    return _TEMPLATES.get_template("_entry.html").render({"e": entry_to_page(entry)})
+
+
+def _sse(obj: dict) -> str:
+    return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
 
 
 def _default_repo_factory(config: Config) -> Repository:
@@ -39,20 +50,18 @@ def _default_pull_service_factory(config: Config):
     return build_backend_pull_service(config)
 
 
-def _default_pull_runner(config: Config, repo_factory, service_factory, topic: str):
-    """實際即時拉：組 adapter＋service→run_pull。可被 app.state.pull_runner 覆寫（測試）。
-
-    web 上為求互動回應快，縮小規模：較少候選（少 embedding 呼叫）＋較少消化篇數
-    （少 LLM 呼叫）。要更廣更深仍可用 CLI `learnnews pull`。
-    """
-    from ..cli.pull_cmd import build_pull_adapters, run_pull
+def _default_pull_stream(config: Config, repo_factory, service_factory, topic: str):
+    """實際串流即時拉：組 adapter＋service→service.pull_stream。逐步 yield 進度事件。
+    可被 app.state.pull_stream_factory 覆寫（測試）。web 縮小規模（少候選/少篇數）求快。"""
+    from ..cli.pull_cmd import build_pull_adapters
     repo = repo_factory(config)
     sources = repo.list_sources(enabled_only=True)
-    adapters = build_pull_adapters(sources, topic, max_results=12)  # 少候選＝少去重/排序
+    adapters = build_pull_adapters(sources, topic, max_results=12)
     service = service_factory(config)
-    result = run_pull(adapters, topic, service=service, limit=6)    # 少消化＝快回應
-    repo.close()
-    return result
+    try:
+        yield from service.pull_stream(adapters=adapters, topic=topic, limit=6)
+    finally:
+        repo.close()
 
 
 def create_app() -> FastAPI:
@@ -61,7 +70,7 @@ def create_app() -> FastAPI:
     app.state.cache = TTLCache()
     app.state.repo_factory = _default_repo_factory
     app.state.pull_service_factory = _default_pull_service_factory
-    app.state.pull_runner = lambda topic: _default_pull_runner(
+    app.state.pull_stream_factory = lambda topic: _default_pull_stream(
         app.state.config, app.state.repo_factory, app.state.pull_service_factory, topic)
 
     @app.exception_handler(OpenAIError)
@@ -85,19 +94,44 @@ def create_app() -> FastAPI:
 
     @app.get("/pull", response_class=HTMLResponse)
     async def pull(request: Request, topic: str = ""):
+        # 串流殼：頁面立即回，實際結果由 /pull/stream 逐則推送到前端（即時進度）
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="pull.html", context={"topic": topic.strip()})
+
+    @app.get("/pull/stream")
+    async def pull_stream(topic: str = ""):
         topic = topic.strip()
-        entries = []
-        empty = True
-        if topic:
-            result = app.state.cache.get(topic)
-            if result is None:
-                result = app.state.pull_runner(topic)   # OpenAIError → 例外處理器
-                app.state.cache.set(topic, result)
-            entries = [entry_to_page(e) for e in result.entries]
-            empty = result.is_empty
-        return _TEMPLATES.TemplateResponse(request=request, name="pull.html", context={
-            "topic": topic, "entries": entries, "empty": empty,
-        })
+
+        def gen():
+            if not topic:
+                yield _sse({"type": "done"})
+                return
+            cached = app.state.cache.get(topic)
+            if cached is not None:                       # 快取：逐則秒推
+                for e in cached.entries:
+                    yield _sse({"type": "card", "html": render_entry(e)})
+                if not cached.entries:
+                    yield _sse({"type": "empty"})
+                yield _sse({"type": "done"})
+                return
+            entries = []
+            try:
+                for ev in app.state.pull_stream_factory(topic):
+                    if ev["type"] == "card":
+                        entries.append(ev["entry"])
+                        yield _sse({"type": "card", "html": render_entry(ev["entry"]),
+                                    "progress": ev.get("progress")})
+                    elif ev["type"] == "stage":
+                        yield _sse({"type": "stage", "text": ev["text"]})
+                    elif ev["type"] == "empty":
+                        yield _sse({"type": "empty"})
+                app.state.cache.set(topic, PullResult(topic=topic, entries=entries))
+                yield _sse({"type": "done"})
+            except OpenAIError as e:                     # 串流中失敗 → 推 error 事件
+                _log.error("web 串流後端失敗", extra={"extra": {"reason": str(e)}})
+                yield _sse({"type": "error", "text": str(e)})
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):

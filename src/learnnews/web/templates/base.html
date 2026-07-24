@@ -31,48 +31,5 @@
   <footer class="footer footer-center p-6 text-base-content/50 text-xs">
     <aside><p>LearnNews — 消化以省時，溯源不可省。</p></aside>
   </footer>
-
-  <!-- 拉取載入遮罩：讓使用者知道正在動、到哪一步 -->
-  <div id="loading" class="fixed inset-0 z-50 bg-base-100/80 backdrop-blur-sm
-       hidden items-center justify-center">
-    <div class="text-center">
-      <span class="loading loading-dots loading-lg text-primary"></span>
-      <p id="loading-topic" class="mt-3 font-semibold"></p>
-      <p id="loading-stage" class="mt-1 text-sm opacity-60">正在準備…</p>
-      <p class="mt-2 text-xs opacity-40">跨來源擴展＋去重＋消化需要一點時間</p>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      var box = document.getElementById('loading');
-      var stageEl = document.getElementById('loading-stage');
-      var topicEl = document.getElementById('loading-topic');
-      var stages = ['正在跨來源擴展搜尋…', '去重與相關性排序…', '消化成可讀文章…', '快完成了…'];
-      var timer = null;
-      function show(topic) {
-        if (topic) topicEl.textContent = '主題：' + topic;
-        var i = 0; stageEl.textContent = stages[0];
-        box.classList.remove('hidden'); box.classList.add('flex');
-        timer = setInterval(function () {
-          i = Math.min(i + 1, stages.length - 1);
-          stageEl.textContent = stages[i];
-        }, 2500);
-      }
-      function hide() {
-        if (timer) clearInterval(timer);
-        box.classList.add('hidden'); box.classList.remove('flex');
-      }
-      // 送出拉取表單時顯示遮罩
-      document.querySelectorAll('form[action="/pull"]').forEach(function (f) {
-        f.addEventListener('submit', function () {
-          var t = f.querySelector('input[name=topic]');
-          show(t ? t.value.trim() : '');
-        });
-      });
-      // 從上一頁返回（bfcache）時確保遮罩關閉
-      window.addEventListener('pageshow', hide);
-    })();
-  </script>
 </body>
 </html>

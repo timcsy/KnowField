@@ -80,10 +80,59 @@ class PullService:
             PullEntry(item=s.item, rank=rank, relevance_score=s.score, article=a)
             for rank, (s, a) in enumerate(zip(top, arts), start=1)]
 
+        return self._finish(topic, entries, truncated, missing)
+
+    def _finish(self, topic, entries, truncated, missing):
         result = PullResult(topic=topic, entries=entries,
                             truncated_count=truncated, missing_sources=missing)
         _log.info("拉取完成", extra={"extra": {
             "topic": topic, "entries": len(entries), "truncated": truncated,
-            "missing_sources": missing, "with_summary": with_summary,
-            "is_empty": result.is_empty}})
+            "missing_sources": missing, "is_empty": result.is_empty}})
         return result
+
+    def pull_stream(self, topic, adapters, limit=6, with_image=True, since=None):
+        """串流版：逐步 yield 進度事件，文章寫好一則即推一則（供 web SSE 即時回饋）。
+
+        事件：{"type":"stage","text":…} / {"type":"card","entry":PullEntry,"progress":"k/n"}
+             / {"type":"empty"} / {"type":"done"}。embedding/排序的失敗會往上拋，由呼叫端處理。
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        since = since or datetime(1970, 1, 1)
+        collected, missing = [], []
+        for adapter in adapters:
+            try:
+                collected.extend(adapter.fetch(since))
+            except SourceUnavailable:
+                missing.append(adapter.name)
+        collected = [it for it in collected if it.has_source_link()]
+        miss = f"（缺漏 {('、'.join(missing))}）" if missing else ""
+        yield {"type": "stage", "text": f"從 {len(adapters)} 個來源取得 {len(collected)} 則候選{miss}…"}
+
+        clusters = deduplicate(collected, embedder=self.embedder,
+                               threshold=self.dedup_threshold)
+        canonicals = [c for c in (DigestBuilder._canonical(g) for g in clusters)
+                      if c is not None]
+        yield {"type": "stage", "text": f"跨源去重成 {len(canonicals)} 則，排序中…"}
+
+        scored = self.ranker.rank(canonicals, [topic])
+        top = scored[:limit]
+        if not top:
+            yield {"type": "empty"}
+            return
+        yield {"type": "stage", "text": f"取最相關 {len(top)} 則，並行消化中…"}
+
+        with ThreadPoolExecutor(max_workers=min(8, len(top))) as ex:
+            futs = {ex.submit(self.article_builder.build, s.item, s.matched_topic,
+                              with_image, False): (rank, s)
+                    for rank, s in enumerate(top, start=1)}
+            done = 0
+            for fut in as_completed(futs):
+                rank, s = futs[fut]
+                article = fut.result()
+                done += 1
+                yield {"type": "card",
+                       "entry": PullEntry(item=s.item, rank=rank,
+                                          relevance_score=s.score, article=article),
+                       "progress": f"{done}/{len(top)}"}
+        yield {"type": "done"}

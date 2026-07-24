@@ -1,4 +1,4 @@
-"""T007：後端失敗 → 友善繁中頁、無 traceback、非未處理 500。"""
+"""T007：後端失敗——串流推 error 事件、無 traceback（不噴未處理 500）。"""
 
 import unittest
 
@@ -9,19 +9,18 @@ from tests.web_helpers import build_app, temp_db
 
 
 class TestWebError(unittest.TestCase):
-    def test_backend_failure_friendly_page(self):
+    def test_backend_failure_streams_error_event(self):
         app = build_app(temp_db())
 
         def boom(topic):
             raise OpenAIError("模擬 403 allocation_quarantined")
 
-        app.state.pull_runner = boom
-        client = TestClient(app, raise_server_exceptions=False)
-        r = client.get("/pull", params={"topic": "agent"})
-        self.assertEqual(r.status_code, 503)
-        self.assertIn("暫時不可用", r.text)         # 友善繁中
-        self.assertIn("offline", r.text)             # 提示離線退路
-        self.assertNotIn("Traceback", r.text)        # 不噴堆疊
+        app.state.pull_stream_factory = boom
+        r = TestClient(app, raise_server_exceptions=False).get(
+            "/pull/stream", params={"topic": "agent"})
+        self.assertEqual(r.status_code, 200)          # SSE 已開始，回 error 事件
+        self.assertIn("error", r.text)                # 推了 error 事件
+        self.assertNotIn("Traceback", r.text)         # 不噴堆疊
 
 
 if __name__ == "__main__":
