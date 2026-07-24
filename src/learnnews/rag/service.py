@@ -11,6 +11,12 @@ from .answerer import Answerer
 from .types import CorpusEntry, RagAnswer, Scope, Source, Vector
 
 
+def _is_no_material(text: str) -> bool:
+    """答案本身就是「沒有相關材料」的投降回應（無實質內容/無引用）→ 視為查無。"""
+    t = (text or "").strip()
+    return t.replace("。", "").replace(".", "").strip() == "沒有相關材料"
+
+
 def embedder_tag(embedder) -> str:
     """embedder 身分標記——讓不同 embedder 的向量共存不混比（data-model.md）。"""
     name = type(embedder).__name__
@@ -56,5 +62,8 @@ class RagService:
             return RagAnswer(no_material=True)
 
         text = self.answerer.answer(question, hits, lang)
+        # 模型自己判「材料完全無關」時，別自相矛盾地還列來源（教訓 7：程式守約）。
+        if _is_no_material(text):
+            return RagAnswer(no_material=True)
         sources = [Source(n=i, title=e.title, url=e.url) for i, e in enumerate(hits, 1)]
         return RagAnswer(text=text, sources=sources)

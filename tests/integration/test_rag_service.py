@@ -40,6 +40,22 @@ class TestRagService(unittest.TestCase):
         self.assertEqual(ans.sources[0].url, "https://a/1")
         repo.close()
 
+    def test_model_no_material_suppresses_sources(self):
+        # 模型判材料無關而回「沒有相關材料」時，程式不可自相矛盾地還列來源
+        repo = Repository(":memory:")
+        seed_digest(repo, "2026-07-23", [
+            make_entry(1, "t", "https://a/1", "Agent memory", "agent memory")])
+
+        class BailAnswerer:
+            def answer(self, question, passages, lang):
+                return "沒有相關材料。"
+
+        svc = RagService(repo, HashingEmbedder(), BailAnswerer(), min_score=0.0)
+        ans = svc.answer("agent memory")
+        self.assertTrue(ans.no_material)       # 轉成查無
+        self.assertEqual(ans.sources, [])      # 不列來源
+        repo.close()
+
     def test_sources_only_from_retrieved(self):
         # 溯源鐵律：sources 只含實際檢索到的條目（原則 3）
         repo = Repository(":memory:")
