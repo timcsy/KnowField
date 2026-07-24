@@ -16,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <style>
+    html { scroll-behavior: smooth; }
     .answer-md p { margin: .55rem 0; }
     .answer-md ul { list-style: disc; margin: .4rem 0 .4rem 1.5rem; }
     .answer-md ol { list-style: decimal; margin: .4rem 0 .4rem 1.5rem; }
@@ -24,6 +25,12 @@
     .answer-md h1, .answer-md h2, .answer-md h3 { font-weight: 700; margin: .7rem 0 .3rem; }
     .answer-md code { background: rgba(0,0,0,.06); padding: 0 .25rem; border-radius: 3px; }
     .answer-md a { text-decoration: underline; }
+    /* 維基式引用上標連結 */
+    .answer-md .cite { font-size: .72em; vertical-align: super; text-decoration: none;
+                       color: #2563eb; padding: 0 .1em; }
+    .answer-md .cite:hover { text-decoration: underline; }
+    .src-item { scroll-margin-top: 5rem; transition: background .3s; }
+    .src-item:target { background: rgba(37,99,235,.14); border-radius: 5px; }
   </style>
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">

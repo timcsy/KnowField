@@ -44,6 +44,10 @@
             ? marked.parse(protectedText)
             : protectedText.replace(/\n/g, '<br>');
           html = html.replace(/@@MATH(\d+)@@/g, function (_, i) { return math[+i]; });
+          // 維基式引用：[n] → 跳到來源第 n 項的上標超連結
+          html = html.replace(/\[(\d+)\]/g, function (_, n) {
+            return '<a href="#src-' + n + '" class="cite">[' + n + ']</a>';
+          });
           el.innerHTML = html;
           if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
         })();
@@ -52,7 +56,7 @@
         <div class="font-semibold text-base-content/70 mb-1">來源</div>
         <ul class="space-y-1">
           {% for s in answer.sources %}
-            <li>
+            <li id="src-{{ s.n }}" class="src-item px-1 py-0.5">
               <span class="badge badge-sm badge-outline">{{ s.n }}</span>
               <a href="{{ s.url }}" target="_blank" rel="noopener"
                  class="link link-primary">{{ s.title }}</a>
