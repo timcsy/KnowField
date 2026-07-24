@@ -196,6 +196,31 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
             "ref": ref, "result": result, "error": error})
 
+    @app.get("/library", response_class=HTMLResponse)
+    async def library(request: Request):
+        repo = app.state.repo_factory(app.state.config)
+        seeds = repo.list_seeds()
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="library.html", context={"seeds": seeds})
+
+    @app.post("/library/remove")
+    async def library_remove(entry_id: int = Form(0)):
+        if entry_id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.delete_seed(entry_id)             # 僅種子容器；每日流不動作（FR-005）
+            repo.close()
+        return RedirectResponse("/library", status_code=303)
+
+    @app.post("/library/reclassify")
+    async def library_reclassify(entry_id: int = Form(0),
+                                 source_class: str = Form("ordinary")):
+        if entry_id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.set_seed_class(entry_id, source_class)
+            repo.close()
+        return RedirectResponse("/library", status_code=303)
+
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):
         repo = app.state.repo_factory(app.state.config)

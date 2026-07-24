@@ -276,6 +276,57 @@ class Repository:
         self.conn.commit()
         return cur.lastrowid or 0
 
+    # --- 知識庫管理（spec 007，皆僅限種子容器 → 每日流結構性唯讀） ---
+    def _seeds_digest_id(self) -> int | None:
+        from ..config import SEEDS_DATE
+        row = self.conn.execute(
+            "SELECT id FROM digests WHERE date=?", (SEEDS_DATE,)).fetchone()
+        return row["id"] if row else None
+
+    def list_seeds(self) -> list[CorpusEntry]:
+        """列出種子容器裡的種子（新在上）；不含每日流（FR-001/005）。"""
+        from ..config import SEEDS_DATE
+        rows = self.conn.execute(
+            "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
+            " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
+            " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
+            " WHERE d.date=? ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
+        return [
+            CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
+                        headline=r["headline"] or "", body=r["body"] or "",
+                        digest_date=r["ddate"], source_class=r["sclass"] or "ordinary")
+            for r in rows
+        ]
+
+    def delete_seed(self, entry_id: int) -> bool:
+        """刪一則種子（限種子容器）；連 entry_embeddings 一起清（無孤兒，FR-003）。
+        非種子（每日流/不存在）→ 回 False 不動作（流唯讀，FR-005）。"""
+        sid = self._seeds_digest_id()
+        if sid is None:
+            return False
+        row = self.conn.execute(
+            "SELECT id FROM digest_entries WHERE id=? AND digest_id=?",
+            (entry_id, sid)).fetchone()
+        if row is None:
+            return False
+        self.conn.execute("DELETE FROM digest_entries WHERE id=?", (entry_id,))
+        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (entry_id,))
+        self.conn.commit()
+        return True
+
+    def set_seed_class(self, entry_id: int, cls: str) -> bool:
+        """重分類種子（限種子容器）。cls∈{explainer,ordinary}；否則/非種子 → 回 False。"""
+        if cls not in ("explainer", "ordinary"):
+            return False
+        sid = self._seeds_digest_id()
+        if sid is None:
+            return False
+        cur = self.conn.execute(
+            "UPDATE digest_entries SET source_class=? WHERE id=? AND digest_id=?",
+            (cls, entry_id, sid))
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def get_entry_embedding(self, entry_id: int, tag: str) -> Vector | None:
         row = self.conn.execute(
             "SELECT vector_json FROM entry_embeddings WHERE entry_id=? AND tag=?",

@@ -21,7 +21,7 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 
 ## Phase 1: Setup
 
-- [ ] T001 確認 `tests/{unit,contract}/` 就緒（本功能無新模組/schema，免建目錄）
+- [x] T001 確認 `tests/{unit,contract}/` 就緒（本功能無新模組/schema，免建目錄）
 
 ---
 
@@ -29,9 +29,9 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 
 **⚠️ 三個 repo 方法皆**僅限種子容器**（結構保證每日流唯讀，research R1）。同檔循序。**
 
-- [ ] T002 repository：`list_seeds() -> list[CorpusEntry]`（只撈 `d.date=SEEDS_DATE` 的 entries，新在上）in `src/learnnews/store/repository.py`
-- [ ] T003 repository：`delete_seed(entry_id) -> bool`（限種子容器；同交易刪 `digest_entries`＋`entry_embeddings`；非種子回 False）in `repository.py`（依賴 T002 之後、同檔循序）
-- [ ] T004 repository：`set_seed_class(entry_id, cls) -> bool`（`cls∈{explainer,ordinary}`；限種子容器 UPDATE `source_class`）in `repository.py`
+- [x] T002 repository：`list_seeds() -> list[CorpusEntry]`（只撈 `d.date=SEEDS_DATE` 的 entries，新在上）in `src/learnnews/store/repository.py`
+- [x] T003 repository：`delete_seed(entry_id) -> bool`（限種子容器；同交易刪 `digest_entries`＋`entry_embeddings`；非種子回 False）in `repository.py`（依賴 T002 之後、同檔循序）
+- [x] T004 repository：`set_seed_class(entry_id, cls) -> bool`（`cls∈{explainer,ordinary}`；限種子容器 UPDATE `source_class`）in `repository.py`
 
 **Checkpoint**：種子的列/刪/重分類資料層就緒，每日流結構性受保護。
 
@@ -44,13 +44,13 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 **Independent Test**：種入幾則種子 → `/library` 看到清單 → 刪一則 → 清單少一則、`ask` 檢索不到它、`entry_embeddings` 無該筆。
 
 ### Tests（先寫、先失敗）
-- [ ] T005 [P] [US1] 單元測試 `tests/unit/test_seed_management.py`：`list_seeds` 只列種子（不含每日流）；`delete_seed` 移除 entry＋其嵌入、非種子 entry_id 回 False 不動作
-- [ ] T006 [P] [US1] 契約測試 `tests/contract/test_web_library.py`：`GET /library` 列出種子＋原文連結；`POST /library/remove` 後該則消失、`ask` 檢索不到；空庫顯示空狀態
+- [x] T005 [P] [US1] 單元測試 `tests/unit/test_seed_management.py`：`list_seeds` 只列種子（不含每日流）；`delete_seed` 移除 entry＋其嵌入、非種子 entry_id 回 False 不動作
+- [x] T006 [P] [US1] 契約測試 `tests/contract/test_web_library.py`：`GET /library` 列出種子＋原文連結；`POST /library/remove` 後該則消失、`ask` 檢索不到；空庫顯示空狀態
 
 ### Implementation
-- [ ] T007 [US1] `templates/library.html`（種子清單：標題/類型/日期/原文連結＋刪除表單；空狀態）in `src/learnnews/web/templates/`
-- [ ] T008 [US1] `GET /library`（`repo.list_seeds()`→渲染）＋`POST /library/remove`（`delete_seed`→303）in `src/learnnews/web/app.py`
-- [ ] T009 [US1] 導覽加「知識庫」連結 in `src/learnnews/web/templates/base.html`
+- [x] T007 [US1] `templates/library.html`（種子清單：標題/類型/日期/原文連結＋刪除表單；空狀態）in `src/learnnews/web/templates/`
+- [x] T008 [US1] `GET /library`（`repo.list_seeds()`→渲染）＋`POST /library/remove`（`delete_seed`→303）in `src/learnnews/web/app.py`
+- [x] T009 [US1] 導覽加「知識庫」連結 in `src/learnnews/web/templates/base.html`
 
 **Checkpoint**：離線 `/library` 列種子＋刪除（連清嵌入）可獨立跑通。**MVP 達成。**
 
@@ -63,10 +63,10 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 **Independent Test**：一則「一般」種子 → 改「解說文」→ `ask` 對相關問題該則權重提高。
 
 ### Tests（先寫、先失敗）
-- [ ] T010 [P] [US2] 整合測試 `tests/integration/test_reclassify_weight.py`：重分類為解說文 → `ask` 排序權重提高（對照一般種子）
+- [x] T010 [P] [US2] 整合測試 `tests/integration/test_reclassify_weight.py`：重分類為解說文 → `ask` 排序權重提高（對照一般種子）
 
 ### Implementation
-- [ ] T011 [US2] `POST /library/reclassify`（`set_seed_class`→303）in `app.py`；`library.html` 加重分類切換鈕
+- [x] T011 [US2] `POST /library/reclassify`（`set_seed_class`→303）in `app.py`；`library.html` 加重分類切換鈕
 
 **Checkpoint**：US1＋US2 皆可獨立運作。
 
@@ -79,7 +79,7 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 **Independent Test**：種一份每日匯整＋幾則種子 → `/library` 只見種子；對每日流 entry_id 送 remove/reclassify → 不動作、每日流完好。
 
 ### Tests（先寫、先失敗）
-- [ ] T012 [P] [US3] 契約測試 `tests/contract/test_web_library.py`（追加）：每日匯整條目**不出現**在 `/library`；`POST remove`/`reclassify` 帶每日流 entry_id → 不動作、該條目仍在
+- [x] T012 [P] [US3] 契約測試 `tests/contract/test_web_library.py`（追加）：每日匯整條目**不出現**在 `/library`；`POST remove`/`reclassify` 帶每日流 entry_id → 不動作、該條目仍在
 
 **Implementation**：無新碼——由 T003/T004 的「僅限種子容器」結構保證（research R1）；本期只加驗證測試。
 
@@ -89,8 +89,8 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T013 [P] `docs/usage.md` 補 `/library`（瀏覽/刪除/重分類、每日流唯讀）
-- [ ] T014 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 166 不回歸**）
+- [x] T013 [P] `docs/usage.md` 補 `/library`（瀏覽/刪除/重分類、每日流唯讀）
+- [x] T014 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 166 不回歸**）
 
 ---
 
