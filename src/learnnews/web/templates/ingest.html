@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}收進知識庫 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-4">
+    <h1 class="text-2xl font-bold">🌱 收進知識庫</h1>
+    <span class="text-sm text-base-content/60">手挑一篇經典/解說文冊封成「深度吸引子」</span>
+  </div>
+
+  <form action="/ingest" method="post" class="mb-6">
+    <div class="join w-full">
+      <input name="ref" value="{{ ref|default('') }}" autofocus
+             placeholder="arXiv ID（如 1706.03762）或文章網址"
+             class="input input-bordered join-item w-full">
+      <button class="btn btn-primary join-item">收進</button>
+    </div>
+    <label class="label cursor-pointer justify-start gap-2 mt-2 w-fit">
+      <input type="checkbox" name="explainer" value="1" class="checkbox checkbox-sm">
+      <span class="label-text">標為解說文（檢索權重加成，一篇打敗五十篇）</span>
+    </label>
+  </form>
+
+  {% if error %}
+    <div class="alert alert-error">
+      <span>❌ 收取失敗：{{ error }}（未寫入任何內容，可稍後重試或換連結）</span>
+    </div>
+  {% elif result and result.status == 'ingested' %}
+    <div class="alert alert-success">
+      <div>
+        ✅ 已收進知識庫：<b>{{ result.title }}</b>
+        （{{ '解說文' if result.source_class == 'explainer' else '一般' }}）<br>
+        <a href="{{ result.url }}" target="_blank" rel="noopener" class="link">{{ result.url }}</a>
+        　·　到 <a href="/ask" class="link link-primary">問答</a> 就能問到它了
+      </div>
+    </div>
+  {% elif result and result.status == 'exists' %}
+    <div class="alert bg-base-100">
+      <span>這篇已在庫：<b>{{ result.title }}</b>（不重複收）</span>
+    </div>
+  {% else %}
+    <div class="text-base-content/50 text-sm">
+      種子＝你手挑冊封的「深度吸引子」，讓知識庫不只長每日流、也有地基。工具不自己決定收哪篇——由你冊封。
+    </div>
+  {% endif %}
+{% endblock %}

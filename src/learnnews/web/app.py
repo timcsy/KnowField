@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..backends.openai_api import OpenAIError
 from ..config import Config
+from ..sources.base import SourceUnavailable
 from ..interests.service import InterestService
 from ..logging_setup import get_logger
 from ..pull.types import PullResult
@@ -80,6 +81,19 @@ def _default_rag_answer(config: Config, repo_factory, question: str, today: bool
         repo.close()
 
 
+def _default_seed_ingest(config: Config, repo_factory, ref: str, explainer: bool):
+    """web 種子 ingest：組後端＋SeedService→ingest。可被 seed_ingest_factory 覆寫（測試）。"""
+    from ..backends.factory import make_article_backend, make_embedder
+    from ..seed.service import SeedService
+    from ..summarize.article import ArticleBuilder
+    repo = repo_factory(config)
+    try:
+        builder = ArticleBuilder(backend=make_article_backend(config))
+        return SeedService(repo, builder, make_embedder(config)).ingest(ref, explainer)
+    finally:
+        repo.close()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="LearnNews")
     app.state.config = Config.from_env()
@@ -90,6 +104,8 @@ def create_app() -> FastAPI:
         app.state.config, app.state.repo_factory, app.state.pull_service_factory, topic)
     app.state.rag_answer_factory = lambda question, today, lang: _default_rag_answer(
         app.state.config, app.state.repo_factory, question, today, lang)
+    app.state.seed_ingest_factory = lambda ref, explainer: _default_seed_ingest(
+        app.state.config, app.state.repo_factory, ref, explainer)
 
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
@@ -161,6 +177,24 @@ def create_app() -> FastAPI:
                 question, today, app.state.config.article_lang)
         return _TEMPLATES.TemplateResponse(request=request, name="ask.html", context={
             "q": question, "today": today, "answer": answer})
+
+    @app.get("/ingest", response_class=HTMLResponse)
+    async def ingest_get(request: Request):
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={})
+
+    @app.post("/ingest", response_class=HTMLResponse)
+    async def ingest_post(request: Request, ref: str = Form(""),
+                          explainer: bool = Form(False)):
+        ref = ref.strip()
+        result = error = None
+        if ref:
+            try:
+                result = app.state.seed_ingest_factory(ref, explainer)
+            except (SourceUnavailable, OpenAIError) as e:   # 表單頁內攔，不噴 500
+                _log.error("web 種子 ingest 失敗", extra={"extra": {"reason": str(e)}})
+                error = str(e)
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
+            "ref": ref, "result": result, "error": error})
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):
