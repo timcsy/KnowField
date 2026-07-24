@@ -40,13 +40,17 @@ def _default_pull_service_factory(config: Config):
 
 
 def _default_pull_runner(config: Config, repo_factory, service_factory, topic: str):
-    """實際即時拉：組 adapter＋service→run_pull。可被 app.state.pull_runner 覆寫（測試）。"""
+    """實際即時拉：組 adapter＋service→run_pull。可被 app.state.pull_runner 覆寫（測試）。
+
+    web 上為求互動回應快，縮小規模：較少候選（少 embedding 呼叫）＋較少消化篇數
+    （少 LLM 呼叫）。要更廣更深仍可用 CLI `learnnews pull`。
+    """
     from ..cli.pull_cmd import build_pull_adapters, run_pull
     repo = repo_factory(config)
     sources = repo.list_sources(enabled_only=True)
-    adapters = build_pull_adapters(sources, topic)
+    adapters = build_pull_adapters(sources, topic, max_results=12)  # 少候選＝少去重/排序
     service = service_factory(config)
-    result = run_pull(adapters, topic, service=service)   # OpenAIError → 例外處理器
+    result = run_pull(adapters, topic, service=service, limit=6)    # 少消化＝快回應
     repo.close()
     return result
 

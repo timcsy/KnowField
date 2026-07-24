@@ -63,13 +63,20 @@ class OpenAIEmbedder:
         self.dim = 0  # 由第一次回應決定
 
     def embed(self, text: str) -> Vector:
-        # 截斷過長輸入（新聞長文），省成本與延遲；分診相關性靠前段已足夠
-        text = (text or " ")[:2000]
-        data = _post(self.base_url, "/embeddings", self.api_key,
-                     {"model": self.model, "input": text})
-        vec = data["data"][0]["embedding"]
-        self.dim = len(vec)
-        return _l2_normalize([float(x) for x in vec])
+        return self.embed_many([text])[0]
+
+    def embed_many(self, texts: list[str]) -> list[Vector]:
+        """一次 API 呼叫嵌入多筆（分批 ≤64），大幅省延遲——這是 web 即時拉的關鍵優化。"""
+        out: list[Vector] = []
+        for i in range(0, len(texts), 64):
+            chunk = [((t or " ")[:2000]) for t in texts[i:i + 64]]
+            data = _post(self.base_url, "/embeddings", self.api_key,
+                         {"model": self.model, "input": chunk})
+            for d in sorted(data["data"], key=lambda d: d.get("index", 0)):
+                vec = [float(x) for x in d["embedding"]]
+                self.dim = len(vec)
+                out.append(_l2_normalize(vec))
+        return out
 
 
 class OpenAIArticleWriter:

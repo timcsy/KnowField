@@ -40,10 +40,13 @@ class RelevanceRanker:
             # 無明講主題：不過濾，全數以中性分數保留（避免空跑）
             return [Scored(it, 1.0, "") for it in items]
 
-        topic_vecs = {t: self.embedder.embed(t) for t in explicit_topics}
+        # 批次嵌入所有主題與所有條目（真實後端一次 API 呼叫，省延遲）
+        topic_vec_list = self.embedder.embed_many(explicit_topics)
+        topic_vecs = dict(zip(explicit_topics, topic_vec_list))
+        item_vecs = self.embedder.embed_many(
+            [f"{it.title} {it.abstract}" for it in items])
         scored: list[Scored] = []
-        for item in items:
-            vec = self.embedder.embed(f"{item.title} {item.abstract}")
+        for item, vec in zip(items, item_vecs):
             best_score = -1.0
             best_topic = ""
             for topic, tvec in topic_vecs.items():

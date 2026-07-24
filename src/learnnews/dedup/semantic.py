@@ -24,7 +24,7 @@ def cluster_semantic(
     """輸入精確層分群（每群以第一個為代表），合併語義相似的群。"""
     embedder = embedder or HashingEmbedder()
     reps = [g[0] for g in groups]
-    vecs = [embedder.embed(f"{it.title} {it.abstract}") for it in reps]
+    vecs = embedder.embed_many([f"{it.title} {it.abstract}" for it in reps])  # 批次
 
     parent = list(range(len(groups)))
 

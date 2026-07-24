@@ -26,6 +26,10 @@ class Embedder(Protocol):
 
     def embed(self, text: str) -> Vector: ...
 
+    def embed_many(self, texts: list[str]) -> list[Vector]:
+        """批次嵌入。真實後端可一次 API 呼叫完成，大幅省延遲（見 OpenAIEmbedder）。"""
+        ...
+
 
 class HashingEmbedder:
     """把詞元雜湊到固定維度並 L2 正規化。確定性、無外部相依。"""
@@ -41,6 +45,9 @@ class HashingEmbedder:
             sign = 1.0 if (h >> 8) & 1 else -1.0
             vec[idx] += sign
         return _l2_normalize(vec)
+
+    def embed_many(self, texts: list[str]) -> list[Vector]:
+        return [self.embed(t) for t in texts]   # 本地、零成本，逐一即可
 
 
 def _l2_normalize(vec: Vector) -> Vector:
