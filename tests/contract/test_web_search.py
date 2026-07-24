@@ -1,4 +1,7 @@
-"""T005/T009/T011 [US1/2/3]：/search 列結果/查無/後端失敗；收進串接 ingest。"""
+"""spec 009 /search 路由契約——階段 9 增量 b（spec 010）後改走 smart_search_factory。
+
+原始 WebSearch 後端仍由 tests/unit/test_websearch.py 驗；此處驗路由：列結果/查無/後端失敗/收進。
+"""
 
 import unittest
 
@@ -6,6 +9,8 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+from learnnews.rag.types import Source
+from learnnews.search.smart import SmartResult
 from learnnews.search.websearch import SearchResult
 from learnnews.sources.base import SourceUnavailable
 from learnnews.store.repository import Repository
@@ -17,9 +22,9 @@ from tests.web_helpers import build_app
 class TestWebSearch(unittest.TestCase):
     def test_search_lists_results(self):
         app = build_app(temp_db())
-        app.state.web_search_factory = lambda q: [
-            SearchResult("Attention 解說", "https://blog/attention", "為什麼 attention 有效"),
-        ]
+        app.state.smart_search_factory = lambda q: SmartResult(
+            overview="重點[1]", sources=[Source(1, "Attention 解說", "https://blog/attention")],
+            results=[SearchResult("Attention 解說", "https://blog/attention", "為什麼 attention 有效")])
         r = TestClient(app).get("/search", params={"q": "attention"})
         self.assertEqual(r.status_code, 200)
         self.assertIn("Attention 解說", r.text)
@@ -28,7 +33,7 @@ class TestWebSearch(unittest.TestCase):
 
     def test_search_empty(self):
         app = build_app(temp_db())
-        app.state.web_search_factory = lambda q: []
+        app.state.smart_search_factory = lambda q: SmartResult(results=[])
         r = TestClient(app).get("/search", params={"q": "冷門"})
         self.assertIn("查無", r.text)
 
@@ -38,7 +43,7 @@ class TestWebSearch(unittest.TestCase):
         def boom(q):
             raise SourceUnavailable("模擬未設金鑰")
 
-        app.state.web_search_factory = boom
+        app.state.smart_search_factory = boom
         r = TestClient(app, raise_server_exceptions=False).get(
             "/search", params={"q": "x"})
         self.assertEqual(r.status_code, 200)                  # 頁內攔，非 500
@@ -46,13 +51,12 @@ class TestWebSearch(unittest.TestCase):
         self.assertNotIn("Traceback", r.text)
 
     def test_result_ingest_becomes_seed(self):
-        # US2：收進一則結果的 url → 走既有 /ingest（真實離線）→ 成種子；未收進的不落庫
+        # 收進一則結果的 url → 走既有 /ingest（真實離線）→ 成種子；未收進的不落庫
         db = temp_db()
         app = build_app(db)
-        app.state.web_search_factory = lambda q: [
+        app.state.smart_search_factory = lambda q: SmartResult(results=[
             SearchResult("R1", "https://a/keep", "s1"),
-            SearchResult("R2", "https://a/skip", "s2"),
-        ]
+            SearchResult("R2", "https://a/skip", "s2")])
         client = TestClient(app)
         client.get("/search", params={"q": "x"})              # 搜尋結果不落庫
         get = http_html("Kept", "attention transformer explained clearly enough here")

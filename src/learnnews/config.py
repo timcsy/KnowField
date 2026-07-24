@@ -50,6 +50,7 @@ class Config:
     # web 搜尋（spec 009）；未設時走離線 stub
     search_api_url: str = ""             # 搜尋 API 端點（如 Tavily）；空＝離線 stub
     search_api_key: str = ""
+    smart_search_topn: int = 4           # 智慧搜尋抓內文整理的前 N 則（spec 010）
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
@@ -79,4 +80,5 @@ class Config:
                 os.environ.get("LEARNNEWS_RAG_EXPLAINER_WEIGHT", "1.5")),
             search_api_url=os.environ.get("LEARNNEWS_SEARCH_API_URL", ""),
             search_api_key=os.environ.get("LEARNNEWS_SEARCH_KEY", ""),
+            smart_search_topn=int(os.environ.get("LEARNNEWS_SMART_TOPN", "4")),
         )

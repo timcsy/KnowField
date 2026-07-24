@@ -10,13 +10,20 @@ LearnNews 是**消化＋溯源工具**：把 AI 新聞與論文的洪流去重�
 ```bash
 uv sync --extra web            # 裝 fastapi/uvicorn/jinja2
 uv run learnnews digest        # 先產一份匯整（首頁會讀它）
-# 導覽列：今日匯整 / 主題深挖 / 搜尋（開放網路→收進）/ 問答（RAG）/ 收進 / 知識庫 / 來源 / 興趣
+# 導覽列：今日匯整 / 主題深挖 / 搜尋（開放網路→整理→收進）/ 問答（RAG）/ 收進 / 知識庫 / 來源 / 興趣
 uv run uvicorn learnnews.web.app:app --reload   # 開 http://127.0.0.1:8000
 ```
 
 首頁看今日匯整（散文＋原文圖內嵌＋一鍵原文）、上方輸入框即時「拉」主題、`/interests`
 管理興趣。RWD（手機/桌面）、全繁中；後端失敗會顯示友善頁面而非錯誤堆疊。框架相依只在
 web 這層，核心仍零相依。
+
+**`/search` 智慧搜尋（階段 9 增量 b）**：打一個 query → 搜尋開放網路 → **讀完前幾則、
+給你一段可回溯的繁中「整理」重點**（逐點 `[n]` 可捲到對應結果）＋依相關度排序的結果清單；
+看到有價值的按「收進」冊封成種子。整理只根據抓到的內文（grounded、不杜撰），搜尋結果與
+整理都**不落庫**——只有你收進的才留（原則 5）。某則抓不到或整理服務失敗會友善降級、仍列
+結果。真搜需設 `LEARNNEWS_SEARCH_API_URL`＋`LEARNNEWS_SEARCH_KEY`（Tavily，金鑰放 body）；
+未設走離線示意。前 N 可調 `LEARNNEWS_SMART_TOPN`（預設 4）。
 
 ## 安裝（uv）
 

@@ -30,6 +30,15 @@ def make_web_search(config: Config):
     return StubWebSearch()
 
 
+def make_smart_search(config: Config):
+    """智慧搜尋（spec 010）：組搜尋／嵌入／整理後端＋fetch_url，回 SmartSearch。"""
+    from ..search.smart import SmartSearch
+    return SmartSearch(web_search=make_web_search(config),
+                       embedder=make_embedder(config),
+                       answerer=make_answerer(config),
+                       top_n=config.smart_search_topn)
+
+
 def make_answerer(config: Config):
     """RAG 答案合成後端：真實走 OpenAI 格式 chat，否則離線 stub（spec 005）。"""
     if config.backend == "openai" and config.api_key:
