@@ -6,6 +6,25 @@
   <title>{% block title %}LearnNews{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']],
+             displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    .answer-md p { margin: .55rem 0; }
+    .answer-md ul { list-style: disc; margin: .4rem 0 .4rem 1.5rem; }
+    .answer-md ol { list-style: decimal; margin: .4rem 0 .4rem 1.5rem; }
+    .answer-md li { margin: .2rem 0; }
+    .answer-md strong { font-weight: 600; }
+    .answer-md h1, .answer-md h2, .answer-md h3 { font-weight: 700; margin: .7rem 0 .3rem; }
+    .answer-md code { background: rgba(0,0,0,.06); padding: 0 .25rem; border-radius: 3px; }
+    .answer-md a { text-decoration: underline; }
+  </style>
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">
   <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">

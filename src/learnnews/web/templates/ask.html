@@ -28,9 +28,26 @@
     {% elif answer %}
       <div class="card bg-base-100 shadow-sm mb-4">
         <div class="card-body">
-          <div class="whitespace-pre-wrap leading-relaxed">{{ answer.text }}</div>
+          <div id="answer" class="answer-md leading-relaxed">{{ answer.text }}</div>
         </div>
       </div>
+      <script>
+        (function () {
+          var raw = {{ answer.text | tojson }};
+          var el = document.getElementById('answer');
+          // 保護數學片段不被 markdown 吃掉（\( \) \[ \] $ $$），render 後還原、交 MathJax
+          var math = [];
+          var protectedText = raw.replace(
+            /\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+            function (m) { math.push(m); return '@@MATH' + (math.length - 1) + '@@'; });
+          var html = window.marked
+            ? marked.parse(protectedText)
+            : protectedText.replace(/\n/g, '<br>');
+          html = html.replace(/@@MATH(\d+)@@/g, function (_, i) { return math[+i]; });
+          el.innerHTML = html;
+          if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+        })();
+      </script>
       <div class="text-sm">
         <div class="font-semibold text-base-content/70 mb-1">來源</div>
         <ul class="space-y-1">
