@@ -1,32 +1,35 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="nord">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}LearnNews{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
-  <header class="bg-white border-b sticky top-0 z-10">
-    <nav class="max-w-3xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
-      <a href="/" class="text-lg font-bold text-slate-900">📰 LearnNews</a>
-      <div class="flex gap-3 text-sm">
-        <a href="/" class="hover:text-blue-600">今日匯整</a>
-        <a href="/pull" class="hover:text-blue-600">主題深挖</a>
-        <a href="/interests" class="hover:text-blue-600">興趣</a>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
+    <div class="max-w-3xl mx-auto w-full px-3 flex flex-wrap items-center gap-2">
+      <a href="/" class="btn btn-ghost text-xl px-2">📰 LearnNews</a>
+      <div class="hidden sm:flex">
+        <a href="/" class="btn btn-ghost btn-sm">今日匯整</a>
+        <a href="/pull" class="btn btn-ghost btn-sm">主題深挖</a>
+        <a href="/interests" class="btn btn-ghost btn-sm">興趣</a>
       </div>
-      <form action="/pull" method="get" class="ml-auto flex gap-2 w-full sm:w-auto">
-        <input name="topic" placeholder="輸入主題即時拉…" value="{{ topic|default('') }}"
-               class="border rounded px-2 py-1 text-sm flex-1 sm:w-56">
-        <button class="bg-blue-600 text-white text-sm rounded px-3 py-1">拉</button>
+      <form action="/pull" method="get" class="join ml-auto">
+        <input name="topic" value="{{ topic|default('') }}" placeholder="輸入主題即時拉…"
+               class="input input-bordered input-sm join-item w-40 sm:w-56">
+        <button class="btn btn-primary btn-sm join-item">拉</button>
       </form>
-    </nav>
-  </header>
-  <main class="max-w-3xl mx-auto px-4 py-6">
+    </div>
+  </div>
+
+  <main class="max-w-3xl mx-auto px-3 sm:px-4 py-6">
     {% block content %}{% endblock %}
   </main>
-  <footer class="max-w-3xl mx-auto px-4 py-8 text-xs text-slate-400">
-    LearnNews — 消化以省時，溯源不可省。
+
+  <footer class="footer footer-center p-6 text-base-content/50 text-xs">
+    <aside><p>LearnNews — 消化以省時，溯源不可省。</p></aside>
   </footer>
 </body>
 </html>

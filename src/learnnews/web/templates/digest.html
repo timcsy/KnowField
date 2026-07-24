@@ -2,17 +2,27 @@
 {% block title %}今日匯整 — LearnNews{% endblock %}
 {% block content %}
   {% if date %}
-    <h1 class="text-xl font-bold mb-4">📰 {{ date }} 每日分診匯整</h1>
+    <div class="flex items-center gap-2 mb-5">
+      <h1 class="text-2xl font-bold">📰 每日分診匯整</h1>
+      <span class="badge badge-neutral">{{ date }}</span>
+    </div>
   {% endif %}
   {% if entries %}
     {% for e in entries %}{% include "_entry.html" %}{% endfor %}
     {% if missing_sources %}
-      <p class="text-xs text-amber-600">⚠ 缺漏來源：{{ missing_sources|join('、') }}</p>
+      <div class="alert alert-warning text-sm">
+        <span>⚠ 缺漏來源：{{ missing_sources|join('、') }}</span>
+      </div>
     {% endif %}
   {% else %}
-    <div class="bg-white border rounded-lg p-8 text-center text-slate-500">
-      <p class="mb-2">目前還沒有匯整。</p>
-      <p class="text-sm">先在終端跑一次 <code class="bg-slate-100 px-1 rounded">uv run learnnews digest</code>，再重新整理。</p>
+    <div class="hero bg-base-100 rounded-2xl py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-semibold mb-1">目前還沒有匯整</p>
+          <p class="text-sm opacity-60">先在終端跑一次
+            <code class="badge badge-ghost">uv run learnnews digest</code>，再重新整理。</p>
+        </div>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 {% block title %}後端暫不可用 — LearnNews{% endblock %}
 {% block content %}
-  <div class="bg-white border rounded-lg p-8 text-center">
-    <p class="text-lg font-semibold text-slate-800 mb-2">⚠ 消化後端暫時不可用</p>
-    <p class="text-sm text-slate-500 mb-4">可稍後重試，或改用離線模式（<code class="bg-slate-100 px-1 rounded">LEARNNEWS_BACKEND=offline</code>）。</p>
-    <p class="text-xs text-slate-400 break-all">原因：{{ reason }}</p>
-    <p class="mt-4"><a href="/" class="text-blue-600 hover:underline">← 回今日匯整</a></p>
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body items-center text-center gap-3">
+      <div class="text-4xl">⚠️</div>
+      <h2 class="card-title">消化後端暫時不可用</h2>
+      <p class="text-sm opacity-70">可稍後重試，或改用離線模式
+        （<code class="badge badge-ghost">LEARNNEWS_BACKEND=offline</code>）。</p>
+      <p class="text-xs opacity-40 break-all">原因：{{ reason }}</p>
+      <div class="card-actions">
+        <a href="/" class="btn btn-primary btn-sm">← 回今日匯整</a>
+      </div>
+    </div>
   </div>
 {% endblock %}

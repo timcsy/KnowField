@@ -2,17 +2,27 @@
 {% block title %}{{ topic or "主題深挖" }} — LearnNews{% endblock %}
 {% block content %}
   {% if topic %}
-    <h1 class="text-xl font-bold mb-4">🔎 主題「{{ topic }}」拉取結果</h1>
+    <div class="flex items-center gap-2 mb-5">
+      <h1 class="text-2xl font-bold">🔎 主題深挖</h1>
+      <span class="badge badge-primary badge-outline">{{ topic }}</span>
+    </div>
     {% if entries %}
       {% for e in entries %}{% include "_entry.html" %}{% endfor %}
     {% else %}
-      <div class="bg-white border rounded-lg p-8 text-center text-slate-500">
-        查無與「{{ topic }}」相關的材料。
+      <div class="hero bg-base-100 rounded-2xl py-16">
+        <div class="hero-content text-center opacity-60">
+          查無與「{{ topic }}」相關的材料。
+        </div>
       </div>
     {% endif %}
   {% else %}
-    <div class="bg-white border rounded-lg p-8 text-center text-slate-500">
-      在上方輸入一個主題，即時拉取跨來源的相關材料（散文＋一鍵原文）。
+    <div class="hero bg-base-100 rounded-2xl py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-semibold mb-1">主題深挖</p>
+          <p class="text-sm opacity-60">在上方輸入一個主題，即時拉取跨來源的相關材料（散文＋一鍵原文）。</p>
+        </div>
+      </div>
     </div>
   {% endif %}
 {% endblock %}
