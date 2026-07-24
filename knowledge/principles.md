@@ -79,3 +79,4 @@
 | 觸發關鍵字 | MUST 讀 |
 |---|---|
 | 開發紀律 / TDD / 繁中文件 / 規格驅動 | `.specify/memory/constitution.md` |
+| 知識庫 / KB / RAG / 檢索 / 趨勢 / 興趣 / 種子 / 吸引子 / 組織方式 | `concepts/有吸引子的場.md` |
