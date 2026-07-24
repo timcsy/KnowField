@@ -95,7 +95,7 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 ## Phase 6: Polish & Cross-Cutting
 
 - [x] T018 [P] `docs/usage.md` 補 `ingest` 用法（arXiv/URL、`--explainer`、去重、失敗行為）
-- [ ] T019 真跑抽查（真實後端）：`ingest` 一篇真 arXiv → `ask` 問到＋溯源 → 重複去重 → 失敗 case——quickstart §1–5
+- [~] T019 真跑：arXiv 抓取路徑已真跑驗證（真標題/摘要/裸 id url）；**完整 `ingest`→`ask` 真跑留使用者**（原則 5——由你冊封收哪篇＋消化額度）。quickstart §1–5
 - [x] T020 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 147 不回歸**）
 
 ---
