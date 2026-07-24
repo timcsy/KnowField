@@ -112,6 +112,11 @@ def create_app() -> FastAPI:
         return subscribe(url)
     app.state.subscribe_factory = _default_subscribe
 
+    def _default_web_search(query):
+        from ..backends.factory import make_web_search
+        return make_web_search(app.state.config).search(query)
+    app.state.web_search_factory = _default_web_search
+
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
@@ -272,6 +277,20 @@ def create_app() -> FastAPI:
             repo.delete_source(source_id)
             repo.close()
         return RedirectResponse("/sources", status_code=303)
+
+    @app.get("/search", response_class=HTMLResponse)
+    async def search_get(request: Request, q: str = ""):
+        q = q.strip()
+        results = err = None
+        if q:
+            try:
+                results = app.state.web_search_factory(q)   # 即算即棄，不落庫（FR-003）
+            except SourceUnavailable as e:                   # 未設金鑰/逾時/服務錯誤
+                _log.error("web 搜尋失敗", extra={"extra": {"reason": str(e)}})
+                err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="search.html",
+            context={"q": q, "results": results, "err": err})
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):

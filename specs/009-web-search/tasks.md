@@ -21,14 +21,14 @@ description: "Task list — web 搜尋（開放網路進水口）"
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] 建 `src/learnnews/search/__init__.py`；確認 `tests/{unit,contract}/` 就緒
+- [x] T001 [P] 建 `src/learnnews/search/__init__.py`；確認 `tests/{unit,contract}/` 就緒
 
 ---
 
 ## Phase 2: Foundational（阻塞所有 user story）
 
-- [ ] T002 [P] config：`search_api_url`／`search_api_key`（env `LEARNNEWS_SEARCH_API_URL`／`LEARNNEWS_SEARCH_KEY`）in `src/learnnews/config.py`
-- [ ] T003 `search/websearch.py`：`SearchResult`（title/url/snippet）＋`WebSearch` 協定＋`StubWebSearch`（離線回固定假結果）in `src/learnnews/search/websearch.py`
+- [x] T002 [P] config：`search_api_url`／`search_api_key`（env `LEARNNEWS_SEARCH_API_URL`／`LEARNNEWS_SEARCH_KEY`）in `src/learnnews/config.py`
+- [x] T003 `search/websearch.py`：`SearchResult`（title/url/snippet）＋`WebSearch` 協定＋`StubWebSearch`（離線回固定假結果）in `src/learnnews/search/websearch.py`
 
 **Checkpoint**：搜尋型別與離線後端就緒。
 
@@ -41,13 +41,13 @@ description: "Task list — web 搜尋（開放網路進水口）"
 **Independent Test**：注入假 `web_search_factory` 回固定結果 → `GET /search?q=x` 列出那些結果、每則可點原文；空結果→查無提示。
 
 ### Tests（先寫、先失敗）
-- [ ] T004 [P] [US1] 單元測試 `tests/unit/test_websearch.py`：`StubWebSearch.search` 回結果；真實後端解析（假 http POST → title/url/snippet 寬鬆解析）；失敗拋 `SourceUnavailable`
-- [ ] T005 [P] [US1] 契約測試 `tests/contract/test_web_search.py`：`GET /search?q=`（注入假後端）列出結果＋原文連結；查無→提示
+- [x] T004 [P] [US1] 單元測試 `tests/unit/test_websearch.py`：`StubWebSearch.search` 回結果；真實後端解析（假 http POST → title/url/snippet 寬鬆解析）；失敗拋 `SourceUnavailable`
+- [x] T005 [P] [US1] 契約測試 `tests/contract/test_web_search.py`：`GET /search?q=`（注入假後端）列出結果＋原文連結；查無→提示
 
 ### Implementation
-- [ ] T006 [US1] `search/websearch.py`：真實 urllib 後端（POST `config.search_api_url`、Tavily 形狀寬鬆解析）＋`make_web_search(config)`（stub↔真實）in `src/learnnews/search/websearch.py`＋`src/learnnews/backends/factory.py`
-- [ ] T007 [US1] `templates/search.html`（查詢框＋結果清單＋空狀態）in `src/learnnews/web/templates/`
-- [ ] T008 [US1] `GET /search`（`app.state.web_search_factory`→渲染）in `src/learnnews/web/app.py`；導覽加「搜尋」in `base.html`
+- [x] T006 [US1] `search/websearch.py`：真實 urllib 後端（POST `config.search_api_url`、Tavily 形狀寬鬆解析）＋`make_web_search(config)`（stub↔真實）in `src/learnnews/search/websearch.py`＋`src/learnnews/backends/factory.py`
+- [x] T007 [US1] `templates/search.html`（查詢框＋結果清單＋空狀態）in `src/learnnews/web/templates/`
+- [x] T008 [US1] `GET /search`（`app.state.web_search_factory`→渲染）in `src/learnnews/web/app.py`；導覽加「搜尋」in `base.html`
 
 **Checkpoint**：離線 `/search` 列結果可獨立跑通。**MVP 達成。**
 
@@ -60,10 +60,10 @@ description: "Task list — web 搜尋（開放網路進水口）"
 **Independent Test**：假結果 → 對一則的 url 送 `POST /ingest`（既有，抓取可注入）→ 該篇成種子、`ask` 檢索得到；其餘未落庫。
 
 ### Tests（先寫、先失敗）
-- [ ] T009 [P] [US2] 契約測試 `tests/contract/test_web_search.py`（追加）：結果頁每則有「收進」表單→`/ingest`（ref=url）；收進一則後 `list_seeds` 有它、未收進的不在庫
+- [x] T009 [P] [US2] 契約測試 `tests/contract/test_web_search.py`（追加）：結果頁每則有「收進」表單→`/ingest`（ref=url）；收進一則後 `list_seeds` 有它、未收進的不在庫
 
 ### Implementation
-- [ ] T010 [US2] `search.html` 每則結果加「收進」表單（`POST /ingest`，hidden `ref`=結果 url）in `src/learnnews/web/templates/search.html`
+- [x] T010 [US2] `search.html` 每則結果加「收進」表單（`POST /ingest`，hidden `ref`=結果 url）in `src/learnnews/web/templates/search.html`
 
 **Checkpoint**：搜尋→收進成種子可跑通（收進復用既有 ingest，無新後端碼）。
 
@@ -87,9 +87,9 @@ description: "Task list — web 搜尋（開放網路進水口）"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T013 [P] `docs/usage.md` 補 `/search`（搜尋→收進成種子、可插拔後端、離線 stub）
-- [ ] T014 真跑：設真實搜尋金鑰 → `/search` 真搜→收進（留使用者）
-- [ ] T015 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 190 不回歸**）
+- [x] T013 [P] `docs/usage.md` 補 `/search`（搜尋→收進成種子、可插拔後端、離線 stub）
+- [x] T014 真跑：離線端到端＋收進→種子已驗；真實搜尋金鑰真跑留使用者
+- [x] T015 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 190 不回歸**）
 
 ---
 

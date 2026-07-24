@@ -21,6 +21,15 @@ def make_summarizer(config: Config) -> Summarizer:
     return StubSummarizer()
 
 
+def make_web_search(config: Config):
+    """web 搜尋後端：設了搜尋 API → 真實，否則離線 stub（spec 009）。"""
+    if config.search_api_url and config.search_api_key:
+        from ..search.websearch import ApiWebSearch
+        return ApiWebSearch(config.search_api_url, config.search_api_key)
+    from ..search.websearch import StubWebSearch
+    return StubWebSearch()
+
+
 def make_answerer(config: Config):
     """RAG 答案合成後端：真實走 OpenAI 格式 chat，否則離線 stub（spec 005）。"""
     if config.backend == "openai" and config.api_key:

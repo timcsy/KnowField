@@ -47,6 +47,10 @@ class Config:
     rag_min_score: float = 0.10          # 低於此相關度視為查無相關
     rag_explainer_weight: float = 1.5    # 解說文種子的檢索排序權重（spec 006，>1 才勝快訊）
 
+    # web 搜尋（spec 009）；未設時走離線 stub
+    search_api_url: str = ""             # 搜尋 API 端點（如 Tavily）；空＝離線 stub
+    search_api_key: str = ""
+
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
         load_dotenv(dotenv)
@@ -73,4 +77,6 @@ class Config:
                 "LEARNNEWS_RAG_MINSCORE", "0.30" if backend == "openai" else "0.05")),
             rag_explainer_weight=float(
                 os.environ.get("LEARNNEWS_RAG_EXPLAINER_WEIGHT", "1.5")),
+            search_api_url=os.environ.get("LEARNNEWS_SEARCH_API_URL", ""),
+            search_api_key=os.environ.get("LEARNNEWS_SEARCH_KEY", ""),
         )
