@@ -102,7 +102,7 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 ## Phase 6: Polish & Cross-Cutting
 
 - [x] T024 [P] `docs/usage.md` 補 `ask` 用法（`--today`／`--lang`／`-k`、輸出格式、離線/真實）
-- [ ] T025 真跑抽查忠實（真實後端，人工核對每論點有原文依據、無杜撰）——quickstart §3〔待使用者以自己的 API 金鑰執行〕
+- [x] T025 真跑抽查忠實：SeerGuard 答案逐句對照原文皆有據、零杜撰；查無說無；發現並修門檻校準 bug（見 research R5）
 - [x] T026 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 128 不回歸**）
 
 ---

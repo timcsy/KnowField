@@ -64,5 +64,8 @@ class Config:
             embed_model=os.environ.get("LEARNNEWS_EMBED_MODEL", "text-embedding-3-small"),
             article_lang=os.environ.get("LEARNNEWS_LANG", "繁體中文"),
             rag_top_k=int(os.environ.get("LEARNNEWS_RAG_TOPK", "6")),
-            rag_min_score=float(os.environ.get("LEARNNEWS_RAG_MINSCORE", "0.10")),
+            # 門檻依 embedder 尺度校準（experience 教訓 4）：真實嵌入 cosine 帶高、離線雜湊帶低。
+            # 真跑實測（text-embedding-3-small）：命中≈0.6、鬆散相關 0.1–0.25、無關問題≤0.22。
+            rag_min_score=float(os.environ.get(
+                "LEARNNEWS_RAG_MINSCORE", "0.30" if backend == "openai" else "0.05")),
         )
