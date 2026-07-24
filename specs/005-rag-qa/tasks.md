@@ -21,7 +21,7 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] 建 `src/learnnews/rag/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
+- [x] T001 [P] 建 `src/learnnews/rag/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
 
 ---
 
@@ -29,16 +29,16 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 
 **⚠️ 完成前任何 user story 不能開工。**
 
-- [ ] T002 [P] schema：在 `src/learnnews/store/schema.py` 新增 `entry_embeddings(entry_id, tag, dim, vector_json, PRIMARY KEY(entry_id,tag))`（data-model.md）
-- [ ] T003 [P] 型別：`CorpusEntry`／`Source`／`RagAnswer`／`Scope` in `src/learnnews/rag/types.py`（含 `CorpusEntry.embed_text()`）
-- [ ] T004 [P] Answerer 協定＋`StubAnswerer`（離線、grounded、逐點 `[n]`、只用傳入段落）in `src/learnnews/rag/answerer.py`
-- [ ] T005 [P] `OpenAIAnswerer`（複用 `_post` `/chat/completions`、grounded prompt）in `src/learnnews/backends/openai_api.py`
-- [ ] T006 `make_answerer(config)`（openai↔stub）in `src/learnnews/backends/factory.py`（依賴 T004、T005）
-- [ ] T007 [P] config：`rag_top_k=6`、`rag_min_score=0.10`、`embedder_tag()` 輔助（`hashing-256`／`openai-<model>`）in `src/learnnews/config.py`
-- [ ] T008 repository：`get_entry_embedding`／`save_entry_embedding`（INSERT OR REPLACE）in `src/learnnews/store/repository.py`（依賴 T002、T003）
-- [ ] T009 repository：`ensure_embeddings(entries, embedder, tag)`（缺 tag 者**批次 `embed_many`** 補算並落庫）in `repository.py`（依賴 T008）
-- [ ] T010 repository：`list_corpus_entries(today=False)`（`False`=全部 digests；`True`=`MAX(id)` 那份）→ `list[CorpusEntry]` in `repository.py`（依賴 T003）
-- [ ] T011 repository：`save_digest` 內對新 entries **批次嵌入並存**（FR-009）in `repository.py`（依賴 T009）
+- [x] T002 [P] schema：在 `src/learnnews/store/schema.py` 新增 `entry_embeddings(entry_id, tag, dim, vector_json, PRIMARY KEY(entry_id,tag))`（data-model.md）
+- [x] T003 [P] 型別：`CorpusEntry`／`Source`／`RagAnswer`／`Scope` in `src/learnnews/rag/types.py`（含 `CorpusEntry.embed_text()`）
+- [x] T004 [P] Answerer 協定＋`StubAnswerer`（離線、grounded、逐點 `[n]`、只用傳入段落）in `src/learnnews/rag/answerer.py`
+- [x] T005 [P] `OpenAIAnswerer`（複用 `_post` `/chat/completions`、grounded prompt）in `src/learnnews/backends/openai_api.py`
+- [x] T006 `make_answerer(config)`（openai↔stub）in `src/learnnews/backends/factory.py`（依賴 T004、T005）
+- [x] T007 [P] config：`rag_top_k=6`、`rag_min_score=0.10`、`embedder_tag()` 輔助（`hashing-256`／`openai-<model>`）in `src/learnnews/config.py`
+- [x] T008 repository：`get_entry_embedding`／`save_entry_embedding`（INSERT OR REPLACE）in `src/learnnews/store/repository.py`（依賴 T002、T003）
+- [x] T009 repository：`ensure_embeddings(entries, embedder, tag)`（缺 tag 者**批次 `embed_many`** 補算並落庫）in `repository.py`（依賴 T008）
+- [x] T010 repository：`list_corpus_entries(today=False)`（`False`=全部 digests；`True`=`MAX(id)` 那份）→ `list[CorpusEntry]` in `repository.py`（依賴 T003）
+- [x] T011 repository：`save_digest` 內對新 entries **批次嵌入並存**（FR-009）in `repository.py`（依賴 T009）
 
 **Checkpoint**：語料存取＋嵌入落庫＋合成後端就緒，可開 user story。
 
@@ -52,14 +52,14 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 對應來源；措辭不同的語義問題也命中。
 
 ### Tests（先寫、先失敗）
-- [ ] T012 [P] [US1] 契約測試 `tests/contract/test_ask.py`：離線後端，累積問答回答＋列出來源（title/url）；用**實測會匹配**的字串（教訓 4）
-- [ ] T013 [P] [US1] 整合測試 `tests/integration/test_rag_service.py`：檢索→合成→溯源；語義命中；`sources` 由檢索集合生成（原則 3）
-- [ ] T014 [P] [US1] 單元測試 `tests/unit/test_entry_embeddings.py`：存/取、惰性回填、tag 不符則重嵌、`embed_many` 批次（不逐一）
+- [x] T012 [P] [US1] 契約測試 `tests/contract/test_ask.py`：離線後端，累積問答回答＋列出來源（title/url）；用**實測會匹配**的字串（教訓 4）
+- [x] T013 [P] [US1] 整合測試 `tests/integration/test_rag_service.py`：檢索→合成→溯源；語義命中；`sources` 由檢索集合生成（原則 3）
+- [x] T014 [P] [US1] 單元測試 `tests/unit/test_entry_embeddings.py`：存/取、惰性回填、tag 不符則重嵌、`embed_many` 批次（不逐一）
 
 ### Implementation
-- [ ] T015 [US1] `RagService.answer(question, scope, k, lang)` in `src/learnnews/rag/service.py`：載 scope 語料→`ensure_embeddings`→嵌問題→`cosine` 排序→top-k→`answerer.answer`→`RagAnswer`（`sources` 程式端生成）
-- [ ] T016 [US1] `ask_cmd.handle(args)` in `src/learnnews/cli/ask_cmd.py`：`Config.from_env`→組 embedder/answerer→`RagService`→列印答案＋「來源：」清單
-- [ ] T017 [US1] `ask` subparser（位置 `question`、`--lang`、`-k`；`set_defaults(func=ask_cmd.handle)`）in `src/learnnews/cli/__main__.py`
+- [x] T015 [US1] `RagService.answer(question, scope, k, lang)` in `src/learnnews/rag/service.py`：載 scope 語料→`ensure_embeddings`→嵌問題→`cosine` 排序→top-k→`answerer.answer`→`RagAnswer`（`sources` 程式端生成）
+- [x] T016 [US1] `ask_cmd.handle(args)` in `src/learnnews/cli/ask_cmd.py`：`Config.from_env`→組 embedder/answerer→`RagService`→列印答案＋「來源：」清單
+- [x] T017 [US1] `ask` subparser（位置 `question`、`--lang`、`-k`；`set_defaults(func=ask_cmd.handle)`）in `src/learnnews/cli/__main__.py`
 
 **Checkpoint**：US1 可獨立跑通——離線 `ask` 對累積庫回答且掛來源。**MVP 達成。**
 
@@ -72,11 +72,11 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 **Independent Test**：種入「昨天」「今天」兩份匯整；同問題在預設與 `--today` 下，驗證來源範圍。
 
 ### Tests（先寫、先失敗）
-- [ ] T018 [P] [US2] 整合測試 `tests/integration/test_rag_scope.py`：`--today` 來源只含最近一份、預設涵蓋全部
+- [x] T018 [P] [US2] 整合測試 `tests/integration/test_rag_scope.py`：`--today` 來源只含最近一份、預設涵蓋全部
 
 ### Implementation
-- [ ] T019 [US2] `RagService` 接 `Scope(today)` → 用 `list_corpus_entries(today)` in `src/learnnews/rag/service.py`
-- [ ] T020 [US2] `--today` 旗標接進 `ask_cmd.py` 與 `__main__.py`
+- [x] T019 [US2] `RagService` 接 `Scope(today)` → 用 `list_corpus_entries(today)` in `src/learnnews/rag/service.py`
+- [x] T020 [US2] `--today` 旗標接進 `ask_cmd.py` 與 `__main__.py`
 
 **Checkpoint**：US1＋US2 皆可獨立運作。
 
@@ -89,11 +89,11 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 **Independent Test**：(a) 空庫/無關問題 → 「沒有相關材料」且無編造；(b) 後端拋錯 → 友善繁中、退出碼 1、無 traceback。
 
 ### Tests（先寫、先失敗）
-- [ ] T021 [P] [US3] 契約測試 `tests/contract/test_ask_boundaries.py`：空庫/無關→沒有相關材料且**不產生內容/來源**；後端 `OpenAIError`→友善繁中、無 `Traceback`
+- [x] T021 [P] [US3] 契約測試 `tests/contract/test_ask_boundaries.py`：空庫/無關→沒有相關材料且**不產生內容/來源**；後端 `OpenAIError`→友善繁中、無 `Traceback`
 
 ### Implementation
-- [ ] T022 [US3] `RagService` 門檻濾除：低於 `rag_min_score` 或空語料 → `RagAnswer(no_material=True)`，**不呼叫合成後端** in `src/learnnews/rag/service.py`
-- [ ] T023 [US3] `ask_cmd` 攔 `OpenAIError` → 友善繁中訊息、退出碼 1、不噴 traceback（教訓 3）in `src/learnnews/cli/ask_cmd.py`
+- [x] T022 [US3] `RagService` 門檻濾除：低於 `rag_min_score` 或空語料 → `RagAnswer(no_material=True)`，**不呼叫合成後端** in `src/learnnews/rag/service.py`
+- [x] T023 [US3] `ask_cmd` 攔 `OpenAIError` → 友善繁中訊息、退出碼 1、不噴 traceback（教訓 3）in `src/learnnews/cli/ask_cmd.py`
 
 **Checkpoint**：三個 user story 皆獨立可用。
 
@@ -101,9 +101,9 @@ description: "Task list — RAG 問答（個人知識庫）增量 1 MVP"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T024 [P] `docs/usage.md` 補 `ask` 用法（`--today`／`--lang`／`-k`、輸出格式、離線/真實）
-- [ ] T025 真跑抽查忠實（真實後端，人工核對每論點有原文依據、無杜撰）——quickstart §3
-- [ ] T026 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 128 不回歸**）
+- [x] T024 [P] `docs/usage.md` 補 `ask` 用法（`--today`／`--lang`／`-k`、輸出格式、離線/真實）
+- [ ] T025 真跑抽查忠實（真實後端，人工核對每論點有原文依據、無杜撰）——quickstart §3〔待使用者以自己的 API 金鑰執行〕
+- [x] T026 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 128 不回歸**）
 
 ---
 

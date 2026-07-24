@@ -99,6 +99,16 @@ def handle(args) -> int:
         repo.close()
         return 1
     repo.save_digest(digest)  # 落庫供拉模式 --from-digest 使用（US2）
+    # FR-009（spec 005）：存匯整時批次嵌入條目落庫，供 ask 問答；idempotent，查詢端不重算。
+    # 嵌入失敗不擋 digest 主流程（匯整已產出）。
+    try:
+        from ..rag.service import embedder_tag
+        emb = make_embedder(config)
+        rows = repo.list_corpus_entries(today=True)
+        repo.ensure_embeddings(rows, emb, embedder_tag(emb))
+    except OpenAIError as e:
+        _log.warning("匯整嵌入落庫失敗（不影響匯整）",
+                     extra={"extra": {"reason": str(e)}})
     fmt = "json" if args.json else args.format
     output = render(digest, fmt, raw=raw)
     if args.output:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import digest_cmd, interests_cmd, pull_cmd, sources_cmd
+from . import ask_cmd, digest_cmd, interests_cmd, pull_cmd, sources_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--format", choices=["terminal", "markdown"], default="terminal")
     pl.add_argument("--output", default=None)
     pl.set_defaults(func=pull_cmd.handle)
+
+    # ask（RAG 問答，spec 005）
+    a = sub.add_parser("ask", help="對已落庫知識庫問答（RAG，可溯源）")
+    a.add_argument("question", help="一句自然語言問題")
+    a.add_argument("--today", action="store_true", help="只查最近一份匯整（預設跨累積）")
+    a.add_argument("--lang", default=None, help="答案語言（預設繁體中文）")
+    a.add_argument("-k", type=int, default=None, help="取回條目數上限")
+    a.set_defaults(func=ask_cmd.handle)
 
     # sources
     s = sub.add_parser("sources", help="檢視/啟用來源")

@@ -21,6 +21,15 @@ def make_summarizer(config: Config) -> Summarizer:
     return StubSummarizer()
 
 
+def make_answerer(config: Config):
+    """RAG 答案合成後端：真實走 OpenAI 格式 chat，否則離線 stub（spec 005）。"""
+    if config.backend == "openai" and config.api_key:
+        from .openai_api import OpenAIAnswerer
+        return OpenAIAnswerer(config.api_base_url, config.api_key, config.chat_model)
+    from ..rag.answerer import StubAnswerer
+    return StubAnswerer()
+
+
 def make_article_backend(config: Config):
     """散文後端：真實走 OpenAI 格式 chat，否則離線 stub。"""
     from ..summarize.article import StubArticleBackend

@@ -16,6 +16,7 @@ from ..models import (
     Item,
     Source,
 )
+from ..rag.types import CorpusEntry, Vector
 from .schema import init_db
 
 
@@ -197,3 +198,63 @@ class Repository:
             return None
         return {"title": entry["title"], "url": entry["url"],
                 "matched_topic": entry["matched_topic"]}
+
+    # --- RAG 語料與嵌入（spec 005） ---
+    def list_corpus_entries(self, today: bool = False) -> list[CorpusEntry]:
+        """取語料條目。today=False＝全部匯整；True＝最近一份匯整（data-model.md R6）。"""
+        base = (
+            "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
+            " de.article_body AS body, d.date AS ddate"
+            " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
+        )
+        if today:
+            row = self.conn.execute("SELECT MAX(id) AS mid FROM digests").fetchone()
+            if not row or row["mid"] is None:
+                return []
+            rows = self.conn.execute(
+                base + " WHERE de.digest_id=? ORDER BY de.id", (row["mid"],)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(base + " ORDER BY de.id").fetchall()
+        return [
+            CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
+                        headline=r["headline"] or "", body=r["body"] or "",
+                        digest_date=r["ddate"])
+            for r in rows
+        ]
+
+    def get_entry_embedding(self, entry_id: int, tag: str) -> Vector | None:
+        row = self.conn.execute(
+            "SELECT vector_json FROM entry_embeddings WHERE entry_id=? AND tag=?",
+            (entry_id, tag),
+        ).fetchone()
+        return json.loads(row["vector_json"]) if row else None
+
+    def save_entry_embedding(self, entry_id: int, tag: str, vec: Vector) -> None:
+        self.conn.execute(
+            "INSERT OR REPLACE INTO entry_embeddings (entry_id, tag, dim, vector_json)"
+            " VALUES (?,?,?,?)",
+            (entry_id, tag, len(vec), json.dumps(vec)),
+        )
+        self.conn.commit()
+
+    def ensure_embeddings(self, entries: list[CorpusEntry], embedder,
+                          tag: str) -> dict[int, Vector]:
+        """回傳 {entry_id: 向量}；缺 tag 者以 embed_many **批次**補算並落庫（FR-009/010）。
+
+        不在迴圈裡逐一 embed（experience 教訓：逐一呼叫慢又觸發額度隔離）。
+        """
+        vecs: dict[int, Vector] = {}
+        missing: list[CorpusEntry] = []
+        for e in entries:
+            v = self.get_entry_embedding(e.entry_id, tag)
+            if v is None:
+                missing.append(e)
+            else:
+                vecs[e.entry_id] = v
+        if missing:
+            computed = embedder.embed_many([e.embed_text() for e in missing])
+            for e, v in zip(missing, computed):
+                self.save_entry_embedding(e.entry_id, tag, v)
+                vecs[e.entry_id] = v
+        return vecs

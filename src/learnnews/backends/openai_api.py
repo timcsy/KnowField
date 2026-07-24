@@ -164,3 +164,41 @@ class OpenAISummarizer:
         positioning = lines[0] if lines else f"這則談的是「{title}」"
         why = lines[1] if len(lines) > 1 else "值得快速判斷"
         return positioning, why
+
+
+class OpenAIAnswerer:
+    """OpenAI 格式 /chat/completions 做 grounded 問答（spec 005 FR-003/004）。
+
+    提示明令：只根據編號材料作答、逐點以 [n] 標依據、不得使用材料外知識或杜撰、
+    材料不足即說「沒有相關材料」。溯源的鐵律不靠模型自律——來源清單由 RagService
+    從檢索集合生成（research.md R4）；本後端只負責把材料轉成通順答案。
+    """
+
+    _SYSTEM = (
+        "你是知識庫問答助手。只用{lang}作答。"
+        "只能根據下列編號材料回答；每個論點都要以 [編號] 標出依據。"
+        "嚴禁使用材料以外的知識，嚴禁杜撰。若材料不足以回答，直接說「沒有相關材料」。"
+    )
+    _USER = "問題：{question}\n\n材料：\n{passages}"
+
+    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+
+    def answer(self, question: str, passages: list, lang: str) -> str:
+        block = "\n".join(
+            f"[{i}] {(p.headline or p.title).strip()}：{(p.body or '')[:800]}"
+            for i, p in enumerate(passages, 1)
+        )
+        data = _post(self.base_url, "/chat/completions", self.api_key, {
+            "model": self.model,
+            "max_tokens": 900,
+            "temperature": 0.2,
+            "messages": [
+                {"role": "system", "content": self._SYSTEM.format(lang=lang)},
+                {"role": "user", "content": self._USER.format(
+                    question=question, passages=block)},
+            ],
+        })
+        return data["choices"][0]["message"]["content"].strip()

@@ -64,6 +64,14 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     figure_kind TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS entry_embeddings (
+    entry_id INTEGER NOT NULL,      -- → digest_entries.id
+    tag TEXT NOT NULL,              -- embedder 身分：'hashing-256' / 'openai-<model>'
+    dim INTEGER NOT NULL,
+    vector_json TEXT NOT NULL,
+    PRIMARY KEY (entry_id, tag)
+);
+
 CREATE TABLE IF NOT EXISTS behavior_signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL,

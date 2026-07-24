@@ -49,8 +49,23 @@ uv run learnnews digest --date 2026-07-23 --limit 15
 |---|---|
 | `learnnews digest [--date D] [--limit N] [--format terminal\|markdown] [--output PATH] [--json]` | 產出當日匯整（推模式：分診） |
 | `learnnews pull <主題> [--limit N] [--raw] [--from-digest N] [--format ...] [--json]` | 對主題擴展、去重、溯源（拉模式：深挖） |
+| `learnnews ask "<問題>" [--today] [--lang L] [-k N]` | 對已落庫知識庫問答（RAG，可溯源） |
 | `learnnews interests list\|add <主題>\|remove <主題>\|set <主題...>` | 管理興趣清單（明講優先於學習） |
 | `learnnews sources list\|enable <id>\|disable <id>` | 檢視／啟用來源 |
+
+### 問答（RAG，對累積的匯整發問）
+
+```bash
+uv run learnnews ask "最近 agent 記憶體有什麼進展"   # 對所有已落庫匯整檢索、合成可溯源答案
+uv run learnnews ask "今天的重點" --today            # 只查最近一份匯整
+uv run learnnews ask "RL 新方向" -k 8                 # 取回上限 8 則
+uv run learnnews ask "..." --lang English            # 答案語言（預設繁體中文）
+```
+
+問答是**個人知識庫**（階段 4 增量 1）：語料＝你跑過的每日匯整；答案**只根據語料、逐點以
+`[n]` 標來源**、附原文連結可回溯（原則 3）；**查無相關會明說「沒有相關材料」不杜撰**。
+嵌入在產生匯整時一併算好落庫，問答只嵌問題（互動級回應）。未設 API 金鑰時走離線後端
+（可跑但語義品質有限）。
 
 ### 拉模式（深挖某主題）
 
