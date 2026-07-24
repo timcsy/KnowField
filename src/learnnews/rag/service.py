@@ -23,12 +23,17 @@ def embedder_tag(embedder) -> str:
 
 class RagService:
     def __init__(self, repo, embedder, answerer: Answerer,
-                 top_k: int = 6, min_score: float = 0.10) -> None:
+                 top_k: int = 6, min_score: float = 0.10,
+                 explainer_weight: float = 1.0) -> None:
         self.repo = repo
         self.embedder = embedder
         self.answerer = answerer
         self.top_k = top_k
         self.min_score = min_score
+        self.explainer_weight = explainer_weight
+
+    def _weight(self, source_class: str) -> float:
+        return self.explainer_weight if source_class == "explainer" else 1.0
 
     def answer(self, question: str, scope: Scope | None = None,
                lang: str = "繁體中文") -> RagAnswer:
@@ -41,11 +46,11 @@ class RagService:
         vecs: dict[int, Vector] = self.repo.ensure_embeddings(entries, self.embedder, tag)
         qvec = self.embedder.embed(question)
 
-        scored = sorted(
-            ((cosine(qvec, vecs[e.entry_id]), e) for e in entries),
-            key=lambda t: t[0], reverse=True,
-        )
-        hits: list[CorpusEntry] = [e for s, e in scored if s >= self.min_score][: self.top_k]
+        # 門檻用「原始 cosine」把關相關性（不被權重繞過）；權重只排序入選者（spec 006 R5）。
+        relevant = [(cosine(qvec, vecs[e.entry_id]), e) for e in entries]
+        relevant = [(s, e) for s, e in relevant if s >= self.min_score]
+        relevant.sort(key=lambda t: t[0] * self._weight(t[1].source_class), reverse=True)
+        hits: list[CorpusEntry] = [e for _, e in relevant][: self.top_k]
         if not hits:
             # 查無相關：不呼叫合成後端、不產生任何內容/來源（FR-004、原則 3）
             return RagAnswer(no_material=True)

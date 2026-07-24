@@ -201,14 +201,18 @@ class Repository:
 
     # --- RAG 語料與嵌入（spec 005） ---
     def list_corpus_entries(self, today: bool = False) -> list[CorpusEntry]:
-        """取語料條目。today=False＝全部匯整；True＝最近一份匯整（data-model.md R6）。"""
+        """取語料條目。today=False＝全部匯整＋種子；True＝最近一份『真實』匯整（排除種子容器）。"""
+        from ..config import SEEDS_DATE
         base = (
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
-            " de.article_body AS body, d.date AS ddate"
+            " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
         )
         if today:
-            row = self.conn.execute("SELECT MAX(id) AS mid FROM digests").fetchone()
+            # 最近一份真實每日匯整（種子容器不算「今天」，spec 006 R2）
+            row = self.conn.execute(
+                "SELECT MAX(id) AS mid FROM digests WHERE date != ?", (SEEDS_DATE,)
+            ).fetchone()
             if not row or row["mid"] is None:
                 return []
             rows = self.conn.execute(
@@ -219,9 +223,58 @@ class Repository:
         return [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
                         headline=r["headline"] or "", body=r["body"] or "",
-                        digest_date=r["ddate"])
+                        digest_date=r["ddate"],
+                        source_class=r["sclass"] or "ordinary")
             for r in rows
         ]
+
+    # --- 種子 ingest（spec 006） ---
+    def get_or_create_seeds_digest(self) -> int:
+        """種子容器：哨兵 date 的 digests 列（無則建），種子皆插為它的 entries。"""
+        from ..config import SEEDS_DATE
+        row = self.conn.execute(
+            "SELECT id FROM digests WHERE date=?", (SEEDS_DATE,)).fetchone()
+        if row:
+            return row["id"]
+        cur = self.conn.execute(
+            "INSERT INTO digests (date, truncated_count, missing_sources)"
+            " VALUES (?,0,'[]')", (SEEDS_DATE,))
+        self.conn.commit()
+        return cur.lastrowid or 0
+
+    def seed_exists(self, url: str) -> str | None:
+        """種子去重：容器內已有 canonical_url 相同者 → 回其標題（FR-004/007）。
+
+        SeedService 在抓取前把 ref 正規化成 canonical 原文 URL（arXiv → abs 裸 id URL）再查，
+        故同篇多寫法會歸一。
+        """
+        from ..config import SEEDS_DATE
+        from ..sources.base import canonical_url
+        target = canonical_url(url)
+        for r in self.conn.execute(
+            "SELECT de.title, de.url FROM digest_entries de JOIN digests d"
+            " ON de.digest_id=d.id WHERE d.date=?", (SEEDS_DATE,)
+        ).fetchall():
+            if canonical_url(r["url"]) == target:
+                return r["title"]
+        return None
+
+    def ingest_seed(self, item, article, source_class: str = "ordinary") -> int:
+        """插入一筆種子 entry 到種子容器，回 entry_id（FR-001）。"""
+        digest_id = self.get_or_create_seeds_digest()
+        fig_url = article.figure.url if article.figure else ""
+        fig_kind = article.figure.kind if article.figure else ""
+        rank = self.conn.execute(
+            "SELECT COALESCE(MAX(rank),0)+1 AS r FROM digest_entries WHERE digest_id=?",
+            (digest_id,)).fetchone()["r"]
+        cur = self.conn.execute(
+            "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
+            " article_body, article_headline, figure_url, figure_kind, source_class)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (digest_id, rank, item.title, item.url, "", article.body,
+             article.headline, fig_url, fig_kind, source_class))
+        self.conn.commit()
+        return cur.lastrowid or 0
 
     def get_entry_embedding(self, entry_id: int, tag: str) -> Vector | None:
         row = self.conn.execute(

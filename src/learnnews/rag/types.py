@@ -17,6 +17,7 @@ class CorpusEntry:
     headline: str = ""     # 整理過標題
     body: str = ""         # 消化散文
     digest_date: str = ""  # 所屬匯整日期
+    source_class: str = "ordinary"  # 'ordinary' | 'explainer'（種子品質類，spec 006）
 
     def embed_text(self) -> str:
         """嵌入用文字：整理標題＋消化散文（皆空則退回原標題）。"""

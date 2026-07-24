@@ -51,6 +51,7 @@ uv run learnnews digest --date 2026-07-23 --limit 15
 | `learnnews digest [--date D] [--limit N] [--format terminal\|markdown] [--output PATH] [--json]` | 產出當日匯整（推模式：分診） |
 | `learnnews pull <主題> [--limit N] [--raw] [--from-digest N] [--format ...] [--json]` | 對主題擴展、去重、溯源（拉模式：深挖） |
 | `learnnews ask "<問題>" [--today] [--lang L] [-k N]` | 對已落庫知識庫問答（RAG，可溯源） |
+| `learnnews ingest <arXiv-id\|url> [--explainer]` | 手動把一篇經典/解說文收進知識庫（種子） |
 | `learnnews interests list\|add <主題>\|remove <主題>\|set <主題...>` | 管理興趣清單（明講優先於學習） |
 | `learnnews sources list\|enable <id>\|disable <id>` | 檢視／啟用來源 |
 
@@ -67,6 +68,18 @@ uv run learnnews ask "..." --lang English            # 答案語言（預設繁�
 `[n]` 標來源**、附原文連結可回溯（原則 3）；**查無相關會明說「沒有相關材料」不杜撰**。
 嵌入在產生匯整時一併算好落庫，問答只嵌問題（互動級回應）。未設 API 金鑰時走離線後端
 （可跑但語義品質有限）。
+
+### 種子 ingest（把經典收進知識庫）
+
+```bash
+uv run learnnews ingest 1706.03762 --explainer          # 收 arXiv 論文，標為解說文
+uv run learnnews ingest https://某部落格/attention-explained --explainer
+uv run learnnews ask "transformer 為什麼用 attention"    # 種子立即可被問到（CLI＋web）
+```
+
+種子＝**你手挑冊封的「深度吸引子」**（原則 5）：讓知識庫不只長每日流，也有地基。收進後沿用
+問答的檢索與溯源；**解說文（`--explainer`）檢索權重高於一般快訊**（一篇打敗五十篇）。同篇
+重複收不會重複；抓不到會友善提示、不寫半殘。**工具不自己決定收哪篇——由你冊封。**
 
 ### 拉模式（深挖某主題）
 

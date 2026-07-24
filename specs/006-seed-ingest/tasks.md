@@ -21,7 +21,7 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] 建 `src/learnnews/seed/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
+- [x] T001 [P] 建 `src/learnnews/seed/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
 
 ---
 
@@ -29,11 +29,11 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 
 **⚠️ 完成前任何 user story 不能開工。**
 
-- [ ] T002 [P] schema：`digest_entries` 加 `source_class TEXT DEFAULT 'ordinary'` in `src/learnnews/store/schema.py`
-- [ ] T003 [P] config：`rag_explainer_weight=1.5`（env `LEARNNEWS_RAG_EXPLAINER_WEIGHT`）＋`SEEDS_DATE='__種子__'` 常數 in `src/learnnews/config.py`
-- [ ] T004 [P] `CorpusEntry` 加 `source_class` 欄 in `src/learnnews/rag/types.py`
-- [ ] T005 repository：`list_corpus_entries` SELECT 帶 `source_class`；`today=True` 加 `WHERE d.date != SEEDS_DATE`（排除種子容器）in `src/learnnews/store/repository.py`（依賴 T002、T004）
-- [ ] T006 repository：`get_or_create_seeds_digest() -> int`（哨兵種子容器）in `repository.py`（依賴 T002）
+- [x] T002 [P] schema：`digest_entries` 加 `source_class TEXT DEFAULT 'ordinary'` in `src/learnnews/store/schema.py`
+- [x] T003 [P] config：`rag_explainer_weight=1.5`（env `LEARNNEWS_RAG_EXPLAINER_WEIGHT`）＋`SEEDS_DATE='__種子__'` 常數 in `src/learnnews/config.py`
+- [x] T004 [P] `CorpusEntry` 加 `source_class` 欄 in `src/learnnews/rag/types.py`
+- [x] T005 repository：`list_corpus_entries` SELECT 帶 `source_class`；`today=True` 加 `WHERE d.date != SEEDS_DATE`（排除種子容器）in `src/learnnews/store/repository.py`（依賴 T002、T004）
+- [x] T006 repository：`get_or_create_seeds_digest() -> int`（哨兵種子容器）in `repository.py`（依賴 T002）
 
 **Checkpoint**：語料帶 source_class、種子有家、`ask` 撈得到種子（尚無 ingest）。
 
@@ -46,15 +46,15 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 **Independent Test**：用可注入假 http_get，ingest 一篇→ask 命中它→列來源含原文連結；再 ingest 同篇→「已在庫」不重插。
 
 ### Tests（先寫、先失敗）
-- [ ] T007 [P] [US1] 單元測試 `tests/unit/test_seed_fetch.py`：arXiv id 正規化（裸/`arXiv:`/`abs/`/版本）、`id_list` Atom 解析、URL 淺抽 title＋主文、去重鍵
-- [ ] T008 [P] [US1] 契約測試 `tests/contract/test_ingest.py`：離線假 http_get → ingest 成功印標題＋原文連結；重複 ingest → 「已在庫」、KB 不新增
-- [ ] T009 [P] [US1] 整合測試 `tests/integration/test_seed_retrieval.py`：種子進 KB → `ask` 檢索得到、列為來源、附原文連結（沿用增量 1）
+- [x] T007 [P] [US1] 單元測試 `tests/unit/test_seed_fetch.py`：arXiv id 正規化（裸/`arXiv:`/`abs/`/版本）、`id_list` Atom 解析、URL 淺抽 title＋主文、去重鍵
+- [x] T008 [P] [US1] 契約測試 `tests/contract/test_ingest.py`：離線假 http_get → ingest 成功印標題＋原文連結；重複 ingest → 「已在庫」、KB 不新增
+- [x] T009 [P] [US1] 整合測試 `tests/integration/test_seed_retrieval.py`：種子進 KB → `ask` 檢索得到、列為來源、附原文連結（沿用增量 1）
 
 ### Implementation
-- [ ] T010 [US1] `seed/fetch.py`：`normalize_arxiv_id`、`fetch_arxiv_by_id`、`fetch_url`（`http_get` 可注入）→ `Item`
-- [ ] T011 [US1] repository：`seed_exists(external_id, url)`（`content_hash` 去重）＋`ingest_seed(item, article, source_class) -> entry_id` in `repository.py`（依賴 T006）
-- [ ] T012 [US1] `seed/service.py`：`SeedService.ingest(ref, explainer)`：正規化→查重→抓→`ArticleBuilder` 消化→`ingest_seed`→`ensure_embeddings`（**交易式：抓+消化成功才寫入**）
-- [ ] T013 [US1] `cli/ingest_cmd.py`（組後端→SeedService→列印）＋`ingest` subparser（位置 `ref`、`--explainer`）in `src/learnnews/cli/__main__.py`
+- [x] T010 [US1] `seed/fetch.py`：`normalize_arxiv_id`、`fetch_arxiv_by_id`、`fetch_url`（`http_get` 可注入）→ `Item`
+- [x] T011 [US1] repository：`seed_exists(external_id, url)`（`content_hash` 去重）＋`ingest_seed(item, article, source_class) -> entry_id` in `repository.py`（依賴 T006）
+- [x] T012 [US1] `seed/service.py`：`SeedService.ingest(ref, explainer)`：正規化→查重→抓→`ArticleBuilder` 消化→`ingest_seed`→`ensure_embeddings`（**交易式：抓+消化成功才寫入**）
+- [x] T013 [US1] `cli/ingest_cmd.py`（組後端→SeedService→列印）＋`ingest` subparser（位置 `ref`、`--explainer`）in `src/learnnews/cli/__main__.py`
 
 **Checkpoint**：離線 `ingest` 收單篇→`ask` 問得到＋溯源→重複不重複。**MVP 達成。**
 
@@ -67,10 +67,10 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 **Independent Test**：種一篇解說文＋一篇一般，兩者對某問題都相關 → 解說文排序在前。
 
 ### Tests（先寫、先失敗）
-- [ ] T014 [P] [US2] 整合測試 `tests/integration/test_explainer_weight.py`：解說文種子與一般種子同相關 → 解說文排序在前 / 更易入選來源
+- [x] T014 [P] [US2] 整合測試 `tests/integration/test_explainer_weight.py`：解說文種子與一般種子同相關 → 解說文排序在前 / 更易入選來源
 
 ### Implementation
-- [ ] T015 [US2] `rag/service.py`：排序改 `cosine × _weight(source_class)`（`explainer`→`rag_explainer_weight`，餘 1.0）；**入選門檻仍套原始 cosine `>= min_score`**
+- [x] T015 [US2] `rag/service.py`：排序改 `cosine × _weight(source_class)`（`explainer`→`rag_explainer_weight`，餘 1.0）；**入選門檻仍套原始 cosine `>= min_score`**
 
 **Checkpoint**：US1＋US2 皆可獨立運作（`--explainer` 在 T013 已可標，此期讓它影響排序）。
 
@@ -83,10 +83,10 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 **Independent Test**：假 http_get 拋 `SourceUnavailable`／後端拋 `OpenAIError` → 友善訊息、退出碼 1、種子容器未新增。
 
 ### Tests（先寫、先失敗）
-- [ ] T016 [P] [US3] 契約測試 `tests/contract/test_ingest_boundaries.py`：抓取失敗→友善繁中、退出碼 1、無 `Traceback`、**KB 條目數不變（無半殘）**
+- [x] T016 [P] [US3] 契約測試 `tests/contract/test_ingest_boundaries.py`：抓取失敗→友善繁中、退出碼 1、無 `Traceback`、**KB 條目數不變（無半殘）**
 
 ### Implementation
-- [ ] T017 [US3] `ingest_cmd` 攔 `SourceUnavailable`／`OpenAIError` → 友善繁中訊息、退出碼 1（`SeedService` 的交易式順序已保證失敗不寫入，T012）
+- [x] T017 [US3] `ingest_cmd` 攔 `SourceUnavailable`／`OpenAIError` → 友善繁中訊息、退出碼 1（`SeedService` 的交易式順序已保證失敗不寫入，T012）
 
 **Checkpoint**：三個 user story 皆獨立可用。
 
@@ -94,9 +94,9 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T018 [P] `docs/usage.md` 補 `ingest` 用法（arXiv/URL、`--explainer`、去重、失敗行為）
+- [x] T018 [P] `docs/usage.md` 補 `ingest` 用法（arXiv/URL、`--explainer`、去重、失敗行為）
 - [ ] T019 真跑抽查（真實後端）：`ingest` 一篇真 arXiv → `ask` 問到＋溯源 → 重複去重 → 失敗 case——quickstart §1–5
-- [ ] T020 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 147 不回歸**）
+- [x] T020 跑 `quickstart.md` 全流程；`uv run pytest -q` 全套（新測綠燈、**既有 147 不回歸**）
 
 ---
 

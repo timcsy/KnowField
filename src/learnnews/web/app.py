@@ -73,7 +73,8 @@ def _default_rag_answer(config: Config, repo_factory, question: str, today: bool
     repo = repo_factory(config)
     try:
         service = RagService(repo, make_embedder(config), make_answerer(config),
-                             top_k=config.rag_top_k, min_score=config.rag_min_score)
+                             top_k=config.rag_top_k, min_score=config.rag_min_score,
+                             explainer_weight=config.rag_explainer_weight)
         return service.answer(question, Scope(today=today), lang=lang)
     finally:
         repo.close()

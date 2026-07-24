@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     article_body TEXT DEFAULT '',
     article_headline TEXT DEFAULT '',
     figure_url TEXT DEFAULT '',
-    figure_kind TEXT DEFAULT ''
+    figure_kind TEXT DEFAULT '',
+    source_class TEXT DEFAULT 'ordinary'   -- 'ordinary' | 'explainer'（種子 spec 006）
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
@@ -88,4 +89,13 @@ def init_db(conn: sqlite3.Connection) -> None:
         "INSERT OR IGNORE INTO interest_profile (id, explicit_topics, learned_weights)"
         " VALUES (1, '[]', '{}')"
     )
+    _migrate(conn)
     conn.commit()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """對既有 DB 補欄（CREATE TABLE IF NOT EXISTS 不會改既有表）。冪等。"""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(digest_entries)").fetchall()}
+    if "source_class" not in cols:   # spec 006：既有增量 1 的 db 補上種子分類欄
+        conn.execute(
+            "ALTER TABLE digest_entries ADD COLUMN source_class TEXT DEFAULT 'ordinary'")

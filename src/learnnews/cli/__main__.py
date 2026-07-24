@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import ask_cmd, digest_cmd, interests_cmd, pull_cmd, sources_cmd
+from . import ask_cmd, digest_cmd, ingest_cmd, interests_cmd, pull_cmd, sources_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--lang", default=None, help="答案語言（預設繁體中文）")
     a.add_argument("-k", type=int, default=None, help="取回條目數上限")
     a.set_defaults(func=ask_cmd.handle)
+
+    # ingest（種子 spec 006）
+    ing = sub.add_parser("ingest", help="把一篇經典/解說文收進知識庫（種子，深度吸引子）")
+    ing.add_argument("ref", help="arXiv ID 或文章 URL")
+    ing.add_argument("--explainer", action="store_true", help="標為解說文（檢索權重加成）")
+    ing.add_argument("--lang", default=None, help="消化語言（預設繁體中文）")
+    ing.set_defaults(func=ingest_cmd.handle)
 
     # sources
     s = sub.add_parser("sources", help="檢視/啟用來源")

@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+SEEDS_DATE = "__種子__"   # 種子容器 digest 的哨兵 date（spec 006）
+
 
 def load_dotenv(path: str = ".env") -> None:
     """極簡 .env 載入（不覆蓋既有環境變數）。無外部相依。"""
@@ -43,6 +45,7 @@ class Config:
     # RAG 問答（spec 005）
     rag_top_k: int = 6                   # 取回條目數上限
     rag_min_score: float = 0.10          # 低於此相關度視為查無相關
+    rag_explainer_weight: float = 1.5    # 解說文種子的檢索排序權重（spec 006，>1 才勝快訊）
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
@@ -68,4 +71,6 @@ class Config:
             # 真跑實測（text-embedding-3-small）：命中≈0.6、鬆散相關 0.1–0.25、無關問題≤0.22。
             rag_min_score=float(os.environ.get(
                 "LEARNNEWS_RAG_MINSCORE", "0.30" if backend == "openai" else "0.05")),
+            rag_explainer_weight=float(
+                os.environ.get("LEARNNEWS_RAG_EXPLAINER_WEIGHT", "1.5")),
         )
