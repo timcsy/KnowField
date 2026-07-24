@@ -57,9 +57,10 @@ LEARNNEWS_BACKEND=offline uv run learnnews --db /tmp/probe.db digest --limit 6
 確認測試仍綠：`uv run pytest -q`。
 
 ### 5. 反流（留因果）
-在 `knowledge/history/` 新增一筆轉移檔（舊名冊 → 新名冊、為什麼變、實測數據）；
-若取代舊源，在舊 history 標「已被 NNN 取代」（record transitions, don't delete）；
-更新 `draft/2026-07-23-來源策略與技術選型.md` 的來源現況。
+在 `knowledge/history/` 新增一筆轉移檔（舊名冊 → 新名冊、為什麼變、實測數據；體例見
+history/005–007）；若取代舊源，在舊 history 標「已被 NNN 取代」（record transitions, don't
+delete）。來源盤點的研究背景見 `episodes/2026-07-23-競品與來源研究快照.md`（唯來源**現況**
+以 `DEFAULT_SOURCES`＋history 為準，episode 是當時快照、不追更）。
 
 ## 完成準則
 - 新源實測 200 且高訊號；已加進 DEFAULT_SOURCES；匯整驗證供料、測試綠燈；history 留下轉移。
