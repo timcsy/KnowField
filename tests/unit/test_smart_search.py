@@ -100,5 +100,63 @@ class TestSmartSearchRun(unittest.TestCase):
         self.assertFalse(out.no_material)                     # 查無≠無材料；由頁面顯示查無
 
 
+class _CountingWS:
+    """依 query 回不同結果（含跨角度重複 url），並計 search 呼叫次數。"""
+
+    def __init__(self):
+        self.calls = 0
+        self._by_q = {
+            "MATCH query": [SearchResult("原題A", "https://a/1", "s1 MATCH"),
+                            SearchResult("原題B", "https://a/2", "s2")],
+            "MATCH query 原理": [SearchResult("原理X", "https://a/3", "s3"),
+                                 SearchResult("重複", "https://a/1", "dup")],   # a/1 重複
+        }
+
+    def search(self, q):
+        self.calls += 1
+        return self._by_q.get(q, [SearchResult(f"角度-{q}", f"https://ang/{self.calls}", "s")])
+
+
+class _StubExpander:
+    def __init__(self, subs): self._subs = subs
+    def expand(self, q): return list(self._subs)
+
+
+class TestSmartSearchExplore(unittest.TestCase):
+    def _make(self, ws, expander, max_subqueries=5):
+        return SmartSearch(web_search=ws, embedder=KwEmbedder(),
+                           answerer=FixedAnswerer("整理[1]"), fetch=_fetch_ok,
+                           expander=expander, max_subqueries=max_subqueries)
+
+    def test_explore_fanout_merges_and_dedups(self):
+        ws = _CountingWS()
+        out = self._make(ws, _StubExpander(["MATCH query 原理"])).run("MATCH query", explore=True)
+        urls = [r.url for r in out.results]
+        self.assertEqual(len(urls), len(set(urls)))           # 去重：無重複 url
+        self.assertIn("https://a/3", urls)                    # 子角度帶來的新結果
+        self.assertEqual(urls.count("https://a/1"), 1)        # 跨角度重複 a/1 只一則
+        self.assertGreaterEqual(ws.calls, 2)                  # 原題＋子角度各搜
+
+    def test_explore_caps_subqueries(self):
+        ws = _CountingWS()
+        subs = [f"角度{i}" for i in range(10)]                 # 給 10 個
+        self._make(ws, _StubExpander(subs), max_subqueries=3).run("MATCH query", explore=True)
+        self.assertLessEqual(ws.calls, 3)                     # 原題＋子角度合計 ≤ 上限
+
+    def test_explore_false_searches_once(self):
+        ws = _CountingWS()
+        self._make(ws, _StubExpander(["x"])).run("MATCH query", explore=False)
+        self.assertEqual(ws.calls, 1)                         # 不勾＝單搜尋（增量 b）
+
+    def test_expander_failure_falls_back_to_single(self):
+        ws = _CountingWS()
+
+        class Boom:
+            def expand(self, q): raise RuntimeError("拆解炸了")
+        out = self._make(ws, Boom()).run("MATCH query", explore=True)
+        self.assertEqual(ws.calls, 1)                         # 退回單 query
+        self.assertTrue(out.results)                          # 仍有結果、不拋
+
+
 if __name__ == "__main__":
     unittest.main()

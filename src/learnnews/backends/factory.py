@@ -30,13 +30,25 @@ def make_web_search(config: Config):
     return StubWebSearch()
 
 
+def make_query_expander(config: Config):
+    """查詢擴展（spec 011）：真實走 OpenAI 格式 chat 拆解，否則離線確定性 stub。"""
+    if config.backend == "openai" and config.api_key:
+        from ..search.expand import OpenAIQueryExpander
+        return OpenAIQueryExpander(config.api_base_url, config.api_key, config.chat_model,
+                                   max_n=config.explore_max_subqueries)
+    from ..search.expand import StubQueryExpander
+    return StubQueryExpander()
+
+
 def make_smart_search(config: Config):
-    """智慧搜尋（spec 010）：組搜尋／嵌入／整理後端＋fetch_url，回 SmartSearch。"""
+    """智慧搜尋（spec 010）＋多角度探索（spec 011）：組後端＋fetch_url＋expander，回 SmartSearch。"""
     from ..search.smart import SmartSearch
     return SmartSearch(web_search=make_web_search(config),
                        embedder=make_embedder(config),
                        answerer=make_answerer(config),
-                       top_n=config.smart_search_topn)
+                       top_n=config.smart_search_topn,
+                       expander=make_query_expander(config),
+                       max_subqueries=config.explore_max_subqueries)
 
 
 def make_answerer(config: Config):

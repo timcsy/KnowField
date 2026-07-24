@@ -25,6 +25,11 @@ web 這層，核心仍零相依。
 結果。真搜需設 `LEARNNEWS_SEARCH_API_URL`＋`LEARNNEWS_SEARCH_KEY`（Tavily，金鑰放 body）；
 未設走離線示意。前 N 可調 `LEARNNEWS_SMART_TOPN`（預設 4）。
 
+**深入探索（多角度，opt-in／預設關）**：勾「深入探索」時，工具把 query 拆成 3–5 個不同角度
+各搜一次、**合併去重**，再跑同一套整理——撒更廣的網、照到單一問法的盲區。**預設關**，貴的
+（多次搜尋＋一次拆解）只在你要時才花；子角度上限 `LEARNNEWS_EXPLORE_MAXQ`（預設 5），抓取
+仍受 top-N 限制（成本有界）。拆角度失敗會自動退回單一 query。
+
 ## 安裝（uv）
 
 本專案以 [uv](https://docs.astral.sh/uv/) 管理環境。MVP 核心零外部相依（純標準函式庫）。

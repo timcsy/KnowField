@@ -30,18 +30,27 @@ class SmartResult:
     overview_error: str | None = None
 
 
+def _norm_url(url: str) -> str:
+    """去重用網址正規化：去尾斜線與 #fragment（query string 保留）。"""
+    u = (url or "").strip()
+    u = u.split("#", 1)[0]
+    return u.rstrip("/")
+
+
 class SmartSearch:
     def __init__(self, web_search, embedder, answerer, fetch=fetch_url,
-                 top_n: int = 4) -> None:
+                 top_n: int = 4, expander=None, max_subqueries: int = 5) -> None:
         self.web_search = web_search
         self.embedder = embedder
         self.answerer = answerer
         self.fetch = fetch
         self.top_n = top_n
+        self.expander = expander
+        self.max_subqueries = max_subqueries
 
-    def run(self, query: str) -> SmartResult:
+    def run(self, query: str, explore: bool = False) -> SmartResult:
         # 搜尋層失敗（SourceUnavailable 等）向外拋 → 由路由攔成「搜尋失敗」（同階段 9）。
-        results = list(self.web_search.search(query))
+        results = self._collect(query, explore)
         if not results:
             return SmartResult(results=[])   # 查無：由頁面顯示，不整理（無材料可整理）
 
@@ -55,6 +64,29 @@ class SmartSearch:
             return SmartResult(overview=text, sources=sources, results=ranked)
         except Exception:                    # noqa: BLE001 - 整理是加值，掛了仍要給結果
             return SmartResult(results=results, overview_error=_OVERVIEW_ERR)
+
+    def _collect(self, query: str, explore: bool) -> list[SearchResult]:
+        """單 query（增量 b）或多角度 fan-out＋合併去重（explore／spec 011）。"""
+        if not (explore and self.expander):
+            return list(self.web_search.search(query))
+        try:
+            subs = self.expander.expand(query)
+        except Exception:  # noqa: BLE001 - 拆解失敗退回單 query（教訓 3）
+            subs = []
+        angles: list[str] = []
+        for a in [query, *subs]:               # 原 query 一定納入
+            if a and a not in angles:
+                angles.append(a)
+        angles = angles[: self.max_subqueries]  # 硬上限（成本閘）
+        merged: list[SearchResult] = []
+        seen: set[str] = set()
+        for a in angles:
+            for r in self.web_search.search(a):
+                key = _norm_url(r.url)
+                if key and key not in seen:
+                    seen.add(key)
+                    merged.append(r)
+        return merged
 
     def _rank(self, query: str, results: list[SearchResult]) -> list[SearchResult]:
         qv = self.embedder.embed(query)

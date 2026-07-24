@@ -23,7 +23,7 @@ def _sr():
 class TestSmartSearchWeb(unittest.TestCase):
     def test_shows_overview_and_ranked_results(self):
         app = build_app(temp_db())
-        app.state.smart_search_factory = lambda q: SmartResult(
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(
             overview="重點整理[1][2]",
             sources=[Source(1, "結果一", "https://a/1"), Source(2, "結果二", "https://a/2")],
             results=_sr())
@@ -36,7 +36,7 @@ class TestSmartSearchWeb(unittest.TestCase):
 
     def test_no_material_hides_sources(self):
         app = build_app(temp_db())
-        app.state.smart_search_factory = lambda q: SmartResult(
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(
             overview="沒有相關材料。", no_material=True, results=_sr())
         r = TestClient(app).get("/search", params={"q": "冷門"})
         self.assertIn("沒有相關材料", r.text)
@@ -44,7 +44,7 @@ class TestSmartSearchWeb(unittest.TestCase):
 
     def test_overview_error_still_lists_results(self):
         app = build_app(temp_db())
-        app.state.smart_search_factory = lambda q: SmartResult(
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(
             results=_sr(), overview_error="整理暫時無法產生，以下為原始搜尋結果（仍可收進）。")
         r = TestClient(app).get("/search", params={"q": "x"})
         self.assertEqual(r.status_code, 200)
@@ -55,7 +55,7 @@ class TestSmartSearchWeb(unittest.TestCase):
     def test_factory_crash_is_friendly_not_500(self):
         app = build_app(temp_db())
 
-        def boom(q):
+        def boom(q, explore=False):
             raise RuntimeError("整理服務整個炸了")
 
         app.state.smart_search_factory = boom
@@ -68,7 +68,7 @@ class TestSmartSearchWeb(unittest.TestCase):
         # US3：收進一則結果 url → 走既有 /ingest（真實離線）→ 成種子
         db = temp_db()
         app = build_app(db)
-        app.state.smart_search_factory = lambda q: SmartResult(
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(
             results=[SearchResult("R1", "https://a/keep", "s1")],
             overview="重點[1]", sources=[Source(1, "R1", "https://a/keep")])
         client = TestClient(app)

@@ -7,11 +7,18 @@
   </div>
   <p class="text-xs text-base-content/50 mb-4">搜尋結果與整理都不會留下——只有你「收進」的才進知識庫。</p>
 
-  <form action="/search" method="get" class="join w-full mb-4">
-    <input name="q" value="{{ q|default('') }}" autofocus
-           placeholder="搜尋剛紅、還沒進論文/電子報的東西…"
-           class="input input-bordered join-item flex-1">
-    <button class="btn btn-primary join-item">搜尋</button>
+  <form action="/search" method="get" class="mb-4">
+    <div class="join w-full">
+      <input name="q" value="{{ q|default('') }}" autofocus
+             placeholder="搜尋剛紅、還沒進論文/電子報的東西…"
+             class="input input-bordered join-item flex-1">
+      <button class="btn btn-primary join-item">搜尋</button>
+    </div>
+    <label class="label cursor-pointer justify-start gap-2 mt-2 w-fit">
+      <input type="checkbox" name="explore" value="1" class="checkbox checkbox-sm"
+             {% if explore %}checked{% endif %}>
+      <span class="label-text">深入探索（從多個角度撒網、較花額度）</span>
+    </label>
   </form>
 
   {% if err %}

@@ -22,7 +22,7 @@ from tests.web_helpers import build_app
 class TestWebSearch(unittest.TestCase):
     def test_search_lists_results(self):
         app = build_app(temp_db())
-        app.state.smart_search_factory = lambda q: SmartResult(
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(
             overview="重點[1]", sources=[Source(1, "Attention 解說", "https://blog/attention")],
             results=[SearchResult("Attention 解說", "https://blog/attention", "為什麼 attention 有效")])
         r = TestClient(app).get("/search", params={"q": "attention"})
@@ -33,14 +33,14 @@ class TestWebSearch(unittest.TestCase):
 
     def test_search_empty(self):
         app = build_app(temp_db())
-        app.state.smart_search_factory = lambda q: SmartResult(results=[])
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(results=[])
         r = TestClient(app).get("/search", params={"q": "冷門"})
         self.assertIn("查無", r.text)
 
     def test_search_backend_failure_friendly(self):
         app = build_app(temp_db())
 
-        def boom(q):
+        def boom(q, explore=False):
             raise SourceUnavailable("模擬未設金鑰")
 
         app.state.smart_search_factory = boom
@@ -54,7 +54,7 @@ class TestWebSearch(unittest.TestCase):
         # 收進一則結果的 url → 走既有 /ingest（真實離線）→ 成種子；未收進的不落庫
         db = temp_db()
         app = build_app(db)
-        app.state.smart_search_factory = lambda q: SmartResult(results=[
+        app.state.smart_search_factory = lambda q, explore=False: SmartResult(results=[
             SearchResult("R1", "https://a/keep", "s1"),
             SearchResult("R2", "https://a/skip", "s2")])
         client = TestClient(app)

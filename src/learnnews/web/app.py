@@ -117,9 +117,9 @@ def create_app() -> FastAPI:
         return make_web_search(app.state.config).search(query)
     app.state.web_search_factory = _default_web_search
 
-    def _default_smart_search(query):
+    def _default_smart_search(query, explore=False):
         from ..backends.factory import make_smart_search
-        return make_smart_search(app.state.config).run(query)
+        return make_smart_search(app.state.config).run(query, explore)
     app.state.smart_search_factory = _default_smart_search
 
     @app.exception_handler(OpenAIError)
@@ -284,13 +284,15 @@ def create_app() -> FastAPI:
         return RedirectResponse("/sources", status_code=303)
 
     @app.get("/search", response_class=HTMLResponse)
-    async def search_get(request: Request, q: str = ""):
+    async def search_get(request: Request, q: str = "", explore: str = ""):
         q = q.strip()
+        explore_on = bool(explore)                           # opt-in（spec 011）；預設關
         result = err = None
         if q:
             try:
                 # 智慧搜尋：搜尋→排序→抓 top-N→grounded 整理（即算即棄、不落庫，FR-006）。
-                result = app.state.smart_search_factory(q)
+                # explore=True 時先多角度 fan-out＋合併去重（spec 011）。
+                result = app.state.smart_search_factory(q, explore_on)
             except SourceUnavailable as e:                   # 搜尋層：未設金鑰/逾時/服務錯誤
                 _log.error("web 搜尋失敗", extra={"extra": {"reason": str(e)}})
                 err = str(e)
@@ -299,7 +301,7 @@ def create_app() -> FastAPI:
                 err = "整理服務暫時無法使用，請稍後再試。"
         return _TEMPLATES.TemplateResponse(
             request=request, name="search.html",
-            context={"q": q, "result": result, "err": err})
+            context={"q": q, "result": result, "err": err, "explore": explore_on})
 
     @app.get("/interests", response_class=HTMLResponse)
     async def interests(request: Request):
