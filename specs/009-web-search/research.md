@@ -19,6 +19,8 @@
   urllib POST 到 `config.search_api_url`（帶金鑰），解析回結果。`make_web_search(config)`：有
   `search_api_url`＋`search_api_key`→真實，否則 Stub。
 - **Rationale**：同 embedder/answerer/article 後端的可插拔樣式；urllib＝**零 pip 相依**（同 OpenAI 後端）。
+- **請求格式（2026-07-25 對準 Tavily）**：POST `https://api.tavily.com/search`，**`api_key` 放
+  請求 body**（非 Bearer header），`{api_key,query,max_results,include_answer:false}`；回應解析寬鬆。
 - **服務選型**：預設對 **Tavily 形狀**（`{results:[{title,url,content}]}`，為 LLM 設計、回乾淨內文）；
   端點/金鑰 config 可調 → 換 Brave/自架亦可。實作對回應做**寬鬆解析**（title/url/snippet 欄位容錯）。
 

@@ -40,12 +40,10 @@ class StubWebSearch:
         ]
 
 
-def _http_post_json(url: str, api_key: str, payload: dict, timeout: int = 30) -> dict:
+def _http_post_json(url: str, payload: dict, timeout: int = 30) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
-        method="POST")
+        headers={"Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -54,7 +52,11 @@ def _http_post_json(url: str, api_key: str, payload: dict, timeout: int = 30) ->
 
 
 class ApiWebSearch:
-    """真實搜尋（urllib POST，Tavily 形狀寬鬆解析）。`poster` 可注入供測試。"""
+    """Tavily 相容搜尋（POST，`api_key` 放 body）。`poster(url, payload)` 可注入供測試。
+
+    預設對 Tavily（`https://api.tavily.com/search`，回 `{results:[{title,url,content}]}`）；
+    回應解析寬鬆，換相容服務多半可直接用。
+    """
 
     def __init__(self, api_url: str, api_key: str, max_results: int = 8,
                  poster=_http_post_json) -> None:
@@ -64,8 +66,10 @@ class ApiWebSearch:
         self._poster = poster
 
     def search(self, query: str) -> list[SearchResult]:
-        data = self._poster(self.api_url, self.api_key,
-                            {"query": query, "max_results": self.max_results})
+        data = self._poster(self.api_url, {
+            "api_key": self.api_key, "query": query,
+            "max_results": self.max_results, "include_answer": False,
+        })
         raw = data.get("results") or data.get("data") or data.get("items") or []
         out: list[SearchResult] = []
         for r in raw:
