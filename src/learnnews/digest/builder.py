@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..dedup.semantic import deduplicate
 from ..logging_setup import get_logger
@@ -116,8 +116,18 @@ class DigestBuilder:
 
     @staticmethod
     def _canonical(group: list[Item]) -> Item | None:
-        """選代表條目：優先有原文連結、發布時間最早者。"""
+        """選代表條目：優先有原文連結、發布時間最早者。
+
+        published_at 可能混時區（atom/arxiv aware、rss/None naive）——排序前正規化成
+        naive UTC，否則 min() 會拋「can't compare offset-naive and offset-aware」。
+        """
         candidates = [it for it in group if it.has_source_link()]
         if not candidates:
             return None
-        return min(candidates, key=lambda it: (it.published_at or datetime.max))
+
+        def _key(it: Item):
+            dt = it.published_at or datetime.max
+            if dt.tzinfo is not None:                # aware → naive UTC，才能與 naive 比較
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+        return min(candidates, key=_key)
