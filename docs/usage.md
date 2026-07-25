@@ -80,6 +80,12 @@ uv run learnnews digest --date 2026-07-23 --limit 15
 | `learnnews interests list\|add <主題>\|remove <主題>\|set <主題...>` | 管理興趣清單（明講優先於學習） |
 | `learnnews sources list\|enable <id>\|disable <id>` | 檢視／啟用來源 |
 
+**開放網路 AI 趨勢源（`web-ai-trends`，階段 13）**：治「追不到剛紅新聞」（連 Opus 5 都漏）——
+固定名冊（論文＋週刊）抓不到即時產品新聞。這是一個 **opt-in、預設停用**的來源：在 `/sources`
+啟用、且 `.env` 設了搜尋金鑰（同 `/search`）後，產生匯整時會**對「AI 最新」做開放網路搜尋**、
+把剛紅的新聞當材料餵進既有匯整流程（去重／依興趣排序／消化）。不啟用/無金鑰＝零成本、行為
+不變。web 帶進的是**當日流非種子**（要留靠「收進」）；搜尋失敗沿用缺漏標示、匯整照常。
+
 ### 問答（RAG，對累積的匯整發問）
 
 ```bash

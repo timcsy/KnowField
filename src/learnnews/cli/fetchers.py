@@ -36,9 +36,25 @@ def _http_fetch_raw(endpoint: str):
     return fetch_raw
 
 
-def build_adapters(sources: list[Source]) -> list[SourceAdapter]:
+def _parse_queries(endpoint: str) -> list[str]:
+    """web_search 源的 endpoint＝換行/逗號分隔的查詢清單。"""
+    raw = (endpoint or "").replace(",", "\n").splitlines()
+    return [q.strip() for q in raw if q.strip()]
+
+
+def build_adapters(sources: list[Source], config=None) -> list[SourceAdapter]:
+    """組 adapters。web_search 源（spec 015）只在有 config＋搜尋金鑰時建（否則跳過，FR-003）。"""
     adapters: list[SourceAdapter] = []
     for s in sources:
+        if s.access_method == "web_search":
+            # opt-in 金鑰閘：無 config（如 pull）或無搜尋金鑰 → 不觸發開放網路搜尋
+            if config is None or not (config.search_api_url and config.search_api_key):
+                continue
+            from ..backends.factory import make_web_search
+            from ..sources.websearch_adapter import WebSearchAdapter
+            adapters.append(WebSearchAdapter(
+                s.id, make_web_search(config), _parse_queries(s.endpoint)))
+            continue
         cls = _ADAPTERS.get(s.access_method)
         if cls is None:
             continue
@@ -79,4 +95,8 @@ DEFAULT_SOURCES = [
            "https://hnrss.org/newest?q=AI+OR+LLM+OR+GPT+OR+Claude+OR+Anthropic+OR+OpenAI+OR+Gemini"),
     Source("reddit-localllama", "Reddit r/LocalLLaMA（社群心得）", "blog", "rss",
            "https://www.reddit.com/r/LocalLLaMA/.rss"),
+    # live web 活水（spec 015）：伸手到策展名冊外抓剛紅新聞。預設停用、需搜尋金鑰才生效（opt-in）。
+    Source("web-ai-trends", "開放網路 AI 趨勢（需搜尋金鑰・opt-in）", "news", "web_search",
+           "latest AI model release\nnew open-source LLM\nAI breakthrough announcement\n"
+           "new AI product launch", enabled=False),
 ]

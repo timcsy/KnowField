@@ -163,7 +163,7 @@ def create_app() -> FastAPI:
             for s in DEFAULT_SOURCES:
                 repo.upsert_source(s)
             sources = repo.list_sources(enabled_only=True)
-        adapters = build_adapters(sources)
+        adapters = build_adapters(sources, config)   # 傳 config → 啟用的 web 活水源生效（spec 015）
         digest = run_digest(repo, adapters, date=_now_iso()[:10],
                             limit=config.digest_limit,
                             builder=build_backend_builder(config))

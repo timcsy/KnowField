@@ -17,8 +17,10 @@ class TestDefaultSources(unittest.TestCase):
         self.assertEqual(by_id["reddit-localllama"].type, "blog")
 
     def test_all_sources_build_adapters(self):
-        adapters = build_adapters(DEFAULT_SOURCES)             # 不因新源丟例外
-        self.assertEqual(len(adapters), len(DEFAULT_SOURCES))
+        # 不因新源丟例外；web_search 源（spec 015）無 config/金鑰 → 跳過，其餘全建
+        adapters = build_adapters(DEFAULT_SOURCES)
+        non_web = [s for s in DEFAULT_SOURCES if s.access_method != "web_search"]
+        self.assertEqual(len(adapters), len(non_web))
 
 
 if __name__ == "__main__":

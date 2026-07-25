@@ -13,6 +13,7 @@ ACCESS_METHODS = (
     "semantic_scholar",
     "rss",
     "email_ingest",
+    "web_search",   # spec 015：live web 活水（開放網路搜尋當來源）
 )
 
 

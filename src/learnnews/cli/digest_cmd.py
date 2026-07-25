@@ -84,7 +84,7 @@ def handle(args) -> int:
         for s in DEFAULT_SOURCES:
             repo.upsert_source(s)
     sources = repo.list_sources(enabled_only=True)
-    adapters = build_adapters(sources)
+    adapters = build_adapters(sources, config)   # 傳 config → 啟用的 web 活水源生效（spec 015）
     date = args.date or datetime(2026, 7, 23).date().isoformat()
     builder = build_backend_builder(config)
     raw = getattr(args, "raw", False)
