@@ -43,6 +43,7 @@ def build_backend_builder(config: Config) -> DigestBuilder:
                                threshold=config.relevance_threshold),
         article_builder=article_builder,
         dedup_threshold=config.dedup_similarity,
+        max_per_source=config.digest_max_per_source,
     )
 
 

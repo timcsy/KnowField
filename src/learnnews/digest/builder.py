@@ -19,6 +19,22 @@ from ..summarize.article import ArticleBuilder, build_articles
 _log = get_logger("learnnews.digest")
 
 
+def _cap_per_source(scored: list, k: int | None) -> list:
+    """每來源上限：保序取用，單一 source_id 最多 k 則——防單一 prolific 來源洗版。
+    k 為 None/0 → 不設限。"""
+    if not k or k <= 0:
+        return list(scored)
+    counts: dict = {}
+    out = []
+    for s in scored:
+        sid = getattr(s.item, "source_id", "")
+        if counts.get(sid, 0) >= k:
+            continue
+        counts[sid] = counts.get(sid, 0) + 1
+        out.append(s)
+    return out
+
+
 class DigestBuilder:
     def __init__(
         self,
@@ -26,11 +42,13 @@ class DigestBuilder:
         ranker: RelevanceRanker | None = None,
         article_builder: ArticleBuilder | None = None,
         dedup_threshold: float = 0.82,
+        max_per_source: int | None = 4,
     ) -> None:
         self.embedder = embedder or HashingEmbedder()
         self.ranker = ranker or RelevanceRanker(embedder=self.embedder)
         self.article_builder = article_builder or ArticleBuilder()
         self.dedup_threshold = dedup_threshold
+        self.max_per_source = max_per_source
 
     def build(
         self,
@@ -69,6 +87,9 @@ class DigestBuilder:
 
         # 興趣過濾與排序（FR-003）
         scored = self.ranker.rank(canonicals, explicit_topics, learned_weights)
+
+        # 每來源上限：單一來源不得洗版，保匯整跨來源多樣（spec 015 後修）
+        scored = _cap_per_source(scored, self.max_per_source)
 
         # 上限與截斷（SC-007，不靜默）
         top = scored[:limit]
