@@ -75,6 +75,10 @@ class DigestBuilder:
                 missing.append(adapter.name)
                 _log.warning("來源缺漏", extra={"extra": {
                     "source": adapter.name, "reason": str(e)}})
+            except Exception as e:  # noqa: BLE001 - 任何來源例外都不該拖垮整批（history/048 教訓）
+                missing.append(adapter.name)
+                _log.error("來源異常（非預期）", extra={"extra": {
+                    "source": adapter.name, "reason": str(e)}})
 
         # FR-006：無原文連結者不得進匯整
         collected = [it for it in collected if it.has_source_link()]

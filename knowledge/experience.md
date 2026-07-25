@@ -163,6 +163,28 @@
   深度**（可視化）＋**允許誠實承認不足**（no_material）。通用於整理／消化／擴展等各 AI 生成步驟。
 - **來源**：`history/041-根因萃取挖到bedrock.md`、`concepts/有吸引子的場.md`（試金石 6、aha）
 
+### 聚合混來源資料，比較前先正規化
+
+- **理論說**：把各來源抓到的條目丟進去重／排序，挑「發布時間最早」的當代表，`min(...)` 就好。
+- **實際發生**：`published_at` 混時區——atom/arxiv 用 `fromisoformat`→**aware**、rss/None/web→**naive**；
+  同一去重群組混到 aware＋naive，`min()` 拋 `can't compare offset-naive and offset-aware datetimes`，
+  **整份 digest 崩**、重整整個失敗（使用者看到的還是舊匯整）。
+- **解決方式**：排序鍵**正規化**——aware `astimezone(utc).replace(tzinfo=None)` 轉 naive UTC 再比。
+- **教訓**：跨來源的資料**型別/格式各異**（時區有無、None、單位、大小寫）；任何 `min/max/sort/==`
+  前**先統一正規化**，否則邊界一混就炸。是「餵進最底層前先歸一」的家族。
+- **來源**：`history/048-web活水news模式與時區崩潰修正.md`、`digest/builder.py` `_canonical`
+
+### 批次聚合：單一項的例外不該拖垮整批
+
+- **理論說**：`build` 逐來源抓取，攔 `SourceUnavailable` 就夠——來源掛了標缺漏、繼續。
+- **實際發生**：攔截**只抓預期的一種**（`SourceUnavailable`）。一個來源丟出**非預期**例外
+  （上例的 `TypeError`）就漏網、往上炸掉整份 digest——一個壞來源拖垮全部。
+- **解決方式**：per-來源攔截**加寬**——除了友善的 `SourceUnavailable`，再加一個 `except Exception`
+  → 標缺漏、記錄、繼續。壞一個跳一個，不崩整批。
+- **教訓**：批次聚合／扇出的**例外攔截面要夠寬**——別只攔「你想到的那種」。**單點失敗隔離**：
+  一個壞項→標記跳過，整批照常。（教訓 3「邊界攔外部失敗」的延伸：邊界要攔**所有**失敗，不只一種。）
+- **來源**：`history/048-web活水news模式與時區崩潰修正.md`、`digest/builder.py` build 迴圈
+
 <!--
   範例：
 
