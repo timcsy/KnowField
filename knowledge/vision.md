@@ -397,6 +397,14 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 離線 stub 可測、零外部呼叫（教訓 1）；不新增資料表（web 源＝sources 表一列，教訓 8）；測試 249→257
 - [x] **out of scope**：web 結果自動變種子（絕不）、竄升/成核、per-query LLM 擴展、即時串流（未做）
 
+### 階段 13 增量 b：web 活水 news 模式（只回近期新聞）
+
+- [x] **已完成（2026-07-26）**：實跑階段 13 發現通用查詢＋一般搜尋回 SEO 常青清單文、非剛紅
+  新聞。加 **news 模式**：web 活水走搜尋服務的 `topic=news`＋時間範圍（`config.search_news_time_range`
+  預設 week），只撈近期新聞；手動 `/search` 維持一般搜尋。向後相容（news/time_range 預設關）。
+  spec 016、history/048；267 測試綠。**真跑驗證**：web 活水改回真新聞（SecurityWeek/Axios 取代
+  bentoml/instaclustr 那類 SEO 清單文）。同批修了 `_canonical` 混時區 published_at 崩潰（曾讓重整整份失敗）。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
