@@ -26,18 +26,22 @@ class WebSearchAdapter(SourceAdapter):
 
     type = "news"
 
-    def __init__(self, source_id: str, web_search, queries: list[str]) -> None:
+    def __init__(self, source_id: str, web_search, queries: list[str], *,
+                 news: bool = True, time_range: str | None = None) -> None:
         self.source_id = source_id
         self.name = source_id                 # digest 缺漏標示用 adapter.name
         self.web_search = web_search
         self.queries = queries
+        self.news = news                      # digest 活水預設走 news 模式（spec 016）
+        self.time_range = time_range
 
     def fetch(self, since: datetime) -> list[Item]:
         # web 結果無可靠日期 → 不做 since 過濾（MVP，靠 digest 排序/去重把關）
         out: list[Item] = []
         seen: set[str] = set()
         for q in self.queries:
-            for r in self.web_search.search(q):    # 拋 SourceUnavailable → 向外拋（digest 攔）
+            # news 模式：只回近期新聞（撈剛紅的，非 SEO 常青文，spec 016）
+            for r in self.web_search.search(q, news=self.news, time_range=self.time_range):
                 key = _norm_url(r.url)
                 if not key or key in seen:
                     continue

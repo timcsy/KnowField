@@ -53,7 +53,8 @@ def build_adapters(sources: list[Source], config=None) -> list[SourceAdapter]:
             from ..backends.factory import make_web_search
             from ..sources.websearch_adapter import WebSearchAdapter
             adapter: SourceAdapter = WebSearchAdapter(
-                s.id, make_web_search(config), _parse_queries(s.endpoint))
+                s.id, make_web_search(config), _parse_queries(s.endpoint),
+                news=True, time_range=config.search_news_time_range)
         else:
             cls = _ADAPTERS.get(s.access_method)
             if cls is None:

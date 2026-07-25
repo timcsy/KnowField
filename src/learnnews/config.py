@@ -52,6 +52,7 @@ class Config:
     search_api_url: str = ""             # 搜尋 API 端點（如 Tavily）；空＝離線 stub
     search_api_key: str = ""
     smart_search_topn: int = 4           # 智慧搜尋抓內文整理的前 N 則（spec 010）
+    search_news_time_range: str = "week" # web 活水 news 模式的時間窗（spec 016）：day/week/month
     explore_max_subqueries: int = 5      # 深入探索的子角度上限（spec 011，成本閘）
     trend_top_n: int = 8                 # 首頁熱詞 chips 數（spec 013）
     trend_recent_digests: int = 3        # 算熱詞取最近幾份匯整（spec 013）
@@ -88,6 +89,7 @@ class Config:
             search_api_url=os.environ.get("LEARNNEWS_SEARCH_API_URL", ""),
             search_api_key=os.environ.get("LEARNNEWS_SEARCH_KEY", ""),
             smart_search_topn=int(os.environ.get("LEARNNEWS_SMART_TOPN", "4")),
+            search_news_time_range=os.environ.get("LEARNNEWS_SEARCH_NEWS_RANGE", "week"),
             explore_max_subqueries=int(os.environ.get("LEARNNEWS_EXPLORE_MAXQ", "5")),
             trend_top_n=int(os.environ.get("LEARNNEWS_TREND_TOPN", "8")),
             trend_recent_digests=int(os.environ.get("LEARNNEWS_TREND_RECENT", "3")),

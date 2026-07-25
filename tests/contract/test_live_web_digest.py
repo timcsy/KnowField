@@ -14,11 +14,11 @@ from tests.rag_helpers import temp_db
 
 class _FakeWeb:
     def __init__(self, results): self._r = results
-    def search(self, q): return list(self._r)
+    def search(self, q, *, news=False, time_range=None): return list(self._r)
 
 
 class _BoomWeb:
-    def search(self, q): raise SourceUnavailable("搜尋掛了")
+    def search(self, q, *, news=False, time_range=None): raise SourceUnavailable("搜尋掛了")
 
 
 class TestLiveWebDigest(unittest.TestCase):

@@ -39,6 +39,31 @@ class TestWebSearch(unittest.TestCase):
         with self.assertRaises(SourceUnavailable):
             ApiWebSearch("https://api.tavily.com/search", "k", poster=boom).search("q")
 
+    def test_news_mode_payload(self):
+        seen = {}
+
+        def poster(url, payload):
+            seen.update(payload)
+            return {"results": []}
+        api = ApiWebSearch("https://api.tavily.com/search", "k", poster=poster)
+        api.search("q", news=True, time_range="week")
+        self.assertEqual(seen.get("topic"), "news")            # news 模式 → topic=news
+        self.assertEqual(seen.get("time_range"), "week")
+
+    def test_general_mode_omits_news_params(self):
+        seen = {}
+
+        def poster(url, payload):
+            seen.update(payload)
+            return {"results": []}
+        ApiWebSearch("https://api.tavily.com/search", "k", poster=poster).search("q")
+        self.assertNotIn("topic", seen)                        # 一般搜尋 → 不送 topic/time_range
+        self.assertNotIn("time_range", seen)
+
+    def test_stub_accepts_news_kwargs(self):
+        rs = StubWebSearch().search("q", news=True, time_range="day")   # 相容、忽略、不拋
+        self.assertTrue(rs)
+
 
 if __name__ == "__main__":
     unittest.main()

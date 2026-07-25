@@ -24,13 +24,15 @@ class SearchResult:
 
 
 class WebSearch(Protocol):
-    def search(self, query: str) -> list[SearchResult]: ...
+    def search(self, query: str, *, news: bool = False,
+               time_range: str | None = None) -> list[SearchResult]: ...
 
 
 class StubWebSearch:
-    """離線假搜尋：回固定結果（零外部呼叫，供測試/離線）。"""
+    """離線假搜尋：回固定結果（零外部呼叫，供測試/離線）。news/time_range 接受但忽略。"""
 
-    def search(self, query: str) -> list[SearchResult]:
+    def search(self, query: str, *, news: bool = False,
+               time_range: str | None = None) -> list[SearchResult]:
         q = (query or "").strip()
         return [
             SearchResult(f"（離線示意）關於「{q}」的結果 1", "https://example.com/1",
@@ -65,11 +67,17 @@ class ApiWebSearch:
         self.max_results = max_results
         self._poster = poster
 
-    def search(self, query: str) -> list[SearchResult]:
-        data = self._poster(self.api_url, {
+    def search(self, query: str, *, news: bool = False,
+               time_range: str | None = None) -> list[SearchResult]:
+        payload = {
             "api_key": self.api_key, "query": query,
             "max_results": self.max_results, "include_answer": False,
-        })
+        }
+        if news:                                  # news 模式：只回近期新聞（Tavily topic/time_range）
+            payload["topic"] = "news"
+            if time_range:
+                payload["time_range"] = time_range
+        data = self._poster(self.api_url, payload)
         raw = data.get("results") or data.get("data") or data.get("items") or []
         out: list[SearchResult] = []
         for r in raw:
