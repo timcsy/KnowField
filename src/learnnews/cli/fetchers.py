@@ -52,13 +52,16 @@ def build_adapters(sources: list[Source], config=None) -> list[SourceAdapter]:
                 continue
             from ..backends.factory import make_web_search
             from ..sources.websearch_adapter import WebSearchAdapter
-            adapters.append(WebSearchAdapter(
-                s.id, make_web_search(config), _parse_queries(s.endpoint)))
-            continue
-        cls = _ADAPTERS.get(s.access_method)
-        if cls is None:
-            continue
-        adapters.append(cls(s.id, _http_fetch_raw(s.endpoint)))
+            adapter: SourceAdapter = WebSearchAdapter(
+                s.id, make_web_search(config), _parse_queries(s.endpoint))
+        else:
+            cls = _ADAPTERS.get(s.access_method)
+            if cls is None:
+                continue
+            adapter = cls(s.id, _http_fetch_raw(s.endpoint))
+        # 缺漏標示標具體來源（友善名），而非通用類名「rss」/「arxiv」
+        adapter.name = s.name
+        adapters.append(adapter)
     return adapters
 
 

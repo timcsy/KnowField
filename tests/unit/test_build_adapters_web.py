@@ -40,6 +40,15 @@ class TestBuildAdaptersWeb(unittest.TestCase):
         self.assertEqual(_parse_queries("x, y ,z"), ["x", "y", "z"])
         self.assertEqual(_parse_queries("  "), [])
 
+    def test_adapter_name_is_friendly_source_name(self):
+        # 缺漏標示要標具體來源（友善名），不是通用類名「rss」
+        rss = Source("hn-ai", "Hacker News（AI 發布與討論）", "blog", "rss", "https://x/feed")
+        adapters = build_adapters([rss])
+        self.assertEqual(adapters[0].name, "Hacker News（AI 發布與討論）")
+        # web_search 也一樣
+        web = build_adapters([_WEB], self._cfg(key=True))
+        self.assertTrue(any(a.name == "開放網路 AI 趨勢" for a in web))
+
 
 if __name__ == "__main__":
     unittest.main()
