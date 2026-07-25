@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     article_headline TEXT DEFAULT '',
     figure_url TEXT DEFAULT '',
     figure_kind TEXT DEFAULT '',
-    source_class TEXT DEFAULT 'ordinary'   -- 'ordinary' | 'explainer'（種子 spec 006）
+    source_class TEXT DEFAULT 'ordinary',  -- 'ordinary' | 'explainer'（種子 spec 006）
+    source_id TEXT DEFAULT ''              -- 條目來源 id（spec 017 分區用；join sources.type）
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
@@ -111,6 +112,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "source_class" not in cols:   # spec 006：既有增量 1 的 db 補上種子分類欄
         conn.execute(
             "ALTER TABLE digest_entries ADD COLUMN source_class TEXT DEFAULT 'ordinary'")
+    if "source_id" not in cols:      # spec 017：分區用（條目來源 id）
+        conn.execute("ALTER TABLE digest_entries ADD COLUMN source_id TEXT DEFAULT ''")
     # spec 012：既有 db 補 why_nodes 表（CREATE IF NOT EXISTS，不動既有表）
     conn.execute("""
         CREATE TABLE IF NOT EXISTS why_nodes (

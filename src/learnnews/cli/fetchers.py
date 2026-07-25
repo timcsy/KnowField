@@ -95,9 +95,9 @@ DEFAULT_SOURCES = [
            "https://techcrunch.com/category/artificial-intelligence/feed/"),
     Source("verge-ai", "The Verge AI（產品新聞）", "news", "rss",
            "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"),
-    Source("hn-ai", "Hacker News（AI 發布與討論）", "blog", "rss",
+    Source("hn-ai", "Hacker News（AI 發布與討論）", "news", "rss",
            "https://hnrss.org/newest?q=AI+OR+LLM+OR+GPT+OR+Claude+OR+Anthropic+OR+OpenAI+OR+Gemini"),
-    Source("reddit-localllama", "Reddit r/LocalLLaMA（社群心得）", "blog", "rss",
+    Source("reddit-localllama", "Reddit r/LocalLLaMA（社群心得）", "news", "rss",
            "https://www.reddit.com/r/LocalLLaMA/.rss"),
     # live web 活水（spec 015）：伸手到策展名冊外抓剛紅新聞。預設停用、需搜尋金鑰才生效（opt-in）。
     Source("web-ai-trends", "開放網路 AI 趨勢（需搜尋金鑰・opt-in）", "news", "web_search",

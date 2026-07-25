@@ -14,7 +14,8 @@ class TestDefaultSources(unittest.TestCase):
         # 社群/討論源（HN、Reddit）以 blog 類收錄
         by_id = {s.id: s for s in DEFAULT_SOURCES}
         self.assertEqual(by_id["hn-ai"].access_method, "rss")
-        self.assertEqual(by_id["reddit-localllama"].type, "blog")
+        # HN/Reddit 屬社群/新聞流，spec 017 起 type=news（非基礎部落格）
+        self.assertEqual(by_id["reddit-localllama"].type, "news")
 
     def test_all_sources_build_adapters(self):
         # 不因新源丟例外；web_search 源（spec 015）無 config/金鑰 → 跳過，其餘全建

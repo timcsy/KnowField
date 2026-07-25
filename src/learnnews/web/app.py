@@ -33,6 +33,11 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _section_of(source_type: str | None) -> str:
+    """分區（spec 017）：論文＋基礎部落格＝基礎知識（常青吸引子）；其餘（含未知/web）＝新聞流。"""
+    return "foundational" if source_type in ("paper", "blog") else "news"
+
+
 def render_entry(entry) -> str:
     """把一則 PullEntry/DigestEntry 渲染成卡片 HTML 片段（供 SSE 逐則推送）。"""
     return _TEMPLATES.get_template("_entry.html").render({"e": entry_to_page(entry)})
@@ -143,12 +148,19 @@ def create_app() -> FastAPI:
         digest = repo.get_last_digest()
         # 趨勢讀數（spec 013）：從最近幾份真實匯整標題統計熱詞（純統計、不落庫）
         titles = repo.recent_digest_titles(config.trend_recent_digests)
+        # 分區（spec 017）：依來源 type 把條目分「新聞流 / 基礎知識」兩區（concept 流 vs 吸引子）
+        type_by_id = {s.id: s.type for s in repo.list_sources()}
         repo.close()
         chips = trend_keywords(titles, top_n=config.trend_top_n)
-        entries = [entry_to_page(e) for e in digest.entries] if digest else []
+        news_entries, foundational_entries = [], []
+        for e in (digest.entries if digest else []):
+            sec = _section_of(type_by_id.get(e.item.source_id))
+            (foundational_entries if sec == "foundational" else news_entries).append(
+                entry_to_page(e))
         return _TEMPLATES.TemplateResponse(request=request, name="digest.html", context={
             "date": digest.date if digest else None,
-            "entries": entries,
+            "news_entries": news_entries,
+            "foundational_entries": foundational_entries,
             "missing_sources": digest.missing_sources if digest else [],
             "chips": chips,
             "refresh_fail": msg == "refresh_fail",   # 重整失敗提示（spec 014）

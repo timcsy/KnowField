@@ -26,10 +26,19 @@
       <span class="badge badge-neutral">{{ date }}</span>
     </div>
   {% endif %}
-  {% if entries %}
-    {% for e in entries %}{% include "_entry.html" %}{% endfor %}
+  {% if news_entries or foundational_entries %}
+    {% if news_entries %}
+      <h2 class="text-lg font-bold mb-3 flex items-center gap-2">📰 今日新聞
+        <span class="text-xs font-normal text-base-content/50">剛紅的趨勢（流，會更替）</span></h2>
+      {% for e in news_entries %}{% include "_entry.html" %}{% endfor %}
+    {% endif %}
+    {% if foundational_entries %}
+      <h2 class="text-lg font-bold mt-8 mb-3 flex items-center gap-2">📚 基礎知識精選
+        <span class="text-xs font-normal text-base-content/50">常青的底子（論文／教學／經典部落格）</span></h2>
+      {% for e in foundational_entries %}{% include "_entry.html" %}{% endfor %}
+    {% endif %}
     {% if missing_sources %}
-      <div class="alert alert-warning text-sm">
+      <div class="alert alert-warning text-sm mt-4">
         <span>⚠ 缺漏來源：{{ missing_sources|join('、') }}</span>
       </div>
     {% endif %}

@@ -153,10 +153,10 @@ class Repository:
             fig_kind = e.article.figure.kind if (e.article and e.article.figure) else ""
             self.conn.execute(
                 "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
-                " article_body, article_headline, figure_url, figure_kind)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
+                " article_body, article_headline, figure_url, figure_kind, source_id)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic,
-                 body, headline, fig_url, fig_kind),
+                 body, headline, fig_url, fig_kind, e.item.source_id or ""),
             )
         self.conn.commit()
         d.id = digest_id
@@ -185,7 +185,8 @@ class Repository:
             return None
         rows = self.conn.execute(
             "SELECT rank, title, url, matched_topic, article_body, article_headline,"
-            " figure_url, figure_kind FROM digest_entries WHERE digest_id=? ORDER BY rank",
+            " figure_url, figure_kind, source_id FROM digest_entries"
+            " WHERE digest_id=? ORDER BY rank",
             (row["id"],),
         ).fetchall()
         entries: list[DigestEntry] = []
@@ -196,7 +197,8 @@ class Repository:
                                 source_note="")
             article = Article(item_id=0, body=r["article_body"], source_url=r["url"],
                               headline=r["article_headline"], figure=figure)
-            item = Item(source_id="", external_id="", title=r["title"], url=r["url"])
+            item = Item(source_id=(r["source_id"] if "source_id" in r.keys() else "") or "",
+                        external_id="", title=r["title"], url=r["url"])
             entries.append(DigestEntry(item=item, rank=r["rank"], relevance_score=0.0,
                                        article=article, matched_topic=r["matched_topic"]))
         return Digest(id=row["id"], date=row["date"], entries=entries,
