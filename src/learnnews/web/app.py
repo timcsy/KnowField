@@ -137,14 +137,20 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request):
-        repo = app.state.repo_factory(app.state.config)
+        from ..trend.keywords import trend_keywords
+        config = app.state.config
+        repo = app.state.repo_factory(config)
         digest = repo.get_last_digest()
+        # 趨勢讀數（spec 013）：從最近幾份真實匯整標題統計熱詞（純統計、不落庫）
+        titles = repo.recent_digest_titles(config.trend_recent_digests)
         repo.close()
+        chips = trend_keywords(titles, top_n=config.trend_top_n)
         entries = [entry_to_page(e) for e in digest.entries] if digest else []
         return _TEMPLATES.TemplateResponse(request=request, name="digest.html", context={
             "date": digest.date if digest else None,
             "entries": entries,
             "missing_sources": digest.missing_sources if digest else [],
+            "chips": chips,
         })
 
     @app.get("/pull", response_class=HTMLResponse)

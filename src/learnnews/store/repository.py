@@ -162,6 +162,19 @@ class Repository:
         d.id = digest_id
         return digest_id
 
+    def recent_digest_titles(self, k: int = 3) -> list[str]:
+        """最近 K 份『真實』匯整（排除種子容器）的條目標題——供趨勢讀數（spec 013）。"""
+        from ..config import SEEDS_DATE
+        rows = self.conn.execute(
+            "SELECT id FROM digests WHERE date != ? ORDER BY id DESC LIMIT ?",
+            (SEEDS_DATE, k)).fetchall()
+        if not rows:
+            return []
+        ids = [r["id"] for r in rows]
+        q = ("SELECT title FROM digest_entries WHERE digest_id IN (%s) ORDER BY id"
+             % ",".join("?" * len(ids)))
+        return [r["title"] for r in self.conn.execute(q, ids).fetchall() if r["title"]]
+
     def get_last_digest(self) -> Digest | None:
         """讀最近一次落庫匯整的全部 entries，組回 Digest（供 web 首頁，data-model.md）。"""
         row = self.conn.execute(

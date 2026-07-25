@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}今日匯整 — LearnNews{% endblock %}
 {% block content %}
+  {% if chips %}
+    <div class="mb-5">
+      <div class="text-xs text-base-content/60 mb-1">🔥 今日高頻（點一下深挖；描述性讀數，非預言）</div>
+      <div class="flex flex-wrap gap-2">
+        {% for c in chips %}
+          <a href="/pull?topic={{ c|urlencode }}" class="badge badge-lg badge-outline hover:badge-primary">{{ c }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
   {% if date %}
     <div class="flex items-center gap-2 mb-5">
       <h1 class="text-2xl font-bold">📰 每日分診匯整</h1>
