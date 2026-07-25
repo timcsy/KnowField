@@ -51,6 +51,7 @@ class TestRootCauseWeb(unittest.TestCase):
         app.state.extractor_factory = lambda: type("E", (), {
             "extract": staticmethod(lambda t, b: Candidate(
                 claim="候選根因主張", touchstones=[{"name": "機制", "passed": True}],
+                ladder=["表面 why 層", "bedrock：資訊理論極限"],
                 fog_flag=False, no_material=False))})()
         return app
 
@@ -64,6 +65,8 @@ class TestRootCauseWeb(unittest.TestCase):
         self.assertIn("候選根因主張", r.text)
         self.assertIn("AI 推斷", r.text)                       # 明標推斷
         self.assertIn("機制", r.text)                          # 試金石逐條
+        self.assertIn("bedrock", r.text)                       # why 階梯（挖到底）
+        self.assertIn("資訊理論極限", r.text)                   # 階梯最底層顯示
         # /library 種子有「萃取根因」鈕
         lib = client.get("/library")
         self.assertIn("/whynode/extract", lib.text)

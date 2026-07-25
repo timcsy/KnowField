@@ -241,13 +241,17 @@ class Repository:
         import json as _json
         out: list[CorpusEntry] = []
         for r in self.conn.execute(
-                "SELECT id, claim, evidence_urls FROM why_nodes WHERE status='anointed'"
+                "SELECT id, claim, evidence_urls, ladder FROM why_nodes"
+                " WHERE status='anointed'"
         ).fetchall():
             urls = _json.loads(r["evidence_urls"] or "[]")
             claim = r["claim"] or ""
+            ladder = _json.loads((r["ladder"] if "ladder" in r.keys() else "[]") or "[]")
+            # body 併入 why 階梯：深層 why 也進檢索，問到底層邏輯也撈得到（品質補強）
+            body = claim + ("\n" + "\n".join(ladder) if ladder else "")
             out.append(CorpusEntry(
                 entry_id=-r["id"], title=f"根因：{claim[:40]}",
-                url=(urls[0] if urls else ""), headline="", body=claim,
+                url=(urls[0] if urls else ""), headline="", body=body,
                 digest_date="", source_class="root"))
         return out
 
@@ -339,14 +343,16 @@ class Repository:
 
     # --- why-node 根因（spec 012） ---
     def add_why_node(self, claim: str, evidence_urls: list, touchstones: list,
-                     fog_flag: bool, source_entry_id: int, created_at: str) -> int:
+                     fog_flag: bool, source_entry_id: int, created_at: str,
+                     ladder: list | None = None) -> int:
         """新增候選 why-node（狀態=candidate），回 id。"""
         import json as _json
         cur = self.conn.execute(
-            "INSERT INTO why_nodes (claim, evidence_urls, touchstones, fog_flag,"
-            " status, source_entry_id, created_at) VALUES (?,?,?,?,'candidate',?,?)",
+            "INSERT INTO why_nodes (claim, evidence_urls, touchstones, ladder, fog_flag,"
+            " status, source_entry_id, created_at) VALUES (?,?,?,?,?,'candidate',?,?)",
             (claim, _json.dumps(evidence_urls, ensure_ascii=False),
-             _json.dumps(touchstones, ensure_ascii=False), 1 if fog_flag else 0,
+             _json.dumps(touchstones, ensure_ascii=False),
+             _json.dumps(ladder or [], ensure_ascii=False), 1 if fog_flag else 0,
              source_entry_id, created_at))
         self.conn.commit()
         return cur.lastrowid
@@ -367,6 +373,7 @@ class Repository:
                 id=r["id"], claim=r["claim"],
                 evidence_urls=_json.loads(r["evidence_urls"] or "[]"),
                 touchstones=_json.loads(r["touchstones"] or "[]"),
+                ladder=_json.loads((r["ladder"] if "ladder" in r.keys() else "[]") or "[]"),
                 fog_flag=bool(r["fog_flag"]), status=r["status"],
                 source_entry_id=r["source_entry_id"] or 0,
                 created_at=r["created_at"] or ""))

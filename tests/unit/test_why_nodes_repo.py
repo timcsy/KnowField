@@ -30,16 +30,27 @@ class TestWhyNodesRepo(unittest.TestCase):
         self.assertEqual(repo.list_why_nodes(), [])
         repo.close()
 
+    def test_ladder_round_trips(self):
+        repo = self._repo()
+        wid = repo.add_why_node("aha", ["https://a/1"], [], False, 1, "2026-07-25",
+                                ladder=["表面", "更深", "bedrock"])
+        w = repo.list_why_nodes()[0]
+        self.assertEqual(w.ladder, ["表面", "更深", "bedrock"])
+        self.assertEqual(wid, w.id)
+        repo.close()
+
     def test_anointed_enters_corpus_candidate_does_not(self):
         repo = self._repo()
         cand = repo.add_why_node("候選根因", ["https://a/c"], [], False, 1, "2026-07-25")
-        anoint = repo.add_why_node("已冊封根因", ["https://a/an"], [], False, 2, "2026-07-25")
+        anoint = repo.add_why_node("已冊封根因", ["https://a/an"], [], False, 2, "2026-07-25",
+                                   ladder=["表面 why", "bedrock：資訊理論極限"])
         repo.anoint_why_node(anoint)
 
         corpus = repo.list_corpus_entries()
         roots = [e for e in corpus if e.source_class == "root"]
         self.assertEqual(len(roots), 1)                       # 只有已冊封進 corpus
-        self.assertEqual(roots[0].body, "已冊封根因")
+        self.assertIn("已冊封根因", roots[0].body)             # 主張
+        self.assertIn("資訊理論極限", roots[0].body)           # 階梯也進檢索（deep why 可撈）
         self.assertLess(roots[0].entry_id, 0)                 # 負 id 避碰撞
         self.assertEqual(roots[0].url, "https://a/an")        # 證據 url
         self.assertNotIn("候選根因", [e.body for e in corpus])  # 候選不進

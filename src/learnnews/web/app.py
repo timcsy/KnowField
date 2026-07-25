@@ -275,7 +275,7 @@ def create_app() -> FastAPI:
             # grounding 落結構：候選必帶證據（種子 url）＋試金石，才可冊封（教訓 7）
             from ..config import SEEDS_DATE  # noqa: F401
             repo.add_why_node(cand.claim, [seed.url], cand.touchstones,
-                              cand.fog_flag, entry_id, _now_iso())
+                              cand.fog_flag, entry_id, _now_iso(), ladder=cand.ladder)
             repo.close()
             return RedirectResponse("/roots", status_code=303)
         except SourceUnavailable as e:                 # 萃取失敗/逾時/無金鑰 → 友善繁中（教訓 3）

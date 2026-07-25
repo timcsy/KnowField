@@ -23,7 +23,14 @@
             <div class="flex items-start gap-2">
               <span class="badge badge-sm badge-warning badge-outline shrink-0">AI 推斷</span>
               <div class="min-w-0 flex-1">
-                <div class="font-medium">{{ w.claim }}</div>
+                <div class="font-medium">💡 {{ w.claim }}</div>
+                {% if w.ladder %}
+                  <ol class="text-xs text-base-content/70 mt-2 mb-1 border-l-2 border-base-300 pl-3 space-y-0.5">
+                    {% for step in w.ladder %}
+                      <li>{% if loop.last %}<span class="font-semibold text-primary">↓ bedrock：</span>{% else %}<span class="opacity-50">↓</span> {% endif %}{{ step }}</li>
+                    {% endfor %}
+                  </ol>
+                {% endif %}
                 <div class="text-xs text-base-content/60 mt-1">
                   據
                   {% for u in w.evidence_urls %}

@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     claim TEXT NOT NULL,               -- 根因主張（一段話）
     evidence_urls TEXT DEFAULT '[]',   -- JSON：證據原文連結（來源種子 url）
     touchstones TEXT DEFAULT '[]',     -- JSON：試金石逐條 [{name, passed}]
+    ladder TEXT DEFAULT '[]',          -- JSON：why 階梯（表面→bedrock，每層一句）
     fog_flag INTEGER DEFAULT 0,        -- 是否有霧詞（假根因旗標）
     status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
     source_entry_id INTEGER,           -- 來源種子 digest_entries.id
@@ -119,6 +120,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
             touchstones TEXT DEFAULT '[]',
             fog_flag INTEGER DEFAULT 0,
             status TEXT DEFAULT 'candidate',
+            ladder TEXT DEFAULT '[]',
             source_entry_id INTEGER,
             created_at TEXT
         )""")
+    # spec 012 品質補強：既有 why_nodes 補 ladder 欄（why 階梯）
+    wn_cols = {r[1] for r in conn.execute("PRAGMA table_info(why_nodes)").fetchall()}
+    if wn_cols and "ladder" not in wn_cols:
+        conn.execute("ALTER TABLE why_nodes ADD COLUMN ladder TEXT DEFAULT '[]'")

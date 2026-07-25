@@ -15,6 +15,18 @@ class TestExtractor(unittest.TestCase):
         self.assertEqual(len(c.touchstones), 7)               # 7 條試金石
         self.assertTrue(all(t["passed"] is False for t in c.touchstones))  # 離線全「待驗」
         self.assertFalse(c.no_material)
+        self.assertGreaterEqual(len(c.ladder), 2)             # why 階梯（表面→bedrock）
+
+    def test_openai_parses_ladder(self):
+        payload = {"claim": "bedrock aha", "no_material": False,
+                   "ladder": ["表面 why", "更深", "bedrock：資訊理論極限"], "touchstones": []}
+        import json as _j
+
+        def poster(*a):
+            return {"choices": [{"message": {"content": _j.dumps(payload, ensure_ascii=False)}}]}
+        c = OpenAIExtractor("http://x", "k", "m", poster=poster).extract("T", "B")
+        self.assertEqual(c.ladder, ["表面 why", "更深", "bedrock：資訊理論極限"])
+        self.assertEqual(c.claim, "bedrock aha")
 
     def test_openai_parses_json(self):
         payload = {"claim": "因為直接建模長程依賴", "no_material": False, "fog_flag": True,
