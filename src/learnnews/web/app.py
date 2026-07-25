@@ -136,7 +136,7 @@ def create_app() -> FastAPI:
             status_code=503)
 
     @app.get("/", response_class=HTMLResponse)
-    async def home(request: Request):
+    async def home(request: Request, msg: str = ""):
         from ..trend.keywords import trend_keywords
         config = app.state.config
         repo = app.state.repo_factory(config)
@@ -151,7 +151,41 @@ def create_app() -> FastAPI:
             "entries": entries,
             "missing_sources": digest.missing_sources if digest else [],
             "chips": chips,
+            "refresh_fail": msg == "refresh_fail",   # 重整失敗提示（spec 014）
         })
+
+    def _default_digest_refresh(config, repo):
+        """重跑分診（spec 014）：啟用來源→run_digest→save_digest。複用 CLI 管線，不重寫。"""
+        from ..cli.digest_cmd import build_backend_builder, run_digest
+        from ..cli.fetchers import DEFAULT_SOURCES, build_adapters
+        sources = repo.list_sources(enabled_only=True)
+        if not sources:
+            for s in DEFAULT_SOURCES:
+                repo.upsert_source(s)
+            sources = repo.list_sources(enabled_only=True)
+        adapters = build_adapters(sources)
+        digest = run_digest(repo, adapters, date=_now_iso()[:10],
+                            limit=config.digest_limit,
+                            builder=build_backend_builder(config))
+        repo.save_digest(digest)
+    app.state.digest_refresh_factory = _default_digest_refresh
+
+    @app.post("/digest/refresh")
+    async def digest_refresh():
+        config = app.state.config
+        repo = app.state.repo_factory(config)
+        try:
+            # 使用者明確觸發（原則 5）；同步重跑分診（會抓＋消化，較慢）
+            app.state.digest_refresh_factory(config, repo)
+            return RedirectResponse("/", status_code=303)
+        except (SourceUnavailable, OpenAIError) as e:   # 外部失敗 → 友善、非 500（教訓 3）
+            _log.error("重新整理失敗", extra={"extra": {"reason": str(e)}})
+            return RedirectResponse("/?msg=refresh_fail", status_code=303)
+        except Exception as e:                          # noqa: BLE001 - 任何異常都友善、不吐堆疊
+            _log.error("重新整理失敗", extra={"extra": {"reason": str(e)}})
+            return RedirectResponse("/?msg=refresh_fail", status_code=303)
+        finally:
+            repo.close()
 
     @app.get("/pull", response_class=HTMLResponse)
     async def pull(request: Request, topic: str = ""):

@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block title %}今日匯整 — LearnNews{% endblock %}
 {% block content %}
+  {% if refresh_fail %}
+    <div class="alert alert-error mb-4"><span>❌ 重新整理失敗（來源或後端暫時有問題），既有匯整保留，請稍後再試。</span></div>
+  {% endif %}
+  <div class="flex items-center gap-3 mb-4">
+    <form method="post" action="/digest/refresh">
+      <button class="btn btn-sm btn-outline">🔄 重新整理</button>
+    </form>
+    <span class="text-xs text-base-content/50">會抓最新並重新消化，需要一點時間、會用到後端額度。</span>
+  </div>
   {% if chips %}
     <div class="mb-5">
       <div class="text-xs text-base-content/60 mb-1">🔥 今日高頻（點一下深挖；描述性讀數，非預言）</div>
