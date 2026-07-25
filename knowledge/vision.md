@@ -370,6 +370,32 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 可注入離線 stub、零外部呼叫可測（教訓 1）；不新增/不改資料表（教訓 8）；舊匯整不刪
 - [x] **out of scope**：串流即時進度、自動/定時刷新、UI 選日期/主題、同日去重、CLI（未做）
 
+## 階段 13：live web 活水（開放網路進每日 digest）
+
+> 治使用者核心痛點：**追不到剛紅的 AI 趨勢**（連 Opus 5 都漏）——固定名冊（論文骨幹＋週刊）
+> 結構上抓不到即時產品新聞。concept 第 3 層**反濾泡／驚訝力**的具體機制：伸手到策展名冊**之外**。
+> 設計源＝`draft/2026-07-24-趨勢熱詞發現.md`（live 活水段）。
+
+- [ ] **已 commit（2026-07-25）**：`WebSearchAdapter`——digest 除了抓固定名冊，也對「AI 最新」跑
+  web 搜尋（複用 spec 009 `WebSearch` 後端）、把結果映成 `Item` 餵進**既有 digest 管線**（去重/
+  依興趣排序/消化）。註冊 `access_method="web_search"`；一個**預設停用**的源 `web-ai-trends`，
+  使用者在 `/sources` 啟用＋設搜尋金鑰才生效（opt-in、控成本）。
+
+<!--
+  緣起：使用者痛點「追不到剛紅 AI 趨勢、連 Opus 5 都漏」。先①擴名冊止血（history/045）、②本階段根治。
+  設計源：趨勢 draft live 活水段。規劃 knowie-next、history/045。概念：反濾泡/驚訝力（第 3 層）。
+  復用：SourceAdapter.fetch＋WebSearch.search＋整條 digest 管線＋missing_sources＋/sources 管理。
+  成本閘：opt-in 預設停用＋需金鑰＋query 數有限。web 進的是「流」非種子（種子只經「收進」，原則 5）。
+-->
+
+**成功標準（可驗）：**
+- [ ] 啟用 `web-ai-trends` 源＋有搜尋金鑰時，digest／refresh **把開放網路剛紅新聞納入匯整**（Opus 5 這類進得來）
+- [ ] **預設停用**：不啟用／不設金鑰＝零成本、行為與現在一致（opt-in、原則 5）
+- [ ] web 結果帶網址、匯整每則可回原文（原則 3）；進的是**流非種子**（要留仍靠「收進」，原則 5）
+- [ ] 搜尋失敗 → 沿用 `missing_sources` 標示、digest 照常產出（教訓 3）
+- [ ] 離線 stub 可測、零外部呼叫（教訓 1）；不新增資料表（web 源＝sources 表一列，教訓 8）；測試不回歸（現 249）
+- [ ] **out of scope**：web 結果自動變種子（絕不）、竄升/成核、per-query LLM 擴展、即時串流
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
