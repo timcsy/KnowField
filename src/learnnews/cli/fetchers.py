@@ -68,4 +68,15 @@ DEFAULT_SOURCES = [
            "https://lastweekin.ai/feed"),
     Source("ars-ai", "Ars Technica AI（日更產業新聞）", "news", "rss",
            "https://arstechnica.com/ai/feed/"),
+    # 即時產品新聞＋社群討論（spec：補「論文骨幹＋週刊」抓不到的剛紅新聞，feed 皆 2026-07-25 實測活）
+    Source("openai-blog", "OpenAI Blog（官方發布）", "news", "rss",
+           "https://openai.com/blog/rss.xml"),
+    Source("techcrunch-ai", "TechCrunch AI（即時產業新聞）", "news", "rss",
+           "https://techcrunch.com/category/artificial-intelligence/feed/"),
+    Source("verge-ai", "The Verge AI（產品新聞）", "news", "rss",
+           "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"),
+    Source("hn-ai", "Hacker News（AI 發布與討論）", "blog", "rss",
+           "https://hnrss.org/newest?q=AI+OR+LLM+OR+GPT+OR+Claude+OR+Anthropic+OR+OpenAI+OR+Gemini"),
+    Source("reddit-localllama", "Reddit r/LocalLLaMA（社群心得）", "blog", "rss",
+           "https://www.reddit.com/r/LocalLLaMA/.rss"),
 ]
