@@ -225,13 +225,31 @@ class Repository:
             ).fetchall()
         else:
             rows = self.conn.execute(base + " ORDER BY de.id").fetchall()
-        return [
+        entries = [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
                         headline=r["headline"] or "", body=r["body"] or "",
                         digest_date=r["ddate"],
                         source_class=r["sclass"] or "ordinary")
             for r in rows
         ]
+        if not today:
+            # 已冊封 why-node 也是語料——最重的吸引子。負 entry_id 避與 digest_entries 碰撞（spec 012）。
+            entries.extend(self._anointed_corpus_entries())
+        return entries
+
+    def _anointed_corpus_entries(self) -> list[CorpusEntry]:
+        import json as _json
+        out: list[CorpusEntry] = []
+        for r in self.conn.execute(
+                "SELECT id, claim, evidence_urls FROM why_nodes WHERE status='anointed'"
+        ).fetchall():
+            urls = _json.loads(r["evidence_urls"] or "[]")
+            claim = r["claim"] or ""
+            out.append(CorpusEntry(
+                entry_id=-r["id"], title=f"根因：{claim[:40]}",
+                url=(urls[0] if urls else ""), headline="", body=claim,
+                digest_date="", source_class="root"))
+        return out
 
     # --- 種子 ingest（spec 006） ---
     def get_or_create_seeds_digest(self) -> int:
@@ -318,6 +336,60 @@ class Repository:
         self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (entry_id,))
         self.conn.commit()
         return True
+
+    # --- why-node 根因（spec 012） ---
+    def add_why_node(self, claim: str, evidence_urls: list, touchstones: list,
+                     fog_flag: bool, source_entry_id: int, created_at: str) -> int:
+        """新增候選 why-node（狀態=candidate），回 id。"""
+        import json as _json
+        cur = self.conn.execute(
+            "INSERT INTO why_nodes (claim, evidence_urls, touchstones, fog_flag,"
+            " status, source_entry_id, created_at) VALUES (?,?,?,?,'candidate',?,?)",
+            (claim, _json.dumps(evidence_urls, ensure_ascii=False),
+             _json.dumps(touchstones, ensure_ascii=False), 1 if fog_flag else 0,
+             source_entry_id, created_at))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_why_nodes(self, status: str | None = None) -> list:
+        import json as _json
+
+        from ..rootcause.extract import WhyNode
+        sql = "SELECT * FROM why_nodes"
+        args: tuple = ()
+        if status:
+            sql += " WHERE status=?"
+            args = (status,)
+        sql += " ORDER BY id DESC"
+        out = []
+        for r in self.conn.execute(sql, args).fetchall():
+            out.append(WhyNode(
+                id=r["id"], claim=r["claim"],
+                evidence_urls=_json.loads(r["evidence_urls"] or "[]"),
+                touchstones=_json.loads(r["touchstones"] or "[]"),
+                fog_flag=bool(r["fog_flag"]), status=r["status"],
+                source_entry_id=r["source_entry_id"] or 0,
+                created_at=r["created_at"] or ""))
+        return out
+
+    def anoint_why_node(self, wid: int, claim: str | None = None) -> bool:
+        """人冊封：狀態 → anointed（可同時改 claim）。回是否有更新。"""
+        if claim is not None and claim.strip():
+            cur = self.conn.execute(
+                "UPDATE why_nodes SET status='anointed', claim=? WHERE id=?",
+                (claim.strip(), wid))
+        else:
+            cur = self.conn.execute(
+                "UPDATE why_nodes SET status='anointed' WHERE id=?", (wid,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_why_node(self, wid: int) -> bool:
+        """刪 why-node，連其負 id 嵌入一起清（無孤兒）。"""
+        cur = self.conn.execute("DELETE FROM why_nodes WHERE id=?", (wid,))
+        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (-wid,))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def set_seed_class(self, entry_id: int, cls: str) -> bool:
         """重分類種子（限種子容器）。cls∈{explainer,ordinary}；否則/非種子 → 回 False。"""

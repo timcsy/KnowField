@@ -27,6 +27,7 @@ def handle(args) -> int:
         top_k=getattr(args, "k", None) or config.rag_top_k,
         min_score=config.rag_min_score,
         explainer_weight=config.rag_explainer_weight,
+        root_weight=config.rag_root_weight,
     )
     try:
         ans = service.answer(

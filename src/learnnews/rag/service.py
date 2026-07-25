@@ -30,16 +30,22 @@ def embedder_tag(embedder) -> str:
 class RagService:
     def __init__(self, repo, embedder, answerer: Answerer,
                  top_k: int = 6, min_score: float = 0.10,
-                 explainer_weight: float = 1.0) -> None:
+                 explainer_weight: float = 1.0, root_weight: float = 2.0) -> None:
         self.repo = repo
         self.embedder = embedder
         self.answerer = answerer
         self.top_k = top_k
         self.min_score = min_score
         self.explainer_weight = explainer_weight
+        self.root_weight = root_weight
 
     def _weight(self, source_class: str) -> float:
-        return self.explainer_weight if source_class == "explainer" else 1.0
+        # 已冊封根因＝最重的吸引子 > 解說文 > 一般（spec 012／concept：why 濃度最高）
+        if source_class == "root":
+            return self.root_weight
+        if source_class == "explainer":
+            return self.explainer_weight
+        return 1.0
 
     def answer(self, question: str, scope: Scope | None = None,
                lang: str = "繁體中文") -> RagAnswer:

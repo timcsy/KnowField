@@ -28,6 +28,11 @@ _log = get_logger("learnnews.web")
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def render_entry(entry) -> str:
     """把一則 PullEntry/DigestEntry 渲染成卡片 HTML 片段（供 SSE 逐則推送）。"""
     return _TEMPLATES.get_template("_entry.html").render({"e": entry_to_page(entry)})
@@ -75,7 +80,8 @@ def _default_rag_answer(config: Config, repo_factory, question: str, today: bool
     try:
         service = RagService(repo, make_embedder(config), make_answerer(config),
                              top_k=config.rag_top_k, min_score=config.rag_min_score,
-                             explainer_weight=config.rag_explainer_weight)
+                             explainer_weight=config.rag_explainer_weight,
+                             root_weight=config.rag_root_weight)
         return service.answer(question, Scope(today=today), lang=lang)
     finally:
         repo.close()
@@ -235,6 +241,63 @@ def create_app() -> FastAPI:
             repo.set_seed_class(entry_id, source_class)
             repo.close()
         return RedirectResponse("/library", status_code=303)
+
+    # --- 根因萃取（spec 012／階段 10）---
+    def _default_extractor():
+        from ..backends.factory import make_root_cause_extractor
+        return make_root_cause_extractor(app.state.config)
+    app.state.extractor_factory = _default_extractor
+
+    @app.get("/roots", response_class=HTMLResponse)
+    async def roots(request: Request, msg: str = ""):
+        repo = app.state.repo_factory(app.state.config)
+        candidates = repo.list_why_nodes("candidate")
+        anointed = repo.list_why_nodes("anointed")
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="roots.html",
+            context={"candidates": candidates, "anointed": anointed, "msg": msg})
+
+    @app.post("/whynode/extract")
+    async def whynode_extract(entry_id: int = Form(0)):
+        if not entry_id:
+            return RedirectResponse("/library", status_code=303)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            seed = next((s for s in repo.list_seeds() if s.entry_id == entry_id), None)
+            if seed is None:
+                repo.close()
+                return RedirectResponse("/library", status_code=303)
+            cand = app.state.extractor_factory().extract(seed.title, seed.body)
+            if cand.no_material:                       # 抽不出有把握的根因 → 不建候選（不杜撰）
+                repo.close()
+                return RedirectResponse("/roots?msg=nomat", status_code=303)
+            # grounding 落結構：候選必帶證據（種子 url）＋試金石，才可冊封（教訓 7）
+            from ..config import SEEDS_DATE  # noqa: F401
+            repo.add_why_node(cand.claim, [seed.url], cand.touchstones,
+                              cand.fog_flag, entry_id, _now_iso())
+            repo.close()
+            return RedirectResponse("/roots", status_code=303)
+        except SourceUnavailable as e:                 # 萃取失敗/逾時/無金鑰 → 友善繁中（教訓 3）
+            repo.close()
+            _log.error("根因萃取失敗", extra={"extra": {"reason": str(e)}})
+            return RedirectResponse("/roots?msg=fail", status_code=303)
+
+    @app.post("/whynode/anoint")
+    async def whynode_anoint(id: int = Form(0), claim: str = Form("")):
+        if id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.anoint_why_node(id, claim or None)    # 人冊封（可編輯）→ 正式吸引子（原則 5）
+            repo.close()
+        return RedirectResponse("/roots", status_code=303)
+
+    @app.post("/whynode/remove")
+    async def whynode_remove(id: int = Form(0)):
+        if id:
+            repo = app.state.repo_factory(app.state.config)
+            repo.delete_why_node(id)
+            repo.close()
+        return RedirectResponse("/roots", status_code=303)
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):

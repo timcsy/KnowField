@@ -79,6 +79,17 @@ CREATE TABLE IF NOT EXISTS behavior_signals (
     action TEXT NOT NULL,
     at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS why_nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim TEXT NOT NULL,               -- 根因主張（一段話）
+    evidence_urls TEXT DEFAULT '[]',   -- JSON：證據原文連結（來源種子 url）
+    touchstones TEXT DEFAULT '[]',     -- JSON：試金石逐條 [{name, passed}]
+    fog_flag INTEGER DEFAULT 0,        -- 是否有霧詞（假根因旗標）
+    status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
+    source_entry_id INTEGER,           -- 來源種子 digest_entries.id
+    created_at TEXT                    -- 建立時間（呼叫端傳入）
+);
 """
 
 
@@ -99,3 +110,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "source_class" not in cols:   # spec 006：既有增量 1 的 db 補上種子分類欄
         conn.execute(
             "ALTER TABLE digest_entries ADD COLUMN source_class TEXT DEFAULT 'ordinary'")
+    # spec 012：既有 db 補 why_nodes 表（CREATE IF NOT EXISTS，不動既有表）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS why_nodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            claim TEXT NOT NULL,
+            evidence_urls TEXT DEFAULT '[]',
+            touchstones TEXT DEFAULT '[]',
+            fog_flag INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'candidate',
+            source_entry_id INTEGER,
+            created_at TEXT
+        )""")

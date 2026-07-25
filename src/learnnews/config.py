@@ -46,6 +46,7 @@ class Config:
     rag_top_k: int = 6                   # 取回條目數上限
     rag_min_score: float = 0.10          # 低於此相關度視為查無相關
     rag_explainer_weight: float = 1.5    # 解說文種子的檢索排序權重（spec 006，>1 才勝快訊）
+    rag_root_weight: float = 2.0         # 已冊封根因的檢索權重（spec 012，>explainer＝重吸引子）
 
     # web 搜尋（spec 009）；未設時走離線 stub
     search_api_url: str = ""             # 搜尋 API 端點（如 Tavily）；空＝離線 stub
@@ -79,6 +80,8 @@ class Config:
                 "LEARNNEWS_RAG_MINSCORE", "0.30" if backend == "openai" else "0.05")),
             rag_explainer_weight=float(
                 os.environ.get("LEARNNEWS_RAG_EXPLAINER_WEIGHT", "1.5")),
+            rag_root_weight=float(
+                os.environ.get("LEARNNEWS_RAG_ROOT_WEIGHT", "2.0")),
             search_api_url=os.environ.get("LEARNNEWS_SEARCH_API_URL", ""),
             search_api_key=os.environ.get("LEARNNEWS_SEARCH_KEY", ""),
             smart_search_topn=int(os.environ.get("LEARNNEWS_SMART_TOPN", "4")),

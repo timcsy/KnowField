@@ -51,6 +51,15 @@ def make_smart_search(config: Config):
                        max_subqueries=config.explore_max_subqueries)
 
 
+def make_root_cause_extractor(config: Config):
+    """根因萃取（spec 012）：真實走 OpenAI 格式 chat，否則離線確定性 stub。"""
+    if config.backend == "openai" and config.api_key:
+        from ..rootcause.extract import OpenAIExtractor
+        return OpenAIExtractor(config.api_base_url, config.api_key, config.chat_model)
+    from ..rootcause.extract import StubExtractor
+    return StubExtractor()
+
+
 def make_answerer(config: Config):
     """RAG 答案合成後端：真實走 OpenAI 格式 chat，否則離線 stub（spec 005）。"""
     if config.backend == "openai" and config.api_key:

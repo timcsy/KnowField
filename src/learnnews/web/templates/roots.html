@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}根因 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-bold">🧭 根因（吸引子）</h1>
+    <span class="text-sm text-base-content/60">AI 提候選、你冊封——冊封的成問答最重的依據</span>
+  </div>
+  <p class="text-xs text-base-content/50 mb-5">吸引子是「為何 work 的根因」，不是文件。候選只是推斷；你冊封才算數。</p>
+
+  {% if msg == 'fail' %}
+    <div class="alert alert-error mb-4"><span>❌ 根因萃取暫時失敗（服務／金鑰問題），請稍後再試。</span></div>
+  {% elif msg == 'nomat' %}
+    <div class="alert mb-4"><span class="opacity-80">這則材料抽不出有把握的根因——AI 未硬編（不杜撰）。</span></div>
+  {% endif %}
+
+  {# ── 候選（AI 推斷，待冊封）── #}
+  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">候選（AI 推斷）</h2>
+  {% if candidates %}
+    <div class="space-y-3 mb-6">
+      {% for w in candidates %}
+        <div class="card bg-base-100 shadow-sm">
+          <div class="card-body py-4">
+            <div class="flex items-start gap-2">
+              <span class="badge badge-sm badge-warning badge-outline shrink-0">AI 推斷</span>
+              <div class="min-w-0 flex-1">
+                <div class="font-medium">{{ w.claim }}</div>
+                <div class="text-xs text-base-content/60 mt-1">
+                  據
+                  {% for u in w.evidence_urls %}
+                    <a href="{{ u }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ u }}</a>{% if not loop.last %}、{% endif %}
+                  {% endfor %}
+                </div>
+                {% if w.touchstones %}
+                  <div class="flex flex-wrap gap-1 mt-2">
+                    {% for t in w.touchstones %}
+                      <span class="badge badge-xs {% if t.passed %}badge-success{% else %}badge-ghost{% endif %}">
+                        {{ t.name }}{% if t.passed %} ✓{% else %} 待驗{% endif %}</span>
+                    {% endfor %}
+                    {% if w.fog_flag %}<span class="badge badge-xs badge-error">霧詞疑慮</span>{% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <form action="/whynode/anoint" method="post" class="join flex-1">
+                <input type="hidden" name="id" value="{{ w.id }}">
+                <input name="claim" value="{{ w.claim }}"
+                       class="input input-bordered input-sm join-item flex-1"
+                       title="可先編輯根因文字再冊封">
+                <button class="btn btn-primary btn-sm join-item">冊封</button>
+              </form>
+              <form action="/whynode/remove" method="post">
+                <input type="hidden" name="id" value="{{ w.id }}">
+                <button class="btn btn-ghost btn-sm text-error">退回</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-sm text-base-content/50 mb-6">目前沒有候選。到「<a href="/library" class="link link-primary">知識庫</a>」對種子按「萃取根因」。</p>
+  {% endif %}
+
+  {# ── 已冊封（正式吸引子，問答最重）── #}
+  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">已冊封（正式吸引子）</h2>
+  {% if anointed %}
+    <div class="card bg-base-100 shadow-sm">
+      <ul class="divide-y divide-base-200">
+        {% for w in anointed %}
+          <li class="flex items-start justify-between gap-3 px-5 py-3">
+            <div class="min-w-0">
+              <div class="font-medium">🧲 {{ w.claim }}</div>
+              <div class="text-xs text-base-content/60 mt-0.5">
+                {% for u in w.evidence_urls %}
+                  <a href="{{ u }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ u }}</a>{% if not loop.last %}、{% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            <form action="/whynode/remove" method="post" class="shrink-0"
+                  onsubmit="return confirm('退回這個已冊封的根因？（問答將不再用它）');">
+              <input type="hidden" name="id" value="{{ w.id }}">
+              <button class="btn btn-ghost btn-xs text-error">退回</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% else %}
+    <p class="text-sm text-base-content/50">還沒有冊封的根因。冊封後，它會成為問答檢索最重的依據。</p>
+  {% endif %}
+{% endblock %}
