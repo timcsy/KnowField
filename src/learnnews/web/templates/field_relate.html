@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}關聯到我的場 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-bold">🧭 關聯到我的場</h1>
+    <span class="text-sm text-base-content/60">這則跟你冊封的根因/種子怎麼連（AI 提關係、你決定）</span>
+  </div>
+  <p class="text-xs text-base-content/50 mb-4">
+    材料：<a href="{{ material.url }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ material.title }}</a>
+  </p>
+
+  {% if rel is none %}
+    <div class="alert alert-error"><span>❌ 判關係暫時失敗（服務/金鑰問題），請稍後再試。你的場沒有被改動。</span></div>
+  {% elif rel.kind == 'empty' %}
+    <div class="alert bg-base-100"><span>{{ rel.reason }}</span></div>
+  {% elif rel.kind == 'nucleate' %}
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body py-4">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="badge badge-secondary">✨ 成核候選</span>
+          <span class="text-sm text-base-content/60">離你場裡所有吸引子都遠——新地基？</span>
+        </div>
+        <p>{{ rel.reason }}</p>
+        <div class="mt-2 flex gap-2">
+          <a href="/roots" class="btn btn-sm btn-outline">去萃取根因</a>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body py-4">
+        <div class="flex items-center gap-2 mb-1">
+          {% if rel.kind == 'contradict' %}
+            <span class="badge badge-error">⚠ 牴觸</span>
+            <span class="text-sm text-base-content/60">這跟你冊封的相反——值得重想</span>
+          {% elif rel.kind == 'extend' %}
+            <span class="badge badge-success">🔗 延伸</span>
+            <span class="text-sm text-base-content/60">順著你的根因、補強/推進</span>
+          {% else %}
+            <span class="badge badge-ghost">無明顯關聯</span>
+          {% endif %}
+        </div>
+        {% if rel.attractor %}
+          <div class="text-sm mt-1">相關吸引子：
+            <a href="{{ rel.attractor.url }}" target="_blank" rel="noopener"
+               class="link link-primary">{{ rel.attractor.title }}</a></div>
+        {% endif %}
+        {% if rel.reason %}<p class="mt-2">{{ rel.reason }}</p>{% endif %}
+        <p class="text-xs text-base-content/40 mt-3">AI 只是提關係——要不要據此動你的場，由你決定（場沒被自動改）。</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="mt-4"><a href="/library" class="link link-primary text-sm">← 回知識庫</a></div>
+{% endblock %}

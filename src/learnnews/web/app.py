@@ -300,6 +300,38 @@ def create_app() -> FastAPI:
         return make_root_cause_extractor(app.state.config)
     app.state.extractor_factory = _default_extractor
 
+    # 場對新材料做工（spec 018）：可注入的 relate（測試覆寫）
+    def _default_field_relate(title, body, exclude_url=None):
+        from ..backends.factory import make_embedder, make_relation_judge
+        from ..field.relate import FieldRelate
+        cfg = app.state.config
+        repo = app.state.repo_factory(cfg)
+        try:
+            return FieldRelate(make_embedder(cfg), make_relation_judge(cfg),
+                               repo, cfg.rag_min_score).relate(title, body, exclude_url)
+        finally:
+            repo.close()
+    app.state.field_relate_factory = _default_field_relate
+
+    @app.post("/field/relate")
+    async def field_relate(request: Request, entry_id: int = Form(0)):
+        repo = app.state.repo_factory(app.state.config)
+        seed = next((s for s in repo.list_seeds() if s.entry_id == entry_id), None)
+        repo.close()
+        if seed is None:
+            return RedirectResponse("/library", status_code=303)
+        try:
+            # 材料在你的場裡跑一次 forward pass；排除材料自己（原則 5：只提關係、不改場）
+            rel = app.state.field_relate_factory(seed.headline or seed.title, seed.body,
+                                                 exclude_url=seed.url)
+        except (SourceUnavailable, OpenAIError) as e:   # 判關係失敗 → 友善（教訓 3）
+            _log.error("關聯到場失敗", extra={"extra": {"reason": str(e)}})
+            rel = None
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="field_relate.html",
+            context={"material": {"title": seed.headline or seed.title, "url": seed.url},
+                     "rel": rel})
+
     @app.get("/roots", response_class=HTMLResponse)
     async def roots(request: Request, msg: str = ""):
         repo = app.state.repo_factory(app.state.config)

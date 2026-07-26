@@ -325,6 +325,10 @@ class Repository:
             "SELECT id FROM digests WHERE date=?", (SEEDS_DATE,)).fetchone()
         return row["id"] if row else None
 
+    def list_field_attractors(self) -> list[CorpusEntry]:
+        """場的吸引子＝人冊封的種子＋已冊封根因（spec 018）。不含每日流（流是水、非吸引子）。"""
+        return self.list_seeds() + self._anointed_corpus_entries()
+
     def list_seeds(self) -> list[CorpusEntry]:
         """列出種子容器裡的種子（新在上）；不含每日流（FR-001/005）。"""
         from ..config import SEEDS_DATE

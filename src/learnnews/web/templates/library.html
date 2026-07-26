@@ -32,6 +32,10 @@
                 <input type="hidden" name="entry_id" value="{{ s.entry_id }}">
                 <button class="btn btn-ghost btn-xs" title="AI 試抽這則的根因（候選，待你冊封）">萃取根因</button>
               </form>
+              <form action="/field/relate" method="post">
+                <input type="hidden" name="entry_id" value="{{ s.entry_id }}">
+                <button class="btn btn-ghost btn-xs" title="這則跟你冊封的根因/種子怎麼連（延伸/牴觸/成核）">🧭 關聯到我的場</button>
+              </form>
               <form action="/library/reclassify" method="post">
                 <input type="hidden" name="entry_id" value="{{ s.entry_id }}">
                 {% if s.source_class == 'explainer' %}

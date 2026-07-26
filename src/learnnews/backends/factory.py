@@ -51,6 +51,15 @@ def make_smart_search(config: Config):
                        max_subqueries=config.explore_max_subqueries)
 
 
+def make_relation_judge(config: Config):
+    """判關係（spec 018）：真實走 OpenAI 格式 chat，否則離線確定性 stub。"""
+    if config.backend == "openai" and config.api_key:
+        from ..field.relate import OpenAIRelationJudge
+        return OpenAIRelationJudge(config.api_base_url, config.api_key, config.chat_model)
+    from ..field.relate import StubRelationJudge
+    return StubRelationJudge()
+
+
 def make_root_cause_extractor(config: Config):
     """根因萃取（spec 012）：真實走 OpenAI 格式 chat，否則離線確定性 stub。"""
     if config.backend == "openai" and config.api_key:
