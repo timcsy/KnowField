@@ -462,22 +462,25 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 > 讀 delta 最該作用在**剛炸的新聞**上——階段 15 只在種子（已存的），把引擎接到**每日流**才真正
 > 兌現北極星習慣 2/3/5。設計源＝`draft/2026-07-26-跟得上趨勢者的知識整理.md`（缺件 #1）。
 
-- [ ] **已 commit（2026-07-26）**：首頁每則**匯整條目**（新聞＋基礎兩區）加「🧭 關聯到我的場」→
-  複用階段 15 的 `FieldRelate`（延伸/牴觸/成核、grounded、場不自動改）。缺口只有暴露條目 id＋
-  `/field/relate` 泛化吃流的條目（非只種子）。
+- [x] **已完成（2026-07-26）**：首頁每則**匯整條目**（新聞＋基礎兩區）加「🧭 關聯到我的場」→
+  複用階段 15 的 `FieldRelate`（延伸/牴觸/成核、grounded、場不自動改）。缺口只補了暴露條目 id＋
+  `/field/relate` 泛化吃流的條目（非只種子）。spec 019、history/053；298 測試綠，真後端在每日流上驗過。
 
 <!--
-  規劃：knowie-next（2026-07-26）、history/052。復用 spec 018 FieldRelate/結果頁全部。
-  缺口：get_last_digest 暴露 digest_entries.id；/field/relate 用 id 取材料（種子或流皆可）、按 url 排除自己。
+  規劃：knowie-next（2026-07-26）、history/052→053。復用 spec 018 FieldRelate/結果頁全部。
+  實作：get_last_digest 帶 digest_entries.id；repository.get_entry_material(id) 取任一條目材料（種子或流
+  同住 digest_entries、一路徑服務兩者）；/field/relate 用它取代 list_seeds、exclude_url 排除自己；
+  PageEntry+entry_id（entry_to_page 用 getattr，PullEntry 無→None）；_entry.html {% if e.entry_id %} 關聯鈕，
+  digest.html 兩區共用故一次生效、pull 頁自然無鈕。零新相依/零新表/不改引擎。
   範圍：按需按鈕（維持深淺分明、不自動標每則）；out：自動標註每則、批次成核、多跳。
 -->
 
 **成功標準（可驗）：**
-- [ ] 首頁**匯整條目**可「關聯到我的場」→ 回延伸/牴觸/成核（同種子版）、連到根因、可回核對
-- [ ] `/field/relate` 吃**流的條目**（用 `digest_entries.id` 取材料）；排除自己
-- [ ] 場不自動改（原則 5）；grounded（原則 3/教訓 7）；離線可測（教訓 1）；失敗友善（教訓 3）
-- [ ] **維持按需**（不自動標每則，深淺分明）；測試不回歸（現 286）
-- [ ] **out of scope**：自動標註每則、批次成核、多跳
+- [x] 首頁**匯整條目**可「關聯到我的場」→ 回延伸/牴觸/成核（同種子版）、連到根因、可回核對
+- [x] `/field/relate` 吃**流的條目**（用 `digest_entries.id` 取材料）；排除自己（`exclude_url`）
+- [x] 場不自動改（原則 5，relate 不寫庫）；grounded（原則 3/教訓 7，真後端誠實回無關聯已驗）；離線可測（教訓 1）；失敗友善（教訓 3）
+- [x] **維持按需**（不自動標每則，深淺分明；首頁載入零關聯呼叫，有守衛測）；測試 286→298 不回歸
+- [x] **out of scope**：自動標註每則、批次成核、多跳（未做）
 
 ## 關鍵延伸（主題觸發必讀）
 
