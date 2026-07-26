@@ -236,9 +236,11 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 > **主動撒網提候選來源、你挑著訂**（＝發現**進水口本身**，不只發現水）。設計源＝
 > `draft/2026-07-25-來源訂閱.md`（「主動推薦來源」段，使用者 2026-07-26 定案「排序場驅動優先」）。
 
-- [ ] **待實作**：一個 opt-in 動作「幫我找新來源」→ `WebSearch` 專查 roundup（一般搜尋、非 news 模式）
-  → 抽候選網域 → **複用 spec 008** `discover_feed`／`validate_feed`（擋死/幻覺 feed）→ **場驅動排序**
-  → 推薦清單 → **人按訂閱才進名冊**（複用既有 subscribe 流）。
+- [x] **已完成（2026-07-26）**：一個 opt-in 動作「幫我找新來源」→ `WebSearch` 專查 roundup（一般搜尋、
+  非 news）→ 抽候選網域 → **複用 spec 008** `discover_feed`／`validate_feed`（擋死/幻覺 feed）→ **場驅動
+  排序** → 推薦清單 → **人按訂閱才進名冊**（複用既有 `/sources/add`）。spec 020、history/055；307 測試綠。
+  **真後端（Tavily）驗過**：撒網＋真抓開放網路 feed，回 3 個有活 feed 可訂（bair.berkeley.edu、
+  research.google、aiconnections.substack.com）、10 個標「無 RSS」（誠實天花板、非報錯）。
 
 <!--
   規劃：knowie-next（2026-07-26）。近乎全複用：WebSearch（spec 009/016 make_web_search）＋
@@ -252,13 +254,13 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 -->
 
 **成功標準（可驗）：**
-- [ ] 一個 opt-in 動作回**候選來源清單**，每項含網域＋**活 feed**＋推薦理由
-- [ ] 排序**場驅動優先**：你冊封材料出自它 ＞ 有活 feed ＞ 跨清單重複（使用者定案）
-- [ ] **驗證先行**：死/幻覺 feed **不進**清單（複用 spec 008 `validate_feed`）
-- [ ] **人按訂閱才進名冊**（不自動，原則 5）；**opt-in／按需**（非匯整自動跑，省搜尋額度）
-- [ ] WebSearch／`http_get` 可注入 → **離線 stub 可測**（教訓 1）；搜尋/抓 feed 失敗友善繁中（教訓 3）
-- [ ] 複用 `evaluate-and-add-source` skill 的評估邏輯於驗證步；測試不回歸（現 298）
-- [ ] **out of scope**：自動訂閱、每次匯整自動跑、無 RSS 的好站、每來源品質加權
+- [x] 一個 opt-in 動作回**候選來源清單**，每項含網域＋**活 feed**＋推薦理由
+- [x] 排序**場驅動優先**：你冊封材料出自它 ＞ 有活 feed ＞ 跨清單重複（`(field_score, has_feed, list_hits)`）
+- [x] **驗證先行**：死/幻覺 feed **不進**清單（複用 spec 008 `validate_feed`）；無 RSS 標示非報錯（誠實天花板）
+- [x] **人按訂閱才進名冊**（不自動，原則 5）；**opt-in／按需**（非匯整自動跑，有守衛測）
+- [x] WebSearch／`http_get` 可注入 → **離線 stub 可測**（教訓 1）；搜尋/抓 feed 失敗友善繁中（教訓 3）
+- [x] 複用 `evaluate-and-add-source` skill 的評估邏輯於驗證步；測試 298→307 不回歸
+- [x] **out of scope**：自動訂閱、每次匯整自動跑、無 RSS 的好站（訂閱）、每來源品質加權（未做）
 
 ### 階段 9：web 搜尋（開放網路進水口）
 
