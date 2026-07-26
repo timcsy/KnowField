@@ -127,6 +127,7 @@ class DigestEntry:
     relevance_score: float
     article: Article | None = None    # 取代 summary（--raw 時為 None）
     matched_topic: str = ""
+    entry_id: int | None = None       # digest_entries.id（spec 019：供「關聯到我的場」按鈕）
 
 
 @dataclass

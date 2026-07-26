@@ -21,7 +21,15 @@
     {% for p in e.paragraphs %}
       <p class="leading-relaxed text-[15px]">{{ p }}</p>
     {% endfor %}
-    <div class="card-actions justify-end pt-1">
+    <div class="card-actions justify-end items-center gap-2 pt-1">
+      {% if e.entry_id %}
+        {# spec 019：把這則新材料接到你的場跑一次 forward pass（延伸/牴觸/成核）；按需、不自動 #}
+        <form action="/field/relate" method="post" class="inline">
+          <input type="hidden" name="entry_id" value="{{ e.entry_id }}">
+          <button class="btn btn-sm btn-ghost"
+                  title="這則跟你冊封的根因/種子怎麼連（延伸/牴觸/成核）">🧭 關聯到我的場</button>
+        </form>
+      {% endif %}
       <a href="{{ e.source_url }}" target="_blank" rel="noopener"
          class="btn btn-sm btn-outline btn-primary">一鍵直達原文 →</a>
     </div>

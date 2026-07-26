@@ -184,7 +184,7 @@ class Repository:
         if row is None:
             return None
         rows = self.conn.execute(
-            "SELECT rank, title, url, matched_topic, article_body, article_headline,"
+            "SELECT id, rank, title, url, matched_topic, article_body, article_headline,"
             " figure_url, figure_kind, source_id FROM digest_entries"
             " WHERE digest_id=? ORDER BY rank",
             (row["id"],),
@@ -200,7 +200,8 @@ class Repository:
             item = Item(source_id=(r["source_id"] if "source_id" in r.keys() else "") or "",
                         external_id="", title=r["title"], url=r["url"])
             entries.append(DigestEntry(item=item, rank=r["rank"], relevance_score=0.0,
-                                       article=article, matched_topic=r["matched_topic"]))
+                                       article=article, matched_topic=r["matched_topic"],
+                                       entry_id=r["id"]))   # spec 019：帶出條目 id
         return Digest(id=row["id"], date=row["date"], entries=entries,
                       truncated_count=row["truncated_count"],
                       missing_sources=json.loads(row["missing_sources"]))
@@ -218,6 +219,16 @@ class Repository:
             return None
         return {"title": entry["title"], "url": entry["url"],
                 "matched_topic": entry["matched_topic"]}
+
+    def get_entry_material(self, entry_id: int) -> tuple[str, str, str] | None:
+        """spec 019：以 digest_entries.id 取任一條目材料（種子或每日流皆可）。
+        回 (headline_or_title, body, url)；headline 優先（溯源）；不存在→None。純讀，不寫庫。"""
+        r = self.conn.execute(
+            "SELECT title, article_headline, article_body, url FROM digest_entries"
+            " WHERE id=?", (entry_id,)).fetchone()
+        if r is None:
+            return None
+        return (r["article_headline"] or r["title"], r["article_body"] or "", r["url"])
 
     # --- RAG 語料與嵌入（spec 005） ---
     def list_corpus_entries(self, today: bool = False) -> list[CorpusEntry]:

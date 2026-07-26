@@ -20,6 +20,7 @@ class PageEntry:
     paragraphs: list[str] = field(default_factory=list)
     source_url: str = ""
     figure: FigureView | None = None
+    entry_id: int | None = None      # spec 019：匯整條目 id（有值才顯示「關聯到我的場」）
 
     @property
     def show_original(self) -> bool:
@@ -36,9 +37,10 @@ def entry_to_page(entry) -> PageEntry:
     """DigestEntry 或 PullEntry → PageEntry。無 article（--raw）時退回標題＋連結。"""
     item = entry.item
     a = entry.article
+    eid = getattr(entry, "entry_id", None)   # spec 019：DigestEntry 有；PullEntry 無→None（無鈕）
     if a is None:
         return PageEntry(headline=item.title, original_title=item.title,
-                         paragraphs=[], source_url=item.url)
+                         paragraphs=[], source_url=item.url, entry_id=eid)
     fig = None
     if a.figure is not None:
         fig = FigureView(url=a.figure.url, label=a.figure.label(),
@@ -49,4 +51,5 @@ def entry_to_page(entry) -> PageEntry:
         paragraphs=_paragraphs(a.body),
         source_url=a.source_url or item.url,
         figure=fig,
+        entry_id=eid,
     )

@@ -316,21 +316,21 @@ def create_app() -> FastAPI:
     @app.post("/field/relate")
     async def field_relate(request: Request, entry_id: int = Form(0)):
         repo = app.state.repo_factory(app.state.config)
-        seed = next((s for s in repo.list_seeds() if s.entry_id == entry_id), None)
+        # spec 019：以 digest_entries.id 取任一條目材料（種子或每日流皆可），不再只找種子
+        material = repo.get_entry_material(entry_id)
         repo.close()
-        if seed is None:
-            return RedirectResponse("/library", status_code=303)
+        if material is None:
+            return RedirectResponse("/", status_code=303)
+        title, body, url = material
         try:
             # 材料在你的場裡跑一次 forward pass；排除材料自己（原則 5：只提關係、不改場）
-            rel = app.state.field_relate_factory(seed.headline or seed.title, seed.body,
-                                                 exclude_url=seed.url)
+            rel = app.state.field_relate_factory(title, body, exclude_url=url)
         except (SourceUnavailable, OpenAIError) as e:   # 判關係失敗 → 友善（教訓 3）
             _log.error("關聯到場失敗", extra={"extra": {"reason": str(e)}})
             rel = None
         return _TEMPLATES.TemplateResponse(
             request=request, name="field_relate.html",
-            context={"material": {"title": seed.headline or seed.title, "url": seed.url},
-                     "rel": rel})
+            context={"material": {"title": title, "url": url}, "rel": rel})
 
     @app.get("/roots", response_class=HTMLResponse)
     async def roots(request: Request, msg: str = ""):
