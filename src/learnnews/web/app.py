@@ -123,6 +123,21 @@ def create_app() -> FastAPI:
         return subscribe(url)
     app.state.subscribe_factory = _default_subscribe
 
+    # 場驅動來源推薦（spec 020）：可注入的撒網＋驗證＋場驅動排序（測試覆寫）
+    def _default_recommend():
+        from ..backends.factory import make_embedder, make_web_search
+        from ..sources.recommend import recommend_sources
+        cfg = app.state.config
+        repo = app.state.repo_factory(cfg)
+        try:
+            return recommend_sources(
+                make_web_search(cfg), make_embedder(cfg), repo,
+                queries=list(cfg.source_recommend_queries),
+                limit=cfg.source_recommend_limit)
+        finally:
+            repo.close()
+    app.state.recommend_factory = _default_recommend
+
     def _default_web_search(query):
         from ..backends.factory import make_web_search
         return make_web_search(app.state.config).search(query)
@@ -413,6 +428,26 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="sources.html",
             context={"sources": srcs, "msg": msg, "err": err})
+
+    @app.post("/sources/recommend", response_class=HTMLResponse)
+    async def sources_recommend(request: Request):
+        """opt-in 撒網找新來源（原則 5：人按才跑、訂閱才進名冊）。"""
+        repo = app.state.repo_factory(app.state.config)
+        srcs = repo.list_sources()
+        repo.close()
+        recs = []
+        rec_msg = rec_err = None
+        try:
+            recs = app.state.recommend_factory()
+            if not recs:
+                rec_msg = "這次沒找到可訂的新來源——過一陣子再試，或直接貼網址追蹤。"
+        except (SourceUnavailable, OpenAIError) as e:   # 搜尋/抓 feed 失敗 → 友善（教訓 3）
+            _log.error("找新來源失敗", extra={"extra": {"reason": str(e)}})
+            rec_err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="sources.html",
+            context={"sources": srcs, "recommendations": recs,
+                     "rec_msg": rec_msg, "rec_err": rec_err})
 
     @app.post("/sources/toggle")
     async def sources_toggle(source_id: str = Form(""), enabled: str = Form("1")):

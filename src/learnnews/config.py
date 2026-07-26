@@ -57,6 +57,10 @@ class Config:
     trend_top_n: int = 8                 # 首頁熱詞 chips 數（spec 013）
     trend_recent_digests: int = 3        # 算熱詞取最近幾份匯整（spec 013）
     digest_max_per_source: int = 4       # 匯整每來源上限（防單一來源洗版、保多樣）
+    # 場驅動來源推薦（spec 020）：opt-in 撒網找進水口
+    source_recommend_queries: tuple[str, ...] = (
+        "最佳 AI 部落格 2026", "best AI research blogs", "top AI newsletters roundup")
+    source_recommend_limit: int = 8      # 推薦候選數上限
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":

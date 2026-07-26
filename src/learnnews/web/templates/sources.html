@@ -16,6 +16,48 @@
   {% if msg %}<div class="alert alert-success mb-4"><span>✅ {{ msg }}</span></div>{% endif %}
   {% if err %}<div class="alert alert-error mb-4"><span>❌ 加來源失敗：{{ err }}（未加入任何來源）</span></div>{% endif %}
 
+  {# 場驅動來源推薦（spec 020）：opt-in 撒網找進水口、你挑著訂 #}
+  <form action="/sources/recommend" method="post" class="mb-4">
+    <button class="btn btn-outline btn-secondary btn-sm"
+            title="撒網找優質來源，依你冊封的種子/根因排序，你挑著訂">🔎 幫我找新來源</button>
+    <span class="text-xs text-base-content/50 ml-1">依你的場排序、驗證有活 feed；訂閱才進名冊</span>
+  </form>
+
+  {% if rec_msg %}<div class="alert mb-4"><span class="opacity-80">🔎 {{ rec_msg }}</span></div>{% endif %}
+  {% if rec_err %}<div class="alert alert-error mb-4"><span>❌ 找新來源失敗：{{ rec_err }}</span></div>{% endif %}
+
+  {% if recommendations %}
+    <div class="card bg-base-200/50 shadow-sm mb-5">
+      <div class="card-body p-4 gap-2">
+        <h2 class="font-semibold text-sm">推薦來源（場驅動排序）</h2>
+        <ul class="divide-y divide-base-200">
+          {% for c in recommendations %}
+            <li class="flex items-center justify-between gap-3 py-2">
+              <div class="min-w-0">
+                <a href="{{ c.homepage }}" target="_blank" rel="noopener"
+                   class="font-medium link link-hover">{{ c.name }}</a>
+                <span class="text-xs text-base-content/50 ml-1">{{ c.domain }}</span>
+                <div class="text-xs text-base-content/60">{{ c.reason }}</div>
+              </div>
+              <div class="shrink-0">
+                {% if c.already_subscribed %}
+                  <span class="badge badge-sm badge-ghost">已在名冊</span>
+                {% elif c.has_feed %}
+                  <form action="/sources/add" method="post">
+                    <input type="hidden" name="url" value="{{ c.feed_url }}">
+                    <button class="btn btn-primary btn-xs">訂閱</button>
+                  </form>
+                {% else %}
+                  <span class="badge badge-sm badge-warning" title="沒有 RSS，靠 web 活水/收進補">無 RSS</span>
+                {% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+
   {% if sources %}
     <div class="card bg-base-100 shadow-sm">
       <ul class="divide-y divide-base-200">
