@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}值不值得 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-bold">🤔 值不值得</h1>
+    <span class="text-sm text-base-content/60">看到新 AI 東西？丟進來，我給你反逢迎的判斷</span>
+  </div>
+  <p class="text-xs text-base-content/50 mb-4">
+    撒網找**真實用戶心得**（不是行銷）→ 官方/獨立/用戶分開、明說炒作、有引用、給值不值得＋怎麼用。
+    貼名字或一段你看到的內文都行（牆內也收得到）。
+  </p>
+
+  <form action="/worth" method="post" class="mb-4">
+    <textarea name="content" rows="3" class="textarea textarea-bordered w-full mb-2"
+              placeholder="貼一個新 AI 東西的名字，或一段你在 FB/Threads 看到的內文…"></textarea>
+    <div class="flex gap-2">
+      <input name="url" placeholder="（選填）原文網址" class="input input-bordered input-sm flex-1">
+      <button class="btn btn-primary btn-sm">值不值得？</button>
+    </div>
+  </form>
+
+  {% if err %}<div class="alert alert-error mb-4"><span>❌ {{ err }}</span></div>{% endif %}
+
+  {% if verdict %}
+    {% if verdict.no_material %}
+      <div class="alert mb-4"><span class="opacity-80">🌱 「{{ verdict.subject }}」太新或資料太少——
+        撈不到足夠的真實心得，過一陣子再問，或直接貼一段你看到的內文。</span></div>
+    {% else %}
+      <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-5 gap-3">
+          <h2 class="card-title text-lg">「{{ verdict.subject }}」值不值得</h2>
+          <div class="text-[15px] leading-relaxed" style="white-space: pre-wrap;">{{ verdict.verdict_md }}</div>
+          {% if verdict.sources %}
+            <div class="pt-2 border-t border-base-200">
+              <div class="text-xs text-base-content/50 mb-1">引用來源（可回核）：</div>
+              <ul class="text-sm space-y-1">
+                {% for s in verdict.sources %}
+                  <li><a href="{{ s.url }}" target="_blank" rel="noopener"
+                         class="link link-hover">🔗 {{ s.title or s.url }}</a></li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+{% endblock %}

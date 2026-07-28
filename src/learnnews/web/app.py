@@ -148,6 +148,19 @@ def create_app() -> FastAPI:
         return make_smart_search(app.state.config).run(query, explore)
     app.state.smart_search_factory = _default_smart_search
 
+    # 反逢迎「值不值得」副手（spec 021）：可注入撒網獵心得＋反逢迎綜合（測試覆寫）
+    def _default_worth(subject):
+        from ..backends.factory import make_web_search, make_worthit_synthesizer
+        from ..search.worthit import assess_worth
+        cfg = app.state.config
+        return assess_worth(make_web_search(cfg), make_worthit_synthesizer(cfg), subject)
+    app.state.worth_factory = _default_worth
+
+    def _default_worth_fetch_title(url):
+        from ..seed.fetch import fetch_url
+        return fetch_url(url).title
+    app.state.worth_fetch_title = _default_worth_fetch_title
+
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
@@ -397,6 +410,40 @@ def create_app() -> FastAPI:
             repo.delete_why_node(id)
             repo.close()
         return RedirectResponse("/roots", status_code=303)
+
+    @app.get("/worth", response_class=HTMLResponse)
+    async def worth_get(request: Request):
+        return _TEMPLATES.TemplateResponse(request=request, name="worth.html", context={})
+
+    @app.post("/worth", response_class=HTMLResponse)
+    async def worth_post(request: Request, subject: str = Form(""),
+                         content: str = Form(""), url: str = Form("")):
+        """時刻 A：丟名字/內文/網址 → 撒網獵心得 → 反逢迎綜合（原則 5：不落庫、opt-in）。"""
+        # subject 解析序：名字 ＞ 內文首行 ＞ url 抓到的標題（best-effort）＞ url 本身（收內容口，FR-002/007）
+        subj = (subject or "").strip()
+        if not subj and content.strip():
+            subj = content.strip().splitlines()[0].strip()[:80]
+        if not subj and url.strip():
+            try:
+                subj = (app.state.worth_fetch_title(url.strip()) or "").strip()[:80]
+            except Exception as e:   # 伺服器抓被擋/牆內→退回用 url，不崩（教訓 3）
+                _log.error("值不值得抓標題失敗", extra={"extra": {"reason": str(e)}})
+                subj = ""
+            if not subj:
+                subj = url.strip()
+        if not subj:
+            return _TEMPLATES.TemplateResponse(
+                request=request, name="worth.html",
+                context={"err": "請貼一個名字、一段內文，或一個網址。"})
+        verdict = err = None
+        try:
+            verdict = app.state.worth_factory(subj)
+        except (SourceUnavailable, OpenAIError) as e:   # 搜尋/綜合失敗→友善（教訓 3）
+            _log.error("值不值得綜合失敗", extra={"extra": {"reason": str(e)}})
+            err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="worth.html",
+            context={"verdict": verdict, "err": err, "subject": subj})
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):
