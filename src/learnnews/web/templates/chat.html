@@ -48,8 +48,18 @@
     {% endif %}
   </div>
 
+  {% if distill_nudge %}
+    <div class="alert alert-warning mb-4" id="distill-nudge">
+      <span>🧵 自上次整理後又聊了一大段（約第 {{ distill_nudge.from }}–{{ distill_nudge.to }} 句）還沒收——
+        <b>尾段常是最原創的地方</b>。要不要現在
+        <button type="button" class="link link-hover font-semibold" onclick="triggerDistill()">整理成重點</button>？
+        （忽略也行，不會自動存）</span>
+    </div>
+  {% endif %}
+
   <form id="chat-form" action="/chat" method="post" class="mb-2" onsubmit="return chatBusy(this)">
     <input type="hidden" name="history" value='{{ history_json }}'>
+    <input type="hidden" name="last_captured" id="last-captured" value="0">
     <textarea name="message" rows="2" autofocus
               class="textarea textarea-bordered w-full mb-2"
               placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…">{{ draft or '' }}</textarea>
@@ -64,7 +74,7 @@
 
   {% if messages %}
     <div class="flex gap-2 flex-wrap">
-      <form action="/chat/distill" method="post" onsubmit="return busy(this, '整理中…')">
+      <form id="distill-form" action="/chat/distill" method="post" onsubmit="markCaptured(); return busy(this, '整理中…')">
         <input type="hidden" name="history" value='{{ history_json }}'>
         <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
       </form>
@@ -281,6 +291,32 @@
           }
           return pump();
         }).catch(function () { textEl.textContent = '⚠ 連線中斷，請重試。'; busyHide(); btn.disabled = false; });
+      });
+    })();
+  </script>
+
+  <script>
+    // 收尾缺口記帳（spec 025）：記「上次整理/存/冊封時的訊息數」於 localStorage，送出時餵回後端算缺口。
+    (function () {
+      var CONVO_LEN = {{ messages | length }};
+      var KEY = 'learnnews.lastCaptured';
+      // 新對話（空）→ 歸零；否則沿用上次記錄餵給隱藏欄
+      if (CONVO_LEN === 0) { try { localStorage.setItem(KEY, '0'); } catch (e) {} }
+      var lc = 0;
+      try { lc = parseInt(localStorage.getItem(KEY) || '0', 10) || 0; } catch (e) {}
+      var input = document.getElementById('last-captured');
+      if (input) input.value = lc;
+      // 按整理/存/冊封＝已收到此刻 → 更新記錄
+      window.markCaptured = function () {
+        try { localStorage.setItem(KEY, String(CONVO_LEN)); } catch (e) {}
+      };
+      window.triggerDistill = function () {
+        var f = document.getElementById('distill-form');
+        if (f) { var b = f.querySelector('button'); if (b) b.click(); }
+      };
+      // 存這段/冊封候選 送出時也算「已收」
+      document.querySelectorAll('form[action="/chat/save"], form[action="/chat/anoint"]').forEach(function (f) {
+        f.addEventListener('submit', window.markCaptured);
       });
     })();
   </script>

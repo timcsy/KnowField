@@ -431,15 +431,30 @@ class Repository:
     # --- 對話的「由來」存檔（spec 023，episodes 層）---
     def save_conversation(self, title: str, messages: list,
                           why_node_id: int | None = None) -> int:
-        """存下整段對話（人按才呼叫）。why_node_id 可空（獨立存）。回 id。"""
+        """存下整段對話（人按才呼叫）。**指紋冪等**（spec 025）：同一段對話已存過→回既有 id、
+        不新增複本；否則新增。why_node_id 給定時，把連結存在 why_nodes 側（多條根因可共用一份）。"""
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        cur = self.conn.execute(
-            "INSERT INTO conversations (title, messages, why_node_id, created_at)"
-            " VALUES (?,?,?,?)",
-            (title, json.dumps(messages, ensure_ascii=False), why_node_id, now))
+
+        from ..chat.capture import conversation_fingerprint
+        fp = conversation_fingerprint(messages)
+        cid = None
+        for r in self.conn.execute(
+                "SELECT id, messages FROM conversations ORDER BY id ASC").fetchall():
+            if conversation_fingerprint(json.loads(r["messages"] or "[]")) == fp:
+                cid = r["id"]          # 同段已存→共用（不插入、不刪改既有）
+                break
+        if cid is None:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            cur = self.conn.execute(
+                "INSERT INTO conversations (title, messages, why_node_id, created_at)"
+                " VALUES (?,?,?,?)",
+                (title, json.dumps(messages, ensure_ascii=False), why_node_id, now))
+            cid = cur.lastrowid
+        if why_node_id is not None:    # 連結存 why_node 側（事實來源）
+            self.conn.execute(
+                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (cid, why_node_id))
         self.conn.commit()
-        return cur.lastrowid
+        return cid
 
     def _row_to_conversation(self, r):
         from ..models import Conversation
@@ -461,13 +476,14 @@ class Repository:
         return self._row_to_conversation(r) if r else None
 
     def why_node_provenance(self) -> dict:
-        """{why_node_id: conversation_id}——供 /roots 顯示「← 由來」。只含**仍存在**的根因
-        （JOIN why_nodes：刪根因後對話變獨立、不再連得到，D3）。同一根因多段取最新。"""
+        """{why_node_id: conversation_id}——供 /roots 顯示「← 由來」（spec 025 改讀 why_node 側，
+        多條根因可映同一 cid）。只含連結非空、且該對話仍存在者（JOIN conversations）。刪根因→列消→自動不含。"""
         out: dict = {}
         for r in self.conn.execute(
-            "SELECT c.why_node_id AS wid, c.id AS cid FROM conversations c"
-            " JOIN why_nodes w ON w.id=c.why_node_id ORDER BY c.id ASC").fetchall():
-            out[r["wid"]] = r["cid"]   # ASC → 後者覆蓋＝最新
+            "SELECT w.id AS wid, w.conversation_id AS cid FROM why_nodes w"
+            " JOIN conversations c ON c.id=w.conversation_id"
+            " WHERE w.conversation_id IS NOT NULL").fetchall():
+            out[r["wid"]] = r["cid"]
         return out
 
     def set_seed_class(self, entry_id: int, cls: str) -> bool:

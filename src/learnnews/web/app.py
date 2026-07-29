@@ -554,6 +554,19 @@ def create_app() -> FastAPI:
         except Exception:  # noqa: BLE001
             return []
 
+    # 收尾缺口提醒（spec 025）：對話夠長且自上次收以來又長出一大段未蒸餾 → 提醒（只提醒、不自動冊封）
+    _NUDGE_MIN_TOTAL = 20     # 訊息數（約 10 輪）以下不吵
+    _NUDGE_GAP = 16           # 自上次收又長出 ≥ 約 8 輪才提醒
+
+    def _distill_nudge(hist: list, last_captured: str):
+        from ..chat.capture import distill_gap
+        try:
+            lc = int(last_captured or 0)
+        except (TypeError, ValueError):
+            lc = 0
+        gap = distill_gap(len(hist), lc, _NUDGE_MIN_TOTAL, _NUDGE_GAP)
+        return {"from": gap[0], "to": gap[1]} if gap else None
+
     @app.get("/chat", response_class=HTMLResponse)
     async def chat_get(request: Request):
         return _TEMPLATES.TemplateResponse(
@@ -562,7 +575,7 @@ def create_app() -> FastAPI:
 
     @app.post("/chat", response_class=HTMLResponse)
     async def chat_post(request: Request, history: str = Form("[]"), message: str = Form(""),
-                        brainstorm: str = Form("")):
+                        brainstorm: str = Form(""), last_captured: str = Form("0")):
         """一輪對話：從你冊封的根因往下推、反逢迎的膜（原則 5/6）。對話不落庫、不自動改場。
         brainstorm=1：純發想、不撒網找佐證（沙盒模式，principle 6）。"""
         hist = _parse_history(history)
@@ -581,7 +594,8 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "err": err, "root_count": _root_count()})
+                     "err": err, "root_count": _root_count(),
+                     "distill_nudge": _distill_nudge(hist, last_captured)})
 
     @app.post("/chat/stream")
     async def chat_stream(history: str = Form("[]"), message: str = Form(""),

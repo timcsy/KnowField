@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     fog_flag INTEGER DEFAULT 0,        -- 是否有霧詞（假根因旗標）
     status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
     source_entry_id INTEGER,           -- 來源種子 digest_entries.id
-    created_at TEXT                    -- 建立時間（呼叫端傳入）
+    created_at TEXT,                   -- 建立時間（呼叫端傳入）
+    conversation_id INTEGER            -- spec 025：由來對話（多條根因可共用一份；取代 conversations.why_node_id 為事實來源）
 );
 
 -- 對話的「由來」存檔（spec 023，episodes 層）：第一個落庫的對話產物。唯讀參考、不入地基（原則 6）。
@@ -140,6 +141,19 @@ def _migrate(conn: sqlite3.Connection) -> None:
     wn_cols = {r[1] for r in conn.execute("PRAGMA table_info(why_nodes)").fetchall()}
     if wn_cols and "ladder" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN ladder TEXT DEFAULT '[]'")
+    # spec 025：why_nodes 補 conversation_id 欄（由來連結改存 why_node 側，多條可共用一份）
+    if wn_cols and "conversation_id" not in wn_cols:
+        conn.execute("ALTER TABLE why_nodes ADD COLUMN conversation_id INTEGER")
+        # 一次性回填：既有 conversations.why_node_id → why_nodes.conversation_id（既有「← 由來」不斷）
+        has_conv = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'"
+        ).fetchone()
+        if has_conv:
+            conn.execute(
+                "UPDATE why_nodes SET conversation_id="
+                "(SELECT c.id FROM conversations c WHERE c.why_node_id=why_nodes.id"
+                " ORDER BY c.id ASC LIMIT 1)"
+                " WHERE conversation_id IS NULL")
     # spec 023：既有 db 補 conversations 表（對話由來存檔，CREATE IF NOT EXISTS，不動既有表）
     conn.execute("""
         CREATE TABLE IF NOT EXISTS conversations (

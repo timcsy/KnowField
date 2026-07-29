@@ -23,10 +23,10 @@ class TestConversationRepo(unittest.TestCase):
         self.assertEqual(len(repo.list_conversations()), 1)
         repo.close()
 
-    def test_list_newest_first(self):                            # T002
+    def test_list_newest_first(self):                            # T002（spec 025：內容不同才兩份）
         repo = _repo()
-        a = repo.save_conversation("舊", [], None)
-        b = repo.save_conversation("新", [], None)
+        a = repo.save_conversation("舊", [{"role": "user", "content": "舊段"}], None)
+        b = repo.save_conversation("新", [{"role": "user", "content": "新段"}], None)
         ids = [c.id for c in repo.list_conversations()]
         self.assertEqual(ids[0], b)                              # 新到舊
         self.assertEqual(ids[1], a)
