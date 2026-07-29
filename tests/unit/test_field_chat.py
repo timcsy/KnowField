@@ -99,15 +99,26 @@ class TestFieldChatReply(unittest.TestCase):
 
 
 class TestDistill(unittest.TestCase):
-    def test_distill_to_candidate(self):                         # T005
-        block = ("主張：X 是被 Y 約束逼定\n階梯：\n- 因為 A\n- 所以 B\n"
+    def test_distill_single(self):                               # T005
+        block = ("主張：X 是被 Y 約束逼定\n類型：能推導/證明\n階梯：\n- 因為 A\n- 所以 B\n"
                  "佐證：https://a/1, https://b/2")
-        fc = FieldChat(_SpyBackend(reply=block))
-        cand = fc.distill([{"role": "user", "content": "聊了很多"}], [])
-        self.assertIsInstance(cand, CandidateDraft)
-        self.assertEqual(cand.claim, "X 是被 Y 約束逼定")
-        self.assertIn("因為 A", cand.ladder)
-        self.assertIn("https://a/1", cand.evidence_urls)
+        cands = FieldChat(_SpyBackend(reply=block)).distill(
+            [{"role": "user", "content": "聊了很多"}], [])
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0].claim, "X 是被 Y 約束逼定")
+        self.assertEqual(cands[0].kind, "能推導/證明")
+        self.assertIn("因為 A", cands[0].ladder)
+        self.assertIn("https://a/1", cands[0].evidence_urls)
+
+    def test_distill_multiple_layers(self):                      # 多條、不同層次
+        block = ("主張：地基那條\n類型：能推導/證明\n階梯：\n- 因為 A\n\n"
+                 "主張：觀察到的那條\n類型：觀察到的規律\n階梯：\n- 觀察 B\n\n"
+                 "主張：只是類比那條\n類型：類比/發想")
+        cands = FieldChat(_SpyBackend(reply=block)).distill([{"role": "user", "content": "x"}], [])
+        self.assertEqual(len(cands), 3)
+        self.assertEqual([c.kind for c in cands],
+                         ["能推導/證明", "觀察到的規律", "類比/發想"])
+        self.assertEqual(cands[2].claim, "只是類比那條")
 
 
 class TestOpenAIChatBackend(unittest.TestCase):

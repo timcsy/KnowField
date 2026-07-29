@@ -537,16 +537,16 @@ def create_app() -> FastAPI:
     @app.post("/chat/distill", response_class=HTMLResponse)
     async def chat_distill(request: Request, history: str = Form("[]")):
         hist = _parse_history(history)
-        cand = err = None
+        cands = err = None
         try:
-            cand = app.state.distill_factory(hist)
+            cands = app.state.distill_factory(hist)      # 一到多條（可能不同層次）
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("蒸餾候選失敗", extra={"extra": {"reason": str(e)}})
             err = str(e)
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "candidate": cand, "err": err, "root_count": _root_count()})
+                     "candidates": cands, "err": err, "root_count": _root_count()})
 
     @app.post("/chat/anoint", response_class=HTMLResponse)
     async def chat_anoint(request: Request, claim: str = Form(""),

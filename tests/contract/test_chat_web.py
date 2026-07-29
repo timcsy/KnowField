@@ -68,16 +68,20 @@ class TestChatWeb(unittest.TestCase):
         app = build_app(db)
         # 聊天/distill 不寫 bedrock
         app.state.chat_factory = lambda history, message, brainstorm=False: "（回應）"
-        app.state.distill_factory = lambda history: CandidateDraft(
-            claim="蒸餾出的根因", ladder=["因為A"], evidence_urls=["https://a/1"])
+        app.state.distill_factory = lambda history: [
+            CandidateDraft(claim="蒸餾出的根因", kind="能推導/證明",
+                           ladder=["因為A"], evidence_urls=["https://a/1"]),
+            CandidateDraft(claim="第二層那條", kind="觀察到的規律", ladder=["觀察B"])]
         c = TestClient(app)
         c.post("/chat", data={"history": "[]", "message": "聊"}, follow_redirects=True)
         repo = Repository(db)
         self.assertEqual(len(repo.list_why_nodes("anointed")), 0)   # 對話不自動冊封
         repo.close()
-        # distill 回候選
+        # distill 回多條候選（含類型）
         r = c.post("/chat/distill", data={"history": "[]"}, follow_redirects=True)
         self.assertIn("蒸餾出的根因", r.text)
+        self.assertIn("第二層那條", r.text)                       # 多條都顯示
+        self.assertIn("觀察到的規律", r.text)                     # 類型徽章
         # 人按冊封 → 進場
         c.post("/chat/anoint", data={"claim": "蒸餾出的根因", "ladder": "因為A\n所以B",
                                      "evidence_urls": "https://a/1"}, follow_redirects=True)

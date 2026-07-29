@@ -73,18 +73,30 @@
     <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
   </div>
 
-  {% if candidate %}
-    <div class="card bg-base-100 shadow-sm my-4 border border-primary/30"><div class="card-body p-4 gap-2">
-      <h2 class="font-semibold text-sm">要不要把這條存成核心理解？（可以改，存不存你決定）</h2>
-      <form action="/chat/anoint" method="post" class="space-y-2">
-        <input name="claim" value="{{ candidate.claim }}" class="input input-bordered input-sm w-full">
-        <textarea name="ladder" rows="3" class="textarea textarea-bordered textarea-sm w-full"
-                  placeholder="為什麼會這樣，一行一層">{{ candidate.ladder | join('\n') }}</textarea>
-        <input name="evidence_urls" value="{{ candidate.evidence_urls | join(', ') }}"
-               class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
-        <button class="btn btn-primary btn-sm">存起來</button>
-      </form>
-    </div></div>
+  {% if candidates %}
+    <div class="my-4">
+      <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要存的（可以改，存不存你決定）</h2>
+      <div class="space-y-3">
+        {% for c in candidates %}
+          <div class="card bg-base-100 shadow-sm border border-primary/20"><div class="card-body p-4 gap-2">
+            {% if c.kind %}
+              <span class="badge badge-sm
+                {%- if '證明' in c.kind or '推導' in c.kind %} badge-success
+                {%- elif '規律' in c.kind %} badge-info
+                {%- else %} badge-ghost{% endif %} w-fit">{{ c.kind }}</span>
+            {% endif %}
+            <form action="/chat/anoint" method="post" class="space-y-2">
+              <input name="claim" value="{{ c.claim }}" class="input input-bordered input-sm w-full">
+              <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full"
+                        placeholder="為什麼會這樣，一行一層">{{ c.ladder | join('\n') }}</textarea>
+              <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}"
+                     class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
+              <button class="btn btn-primary btn-sm">存這條</button>
+            </form>
+          </div></div>
+        {% endfor %}
+      </div>
+    </div>
   {% endif %}
 
   <script>

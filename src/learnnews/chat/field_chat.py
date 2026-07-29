@@ -32,13 +32,16 @@ _SEARCH_Q = """使用者在對話中問了下面的內容。請給出**一個**�
 查詢字串：精簡、含關鍵術語，**必要時用英文或補上領域脈絡以消除歧義**（例如只寫「flow matching」會搜到
 無關的「flow」，應補成「flow matching generative model」）。只輸出那一行查詢，不要引號、不要別的字。"""
 
-_DISTILL = """把以下對話蒸餾成一條值得長期留著的核心理解，用使用者的語氣、挖到最根本。嚴格用此格式：
-主張：<一句話的核心理解>
+_DISTILL = """把以下對話裡**值得長期留著的重點**整理出來——可能只有一條，也可能有好幾條，而且可能是
+**不同層次**（有些是「能推導/證明」的、有些只是「觀察到的規律」、有些只是「類比/發想」）。分開列，
+每條用此格式（每條之間空一行）：
+主張：<一句話的重點>
+類型：<能推導/證明 ｜ 觀察到的規律 ｜ 類比/發想>
 階梯：
 - <為什麼，第一層>
 - <再往下一層>
 佐證：<相關網址，逗號分隔；沒有就留空>
-只輸出這個區塊，不要別的話。"""
+只輸出這些區塊，不要別的話。"""
 
 
 
@@ -63,6 +66,7 @@ class CandidateDraft:
     claim: str = ""
     ladder: list[str] = field(default_factory=list)
     evidence_urls: list[str] = field(default_factory=list)
+    kind: str = ""          # 層次：能推導/證明 ｜ 觀察到的規律 ｜ 類比/發想
 
 
 def build_field_system_prompt(roots) -> str:
@@ -80,15 +84,21 @@ def build_field_system_prompt(roots) -> str:
     return f"{_MEMBRANE}\n\n{ctx}"
 
 
-def _parse_candidate(text: str) -> CandidateDraft:
-    claim = ""
-    ladder: list[str] = []
-    urls: list[str] = []
+def _parse_candidates(text: str) -> list[CandidateDraft]:
+    """把蒸餾輸出解析成一到多條候選（每條「主張：」起一條，帶類型/階梯/佐證）。"""
+    cands: list[CandidateDraft] = []
+    cur: CandidateDraft | None = None
     in_ladder = False
     for raw in (text or "").splitlines():
         line = raw.strip()
         if line.startswith("主張："):
-            claim = line[len("主張："):].strip()
+            cur = CandidateDraft(claim=line[len("主張："):].strip())
+            cands.append(cur)
+            in_ladder = False
+        elif cur is None:
+            continue
+        elif line.startswith("類型："):
+            cur.kind = line[len("類型："):].strip()
             in_ladder = False
         elif line.startswith("階梯："):
             in_ladder = True
@@ -97,14 +107,16 @@ def _parse_candidate(text: str) -> CandidateDraft:
             for u in line[len("佐證："):].replace("，", ",").split(","):
                 u = u.strip()
                 if u.startswith("http"):
-                    urls.append(u)
+                    cur.evidence_urls.append(u)
         elif in_ladder and line.startswith("-"):
             item = line.lstrip("-").strip()
             if item:
-                ladder.append(item)
-    if not claim:   # 離線/未依格式 → 退回首行非空當主張（不崩）
-        claim = next((l.strip() for l in (text or "").splitlines() if l.strip()), "")
-    return CandidateDraft(claim=claim, ladder=ladder, evidence_urls=urls)
+                cur.ladder.append(item)
+    if not cands:   # 離線/未依格式 → 退回首行非空當一條（不崩）
+        first = next((l.strip() for l in (text or "").splitlines() if l.strip()), "")
+        if first:
+            cands.append(CandidateDraft(claim=first))
+    return cands
 
 
 class FieldChat:
@@ -148,8 +160,9 @@ class FieldChat:
             q = ""
         return q or user_msg
 
-    def distill(self, history: list[dict], roots) -> CandidateDraft:
+    def distill(self, history: list[dict], roots) -> list[CandidateDraft]:
+        """蒸餾出一到多條值得留的重點（可能不同層次）。"""
         convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in history)
         messages = [{"role": "system", "content": _DISTILL},
                     {"role": "user", "content": convo}]
-        return _parse_candidate(self.backend.reply(messages))
+        return _parse_candidates(self.backend.reply(messages))
