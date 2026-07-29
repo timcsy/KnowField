@@ -193,7 +193,8 @@ def create_app() -> FastAPI:
         else:
             q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
             sources = _chat_search(q)
-        text = fc.reply(history, message, roots, sources, brainstorm=brainstorm)
+        text = fc.reply(history, message, roots, sources, brainstorm=brainstorm,
+                        max_history=app.state.config.chat_context_messages)
         # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
         cited = {int(n) for n in re.findall(r"\[(\d+)\]", text)}
         numbered = [{"n": i, "url": s.url, "title": s.title or s.url}

@@ -65,6 +65,17 @@ class TestReplyWithSources(unittest.TestCase):
         # 只有 system(場) + user，無來源 system 段
         self.assertEqual(len(spy.seen), 2)
 
+    def test_max_history_trims(self):                            # 砍歷史省 token（快取友善）
+        spy = _SpyBackend()
+        hist = [{"role": "user", "content": f"第{i}句"} for i in range(6)]
+        FieldChat(spy).reply(hist, "新問題", [], max_history=2)
+        # system(場) + 最近 2 則 + user＝4；且舊的「第0句」不在
+        self.assertEqual(len(spy.seen), 4)
+        joined = " ".join(m["content"] for m in spy.seen)
+        self.assertNotIn("第0句", joined)
+        self.assertIn("第5句", joined)
+        self.assertEqual(spy.seen[0]["role"], "system")          # 場仍在最前（快取前綴）
+
 
 class TestSearchQuery(unittest.TestCase):
     def test_extracts_query(self):

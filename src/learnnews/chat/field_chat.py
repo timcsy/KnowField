@@ -126,11 +126,15 @@ class FieldChat:
         self.backend = chat_backend
 
     def reply(self, history: list[dict], user_msg: str, roots, sources=None,
-              brainstorm: bool = False) -> str:
+              brainstorm: bool = False, max_history: int = 0) -> str:
         """一輪對話。sources（本輪撒網找到的資料）非空時，令回答在被支持處句尾標 [n]。
-        brainstorm=純發想模式：不找佐證、可放得更開（但一樣不逢迎、不把猜測當事實）。"""
+        brainstorm=純發想模式：不找佐證、可放得更開（但一樣不逢迎、不把猜測當事實）。
+        max_history>0：只帶最近 N 則歷史給 LLM（省 token；system＋場仍在前給快取命中）。"""
+        hist = list(history)
+        if max_history > 0:
+            hist = hist[-max_history:]
         messages = [{"role": "system", "content": build_field_system_prompt(roots)}]
-        messages += list(history)
+        messages += hist
         if brainstorm:
             messages.append({"role": "system", "content": (
                 "（這輪使用者想純腦力激盪：可以更放得開、多給可能性與大膽的連結；但一樣**不要說好聽話**、"

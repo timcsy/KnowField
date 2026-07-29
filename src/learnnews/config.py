@@ -61,6 +61,8 @@ class Config:
     source_recommend_queries: tuple[str, ...] = (
         "最佳 AI 部落格 2026", "best AI research blogs", "top AI newsletters roundup")
     source_recommend_limit: int = 8      # 推薦候選數上限
+    # 跟你的場聊天（spec 022）：只帶最近 N 則對話給 LLM（省 token；場才是記憶、留得下的請冊封）
+    chat_context_messages: int = 12
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
