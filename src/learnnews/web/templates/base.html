@@ -31,6 +31,10 @@
     .answer-md .cite:hover { text-decoration: underline; }
     .src-item { scroll-margin-top: 5rem; transition: background .3s; }
     .src-item:target { background: rgba(37,99,235,.14); border-radius: 5px; }
+    /* 可複製的數學式（複製即回傳含 $ / $$ 的 LaTeX 原始碼） */
+    .mathcopy { cursor: copy; border-radius: 3px; transition: background .3s; }
+    .mathcopy:hover { background: rgba(37,99,235,.10); }
+    .mathcopy-block { display: block; }
   </style>
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">
@@ -66,5 +70,26 @@
   <footer class="footer footer-center p-6 text-base-content/50 text-xs">
     <aside><p>LearnNews — 消化到底，隨時可回溯。</p></aside>
   </footer>
+
+  <script>
+    // 數學式可複製：點一下複製其 LaTeX（含 $ / $$）；選取後 Ctrl+C 也回傳 LaTeX 原始碼。
+    document.addEventListener('click', function (e) {
+      var m = e.target.closest && e.target.closest('.mathcopy');
+      if (!m || !m.getAttribute('data-tex')) return;
+      var tex = m.getAttribute('data-tex');
+      if (navigator.clipboard) navigator.clipboard.writeText(tex);
+      var prev = m.style.background; m.style.background = 'rgba(34,197,94,.30)';
+      setTimeout(function () { m.style.background = prev; }, 450);
+    });
+    document.addEventListener('copy', function (e) {
+      var sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return;
+      function mathOf(n) { if (!n) return null; var el = n.nodeType === 1 ? n : n.parentElement; return el && el.closest ? el.closest('.mathcopy') : null; }
+      var a = mathOf(sel.anchorNode);
+      if (a && a === mathOf(sel.focusNode) && e.clipboardData) {
+        e.clipboardData.setData('text/plain', a.getAttribute('data-tex'));
+        e.preventDefault();
+      }
+    });
+  </script>
 </body>
 </html>

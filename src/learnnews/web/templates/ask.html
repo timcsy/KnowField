@@ -43,7 +43,13 @@
           var html = window.marked
             ? marked.parse(protectedText)
             : protectedText.replace(/\n/g, '<br>');
-          html = html.replace(/@@MATH(\d+)@@/g, function (_, i) { return math[+i]; });
+          html = html.replace(/@@MATH(\d+)@@/g, function (_, i) {
+            var tex = math[+i];
+            var esc = tex.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var isBlock = /^\$\$|^\\\[/.test(tex); var tag = isBlock ? 'div' : 'span';
+            return '<' + tag + ' class="mathcopy' + (isBlock ? ' mathcopy-block' : '') +
+              '" title="點一下複製 LaTeX" data-tex="' + esc.replace(/"/g, '&quot;') + '">' + esc + '</' + tag + '>';
+          });
           // 維基式引用：[n] → 跳到來源第 n 項的上標超連結
           html = html.replace(/\[(\d+)\]/g, function (_, n) {
             return '<a href="#src-' + n + '" class="cite">[' + n + ']</a>';
