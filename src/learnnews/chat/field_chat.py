@@ -36,9 +36,6 @@ _DISTILL = """把以下對話蒸餾成一條值得長期留著的核心理解，
 佐證：<相關網址，逗號分隔；沒有就留空>
 只輸出這個區塊，不要別的話。"""
 
-_CITE = """下面是一段回答，以及幾個編號來源。請把這段回答**原樣輸出**，只在**確實被某個來源支持**的句子
-後面，加上對應的 [編號]（可多個，如 [1][2]）。沒有來源支持的地方不要硬加。只輸出加了編號的回答，
-不要任何多餘的話。"""
 
 
 class ChatBackend(Protocol):
@@ -112,10 +109,20 @@ class FieldChat:
     def __init__(self, chat_backend: ChatBackend) -> None:
         self.backend = chat_backend
 
-    def reply(self, history: list[dict], user_msg: str, roots) -> str:
-        messages = ([{"role": "system", "content": build_field_system_prompt(roots)}]
-                    + list(history)
-                    + [{"role": "user", "content": user_msg}])
+    def reply(self, history: list[dict], user_msg: str, roots, sources=None) -> str:
+        """一輪對話。sources（本輪撒網找到的資料）非空時，令回答在被支持處句尾標 [n]。"""
+        messages = [{"role": "system", "content": build_field_system_prompt(roots)}]
+        messages += list(history)
+        if sources:
+            src = "\n".join(
+                f"[{i}] {(getattr(s, 'title', '') or '').strip()}："
+                f"{(getattr(s, 'snippet', '') or '')[:160]}（{getattr(s, 'url', '')}）"
+                for i, s in enumerate(sources, 1))
+            messages.append({"role": "system", "content": (
+                "以下是剛為這個問題撒網找到的資料。**若你的某句話正好被其中某條支持，就在那句句尾標 [n]**"
+                "（n 是編號，可多個如 [1][2]）；沒被支持的地方不要標，也**不要杜撰**來源或內容。"
+                f"用不到的資料就忽略。\n{src}")})
+        messages.append({"role": "user", "content": user_msg})
         return self.backend.reply(messages)
 
     def distill(self, history: list[dict], roots) -> CandidateDraft:
@@ -123,14 +130,3 @@ class FieldChat:
         messages = [{"role": "system", "content": _DISTILL},
                     {"role": "user", "content": convo}]
         return _parse_candidate(self.backend.reply(messages))
-
-    def annotate(self, answer: str, sources: list) -> str:
-        """給回答加維基式 [n] 引用（n 對應 sources 順序）。無來源→原樣回。"""
-        if not sources:
-            return answer
-        src = "\n".join(
-            f"[{i}] {(getattr(s, 'title', '') or '').strip()}：{(getattr(s, 'snippet', '') or '')[:160]}"
-            for i, s in enumerate(sources, 1))
-        messages = [{"role": "system", "content": _CITE},
-                    {"role": "user", "content": f"來源：\n{src}\n\n回答：\n{answer}"}]
-        return self.backend.reply(messages)

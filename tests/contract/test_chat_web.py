@@ -30,7 +30,8 @@ class TestChatWeb(unittest.TestCase):
         app = build_app(temp_db())
         seen = {}
         app.state.chat_factory = lambda history, message: (
-            seen.update(history=history, message=message) or "（回應）")
+            seen.update(history=history, message=message)
+            or ("（回應）[1]", [{"n": 1, "url": "https://a/1", "title": "來源A"}]))
         hist = [{"role": "user", "content": "前"}, {"role": "assistant", "content": "答"}]
         r = TestClient(app).post("/chat", data={"history": json.dumps(hist),
                                                 "message": "新問題"}, follow_redirects=True)
@@ -39,6 +40,8 @@ class TestChatWeb(unittest.TestCase):
         self.assertEqual(seen["history"], hist)                  # 多輪脈絡帶回
         self.assertIn("新問題", r.text)
         self.assertIn("（回應）", r.text)
+        self.assertIn("https://a/1", r.text)                     # 每輪自動附來源
+        self.assertIn("src-1", r.text)                           # 維基式錨點（本則 scoped）
 
     def test_default_factory_injects_field(self):                # T009 場脈絡
         db = temp_db()
@@ -54,6 +57,7 @@ class TestChatWeb(unittest.TestCase):
                 return "ok"
         # 直接測 FieldChat 有注入：走預設 chat_factory 但替換 backend 工廠
         app.state.chat_backend_for_test = _Spy()
+        app.state.chat_search_for_test = lambda message: []   # 不打外部搜尋
         r = TestClient(app).post("/chat", data={"history": "[]", "message": "嗨"},
                                  follow_redirects=True)
         self.assertEqual(r.status_code, 200)
@@ -82,26 +86,6 @@ class TestChatWeb(unittest.TestCase):
         self.assertEqual(len(anointed), 1)
         self.assertEqual(anointed[0].claim, "蒸餾出的根因")
         repo.close()
-
-    def test_cite_on_demand(self):                               # T014：加 [n] ＋編號來源
-        app = build_app(temp_db())
-        app.state.cite_factory = lambda answer: [
-            SearchResult("佐證A", "https://a/1", "有人說")]
-        app.state.annotate_factory = lambda answer, sources: answer + " [1]"
-        r = TestClient(app).post("/chat/cite", data={"answer": "X 是 Y"},
-                                 follow_redirects=True)
-        self.assertEqual(r.status_code, 200)
-        self.assertIn("https://a/1", r.text)                     # 編號來源
-        self.assertIn('id="src-1"', r.text)                      # 維基式跳轉錨點
-        self.assertIn("[1]", r.text)                             # 回答被標上 [n]
-
-    def test_cite_no_material_honest(self):                      # 沒搜到→誠實
-        app = build_app(temp_db())
-        app.state.cite_factory = lambda answer: []
-        r = TestClient(app).post("/chat/cite", data={"answer": "冷門主張"},
-                                 follow_redirects=True)
-        self.assertEqual(r.status_code, 200)
-        self.assertIn("沒搜到", r.text)
 
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())

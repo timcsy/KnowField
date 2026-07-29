@@ -24,16 +24,21 @@
             <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
           </div>
         {% else %}
+          {% set p = 'm' ~ loop.index %}
           <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
-              <div class="md-render answer-md leading-relaxed text-[15px]">{{ m.content }}</div>
-              {% if loop.last %}
-                <div class="card-actions justify-end pt-1">
-                  <form action="/chat/cite" method="post">
-                    <input type="hidden" name="history" value='{{ history_json }}'>
-                    <input type="hidden" name="answer" value="{{ m.content }}">
-                    <button class="btn btn-ghost btn-xs">🔍 找佐證（標上 [n]）</button>
-                  </form>
+              <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
+              {% if m.sources %}
+                <div class="text-sm pt-2 border-t border-base-200 mt-1">
+                  <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
+                  <ul class="space-y-0.5">
+                    {% for s in m.sources %}
+                      <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
+                        <span class="badge badge-xs badge-outline">{{ s.n }}</span>
+                        <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ul>
                 </div>
               {% endif %}
             </div>
@@ -43,31 +48,7 @@
     </div>
   {% endif %}
 
-  {% if cited %}
-    <div class="card bg-base-100 shadow-sm mb-5 border border-primary/30">
-      <div class="card-body p-4">
-        <div class="text-xs text-base-content/50 mb-1">加了佐證的版本</div>
-        <div id="cited" class="md-render answer-md leading-relaxed text-[15px]">{{ cited.text }}</div>
-        {% if cited.sources %}
-          <div class="text-sm pt-2 border-t border-base-200 mt-2">
-            <div class="font-semibold text-base-content/70 mb-1">來源</div>
-            <ul class="space-y-1">
-              {% for s in cited.sources %}
-                <li id="src-{{ s.n }}" class="src-item px-1 py-0.5">
-                  <span class="badge badge-sm badge-outline">{{ s.n }}</span>
-                  <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% else %}
-          <div class="text-sm opacity-70 pt-2">沒搜到可靠佐證——這些說法可能太新或站不住，先別當定論。</div>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
-  <form action="/chat" method="post" class="mb-2">
+  <form action="/chat" method="post" class="mb-2" onsubmit="return busy(this, '思考中…（一邊撒網找佐證）')">
     <input type="hidden" name="history" value='{{ history_json }}'>
     <textarea name="message" rows="2" autofocus
               class="textarea textarea-bordered w-full mb-2"
@@ -76,11 +57,15 @@
   </form>
 
   {% if messages %}
-    <form action="/chat/distill" method="post">
+    <form action="/chat/distill" method="post" onsubmit="return busy(this, '整理中…')">
       <input type="hidden" name="history" value='{{ history_json }}'>
       <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
     </form>
   {% endif %}
+
+  <div id="busy" class="hidden fixed inset-x-0 bottom-6 flex justify-center z-40">
+    <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
+  </div>
 
   {% if candidate %}
     <div class="card bg-base-100 shadow-sm my-4 border border-primary/30"><div class="card-body p-4 gap-2">
@@ -97,8 +82,16 @@
   {% endif %}
 
   <script>
+    function busy(form, msg) {
+      var b = document.getElementById('busy');
+      document.getElementById('busy-msg').textContent = msg || '思考中…';
+      b.classList.remove('hidden');
+      var btn = form.querySelector('button'); if (btn) btn.disabled = true;
+      return true;
+    }
     (function () {
       function render(el) {
+        var prefix = el.getAttribute('data-src-prefix') || 'src';
         var raw = el.textContent;
         var math = [];
         var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
@@ -106,7 +99,7 @@
         var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
         html = html.replace(/@@M(\d+)@@/g, function (_, i) { return math[+i]; });
         html = html.replace(/\[(\d+)\]/g, function (_, n) {
-          return '<a href="#src-' + n + '" class="cite">[' + n + ']</a>';
+          return '<a href="#' + prefix + '-' + n + '" class="cite">[' + n + ']</a>';
         });
         el.innerHTML = html;
         if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);

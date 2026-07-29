@@ -50,20 +50,20 @@ class TestSystemPrompt(unittest.TestCase):
         self.assertTrue("場還空" in p or "未接場" in p or "還空" in p)
 
 
-class TestAnnotate(unittest.TestCase):
-    def test_adds_citations(self):                               # 引用 [n]
+class TestReplyWithSources(unittest.TestCase):
+    def test_sources_injected_for_inline_citation(self):         # 每輪撒網→回答可標 [n]
         from learnnews.search.websearch import SearchResult
-        spy = _SpyBackend(reply="這句有依據 [1]。")
-        fc = FieldChat(spy)
-        out = fc.annotate("這句有依據。", [SearchResult("t", "https://a/1", "s")])
-        self.assertIn("[1]", out)
-        # 來源被放進提示
-        self.assertTrue(any("https://a/1" in m["content"] or "t" in m["content"]
-                            for m in spy.seen))
+        spy = _SpyBackend()
+        FieldChat(spy).reply([], "問題", [], [SearchResult("標題T", "https://a/1", "摘要S")])
+        joined = " ".join(m["content"] for m in spy.seen)
+        self.assertIn("https://a/1", joined)                     # 來源進了提示
+        self.assertIn("[n]", joined)                             # 有指示標 [n]
 
-    def test_no_sources_returns_original(self):
-        fc = FieldChat(_SpyBackend(reply="不該被呼叫"))
-        self.assertEqual(fc.annotate("原文", []), "原文")
+    def test_no_sources_no_injection(self):
+        spy = _SpyBackend()
+        FieldChat(spy).reply([], "問題", [])                     # sources 省略
+        # 只有 system(場) + user，無來源 system 段
+        self.assertEqual(len(spy.seen), 2)
 
 
 class TestStubBackend(unittest.TestCase):
