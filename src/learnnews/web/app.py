@@ -11,8 +11,13 @@ import json
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, Form, Query, Request
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from fastapi.templating import Jinja2Templates
 
 from ..backends.openai_api import OpenAIError
@@ -725,6 +730,45 @@ def create_app() -> FastAPI:
             context={"messages": conv.messages,
                      "history_json": json.dumps(conv.messages, ensure_ascii=False),
                      "root_count": rc})
+
+    # --- 匯出給 NotebookLM（spec 024）：純唯讀、只把沉澱物匯出，不注入回場（原則 6）---
+    def _export_conversation(title: str, messages: list, as_: str) -> str:
+        from ..export.notebooklm import (
+            conversation_evidence_urls,
+            conversation_to_markdown,
+        )
+        if as_ == "urls":
+            return "\n".join(conversation_evidence_urls(messages))
+        return conversation_to_markdown(title, messages)
+
+    @app.post("/chat/export")
+    async def chat_export(history: str = Form("[]"), title: str = Form(""),
+                          as_: str = Form("md", alias="as")):
+        """匯出當前（live）對話。history 由前端帶回；純唯讀、不落庫。"""
+        messages = _parse_history(history)
+        return PlainTextResponse(_export_conversation(title, messages, as_))
+
+    @app.get("/conversations/{cid}/export")
+    async def conversation_export(cid: int, as_: str = Query("md", alias="as")):
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        repo.close()
+        if conv is None:
+            return PlainTextResponse("找不到這段對話。", status_code=404)
+        return PlainTextResponse(_export_conversation(conv.title, conv.messages, as_))
+
+    @app.get("/roots/{wid}/export")
+    async def root_export(wid: int, as_: str = Query("md", alias="as")):
+        from ..export.notebooklm import dedup_urls, why_node_to_markdown
+        repo = app.state.repo_factory(app.state.config)
+        node = next((w for w in repo.list_why_nodes() if w.id == wid), None)
+        repo.close()
+        if node is None:
+            return PlainTextResponse("找不到這條根因。", status_code=404)
+        if as_ == "urls":
+            return PlainTextResponse("\n".join(dedup_urls(node.evidence_urls)))
+        return PlainTextResponse(
+            why_node_to_markdown(node.claim, node.ladder, node.evidence_urls))
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):

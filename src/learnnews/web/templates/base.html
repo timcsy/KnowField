@@ -71,6 +71,36 @@
     <aside><p>LearnNews — 消化到底，隨時可回溯。</p></aside>
   </footer>
 
+  <div id="toast" class="toast toast-end z-50" style="display:none"></div>
+
+  <script>
+    // 共用：向匯出端點取純文字 → 複製到剪貼簿 → toast 提示（spec 024，複製給 NotebookLM）。
+    // opts: { method:'GET'|'POST', body:FormData|null, empty:'（無佐證網址）' }
+    window.copyExport = async function (url, opts) {
+      opts = opts || {};
+      try {
+        var resp = await fetch(url, { method: opts.method || 'GET', body: opts.body || null });
+        if (!resp.ok) { window.showToast('匯出失敗：' + resp.status, true); return; }
+        var text = await resp.text();
+        if (!text.trim()) { window.showToast(opts.empty || '沒有可複製的內容'); return; }
+        if (!navigator.clipboard) { window.showToast('這個瀏覽器不允許自動複製', true); return; }
+        await navigator.clipboard.writeText(text);
+        window.showToast('已複製，可貼進 NotebookLM');
+      } catch (err) {
+        window.showToast('複製失敗，請再試一次', true);
+      }
+    };
+    window.showToast = function (msg, isErr) {
+      var box = document.getElementById('toast');
+      if (!box) return;
+      box.innerHTML = '<div class="alert ' + (isErr ? 'alert-error' : 'alert-success') +
+        '"><span>' + msg + '</span></div>';
+      box.style.display = '';
+      clearTimeout(window._toastT);
+      window._toastT = setTimeout(function () { box.style.display = 'none'; }, 2200);
+    };
+  </script>
+
   <script>
     // 數學式可複製：點一下複製其 LaTeX（含 $ / $$）；選取後 Ctrl+C 也回傳 LaTeX 原始碼。
     document.addEventListener('click', function (e) {

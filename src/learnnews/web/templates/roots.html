@@ -86,6 +86,14 @@
               {% if provenance and w.id in provenance %}
                 <a href="/conversations/{{ provenance[w.id] }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（當初怎麼想到的對話）</a>
               {% endif %}
+              <div class="mt-1 flex gap-1 flex-wrap">
+                <button type="button" class="btn btn-ghost btn-xs"
+                        onclick="copyExport('/roots/{{ w.id }}/export?as=md')"
+                        title="複製這條根因 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
+                <button type="button" class="btn btn-ghost btn-xs"
+                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條根因沒有佐證網址'})"
+                        title="複製這條根因的佐證網址">🔗 複製佐證網址</button>
+              </div>
             </div>
             <form action="/whynode/remove" method="post" class="shrink-0"
                   onsubmit="return confirm('退回這個已冊封的根因？（問答將不再用它）');">

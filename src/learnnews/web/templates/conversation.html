@@ -4,7 +4,15 @@
   <a href="/conversations" class="link link-hover text-sm">← 對話存檔</a>
   <div class="flex items-center justify-between gap-2 mt-1 mb-1 flex-wrap">
     <h1 class="text-xl font-bold">{{ conv.title or "（未命名對話）" }}</h1>
-    <a href="/conversations/{{ conv.id }}/resume" class="btn btn-primary btn-sm">以這段接著聊 →</a>
+    <div class="flex gap-1 flex-wrap">
+      <button type="button" class="btn btn-ghost btn-sm"
+              onclick="copyExport('/conversations/{{ conv.id }}/export?as=md')"
+              title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
+      <button type="button" class="btn btn-ghost btn-sm"
+              onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls', {empty:'這段對話沒有被引用的佐證網址'})"
+              title="複製佐證網址，貼進 NotebookLM 當網址來源">🔗 複製佐證網址</button>
+      <a href="/conversations/{{ conv.id }}/resume" class="btn btn-primary btn-sm">以這段接著聊 →</a>
+    </div>
   </div>
   <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）·
     接著聊會載進對話頁、可從任一句編輯或開分支（原存檔不動）</p>
