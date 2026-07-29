@@ -191,8 +191,13 @@ def create_app() -> FastAPI:
                 if u and u not in seen:
                     seen.add(u)
                     results.append(r)
-        return results[:8]
+        return results[:6]
     app.state.cite_factory = _default_cite
+
+    def _default_annotate(answer, sources):
+        from ..chat.field_chat import FieldChat
+        return FieldChat(_chat_backend()).annotate(answer, sources)
+    app.state.annotate_factory = _default_annotate
 
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
@@ -546,27 +551,35 @@ def create_app() -> FastAPI:
             wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
             repo.anoint_why_node(wid)
             repo.close()
-            msg = f"已冊封進你的場：「{claim[:40]}」（可到『根因』檢視或刪除）"
+            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『根因』頁檢視或刪除）"
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": [], "history_json": "[]", "anoint_msg": msg,
                      "root_count": _root_count()})
 
     @app.post("/chat/cite", response_class=HTMLResponse)
-    async def chat_cite(request: Request, history: str = Form("[]"), claim: str = Form("")):
+    async def chat_cite(request: Request, history: str = Form("[]"), answer: str = Form("")):
+        """按需找佐證：撒網→給回答加維基式 [n] 引用＋編號來源（複用 ask 的渲染）。"""
         hist = _parse_history(history)
-        cites = err = None
-        claim = (claim or "").strip()
-        if claim:
+        answer = (answer or "").strip()
+        cited = err = None
+        if answer:
             try:
-                cites = app.state.cite_factory(claim)
-            except (SourceUnavailable, OpenAIError) as e:        # 搜尋失敗→友善（教訓 3）
+                srcs = app.state.cite_factory(answer)
+                if srcs:
+                    numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
+                                for i, s in enumerate(srcs, 1)]
+                    text = app.state.annotate_factory(answer, srcs)
+                    cited = {"text": text, "sources": numbered}
+                else:
+                    cited = {"text": answer, "sources": []}   # 沒搜到→誠實、不杜撰
+            except (SourceUnavailable, OpenAIError) as e:        # 搜尋/註解失敗→友善（教訓 3）
                 _log.error("找佐證失敗", extra={"extra": {"reason": str(e)}})
                 err = str(e)
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "cites": cites, "cite_claim": claim, "err": err, "root_count": _root_count()})
+                     "cited": cited, "err": err, "root_count": _root_count()})
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):

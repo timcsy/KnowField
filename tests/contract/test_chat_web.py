@@ -83,14 +83,25 @@ class TestChatWeb(unittest.TestCase):
         self.assertEqual(anointed[0].claim, "蒸餾出的根因")
         repo.close()
 
-    def test_cite_on_demand(self):                               # T014
+    def test_cite_on_demand(self):                               # T014：加 [n] ＋編號來源
         app = build_app(temp_db())
-        app.state.cite_factory = lambda claim: [
-            SearchResult("佐證", "https://a/1", "有人說")]
-        r = TestClient(app).post("/chat/cite", data={"claim": "X 是 Y"},
+        app.state.cite_factory = lambda answer: [
+            SearchResult("佐證A", "https://a/1", "有人說")]
+        app.state.annotate_factory = lambda answer, sources: answer + " [1]"
+        r = TestClient(app).post("/chat/cite", data={"answer": "X 是 Y"},
                                  follow_redirects=True)
         self.assertEqual(r.status_code, 200)
-        self.assertIn("https://a/1", r.text)
+        self.assertIn("https://a/1", r.text)                     # 編號來源
+        self.assertIn('id="src-1"', r.text)                      # 維基式跳轉錨點
+        self.assertIn("[1]", r.text)                             # 回答被標上 [n]
+
+    def test_cite_no_material_honest(self):                      # 沒搜到→誠實
+        app = build_app(temp_db())
+        app.state.cite_factory = lambda answer: []
+        r = TestClient(app).post("/chat/cite", data={"answer": "冷門主張"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("沒搜到", r.text)
 
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())

@@ -39,13 +39,31 @@ class TestSystemPrompt(unittest.TestCase):
         # 場脈絡注入
         self.assertIn("注意力是被置換對稱逼出來的", p)
         self.assertIn("內容決定⇒加權", p)
-        # 膜指令關鍵詞
-        for kw in ("grounded", "猜", "derived", "empirical", "applied", "過度抽象", "場-增量", "冊封"):
+        # 膜行為仍在（但用自然語言表達）
+        for kw in ("推測", "類比", "存", "推", "自然"):
             self.assertIn(kw, p)
+        # de-jargon：輸出不該用內部術語，且明令不要用
+        self.assertIn("不要用內部術語", p)
 
     def test_empty_field_noted(self):                            # T001
         p = build_field_system_prompt([])
-        self.assertTrue("場還空" in p or "未接場" in p)
+        self.assertTrue("場還空" in p or "未接場" in p or "還空" in p)
+
+
+class TestAnnotate(unittest.TestCase):
+    def test_adds_citations(self):                               # 引用 [n]
+        from learnnews.search.websearch import SearchResult
+        spy = _SpyBackend(reply="這句有依據 [1]。")
+        fc = FieldChat(spy)
+        out = fc.annotate("這句有依據。", [SearchResult("t", "https://a/1", "s")])
+        self.assertIn("[1]", out)
+        # 來源被放進提示
+        self.assertTrue(any("https://a/1" in m["content"] or "t" in m["content"]
+                            for m in spy.seen))
+
+    def test_no_sources_returns_original(self):
+        fc = FieldChat(_SpyBackend(reply="不該被呼叫"))
+        self.assertEqual(fc.annotate("原文", []), "原文")
 
 
 class TestStubBackend(unittest.TestCase):

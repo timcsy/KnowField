@@ -1,65 +1,70 @@
 {% extends "base.html" %}
-{% block title %}跟你的場聊 — LearnNews{% endblock %}
+{% block title %}跟你的知識庫聊 — LearnNews{% endblock %}
 {% block content %}
   <div class="flex items-center gap-2 mb-1">
-    <h1 class="text-2xl font-bold">🧠 跟你的場聊</h1>
-    <span class="text-sm text-base-content/60">從你冊封的 {{ root_count }} 條根因往下推、反逢迎、不順著你圓</span>
+    <h1 class="text-2xl font-bold">🧠 跟你的知識庫聊</h1>
+    <span class="text-sm text-base-content/60">從你存下的 {{ root_count }} 條核心理解出發，有話直說、不順著你講好聽話</span>
   </div>
   <p class="text-xs text-base-content/50 mb-4">
-    聊得越多、餵得越多，場越靠近「優質知識」。AI 只提冊封候選，**冊封是你按的那一下**。
+    聊得越多、存得越多，這裡就越懂你在想什麼。它只會**建議**你把哪條想法存起來，存不存由你決定。
   </p>
 
   {% if anoint_msg %}<div class="alert alert-success mb-4"><span>✅ {{ anoint_msg }}</span></div>{% endif %}
   {% if err %}<div class="alert alert-error mb-4"><span>❌ {{ err }}</span></div>{% endif %}
 
   {% if root_count == 0 %}
-    <div class="alert mb-4"><span class="opacity-70">🌱 你的場還空——先到「根因」冊封幾條，聊起來才會從你的 bedrock 推。仍可先一般聊。</span></div>
+    <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「根因」頁存幾條核心理解，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
   {% endif %}
 
   {% if messages %}
-    <div class="space-y-3 mb-4">
+    <div class="space-y-4 mb-5">
       {% for m in messages %}
         {% if m.role == "user" %}
-          <div class="chat chat-end"><div class="chat-bubble chat-bubble-primary whitespace-pre-wrap">{{ m.content }}</div></div>
-        {% else %}
-          <div class="chat chat-start">
-            <div class="chat-bubble whitespace-pre-wrap">{{ m.content }}</div>
+          <div class="flex justify-end">
+            <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
           </div>
-          {% if loop.last %}
-            <form action="/chat/cite" method="post" class="ml-2">
-              <input type="hidden" name="history" value='{{ history_json }}'>
-              <input type="hidden" name="claim" value="{{ m.content[:200] }}">
-              <button class="btn btn-ghost btn-xs">🔍 找佐證</button>
-            </form>
-          {% endif %}
+        {% else %}
+          <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+              <div class="md-render answer-md leading-relaxed text-[15px]">{{ m.content }}</div>
+              {% if loop.last %}
+                <div class="card-actions justify-end pt-1">
+                  <form action="/chat/cite" method="post">
+                    <input type="hidden" name="history" value='{{ history_json }}'>
+                    <input type="hidden" name="answer" value="{{ m.content }}">
+                    <button class="btn btn-ghost btn-xs">🔍 找佐證（標上 [n]）</button>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
+          </div>
         {% endif %}
       {% endfor %}
     </div>
   {% endif %}
 
-  {% if cite_claim %}
-    <div class="card bg-base-200/50 shadow-sm mb-4"><div class="card-body p-4 gap-1">
-      <h2 class="font-semibold text-sm">佐證（對：{{ cite_claim[:60] }}）</h2>
-      {% if cites %}
-        <ul class="text-sm space-y-1">
-          {% for s in cites %}<li><a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-hover">🔗 {{ s.title or s.url }}</a></li>{% endfor %}
-        </ul>
-      {% else %}<span class="opacity-70 text-sm">沒搜到可靠佐證——這主張可能太新或站不住，別當定論。</span>{% endif %}
-    </div></div>
-  {% endif %}
-
-  {% if candidate %}
-    <div class="card bg-base-100 shadow-sm mb-4 border border-primary/30"><div class="card-body p-4 gap-2">
-      <h2 class="font-semibold text-sm">冊封候選（審過再按，冊封是你的決定）</h2>
-      <form action="/chat/anoint" method="post" class="space-y-2">
-        <input name="claim" value="{{ candidate.claim }}" class="input input-bordered input-sm w-full">
-        <textarea name="ladder" rows="3" class="textarea textarea-bordered textarea-sm w-full"
-                  placeholder="推導階梯，一行一階">{{ candidate.ladder | join('\n') }}</textarea>
-        <input name="evidence_urls" value="{{ candidate.evidence_urls | join(', ') }}"
-               class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
-        <button class="btn btn-primary btn-sm">冊封進我的場</button>
-      </form>
-    </div></div>
+  {% if cited %}
+    <div class="card bg-base-100 shadow-sm mb-5 border border-primary/30">
+      <div class="card-body p-4">
+        <div class="text-xs text-base-content/50 mb-1">加了佐證的版本</div>
+        <div id="cited" class="md-render answer-md leading-relaxed text-[15px]">{{ cited.text }}</div>
+        {% if cited.sources %}
+          <div class="text-sm pt-2 border-t border-base-200 mt-2">
+            <div class="font-semibold text-base-content/70 mb-1">來源</div>
+            <ul class="space-y-1">
+              {% for s in cited.sources %}
+                <li id="src-{{ s.n }}" class="src-item px-1 py-0.5">
+                  <span class="badge badge-sm badge-outline">{{ s.n }}</span>
+                  <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% else %}
+          <div class="text-sm opacity-70 pt-2">沒搜到可靠佐證——這些說法可能太新或站不住，先別當定論。</div>
+        {% endif %}
+      </div>
+    </div>
   {% endif %}
 
   <form action="/chat" method="post" class="mb-2">
@@ -73,7 +78,40 @@
   {% if messages %}
     <form action="/chat/distill" method="post">
       <input type="hidden" name="history" value='{{ history_json }}'>
-      <button class="btn btn-outline btn-sm">整理成冊封候選</button>
+      <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
     </form>
   {% endif %}
+
+  {% if candidate %}
+    <div class="card bg-base-100 shadow-sm my-4 border border-primary/30"><div class="card-body p-4 gap-2">
+      <h2 class="font-semibold text-sm">要不要把這條存成核心理解？（可以改，存不存你決定）</h2>
+      <form action="/chat/anoint" method="post" class="space-y-2">
+        <input name="claim" value="{{ candidate.claim }}" class="input input-bordered input-sm w-full">
+        <textarea name="ladder" rows="3" class="textarea textarea-bordered textarea-sm w-full"
+                  placeholder="為什麼會這樣，一行一層">{{ candidate.ladder | join('\n') }}</textarea>
+        <input name="evidence_urls" value="{{ candidate.evidence_urls | join(', ') }}"
+               class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
+        <button class="btn btn-primary btn-sm">存起來</button>
+      </form>
+    </div></div>
+  {% endif %}
+
+  <script>
+    (function () {
+      function render(el) {
+        var raw = el.textContent;
+        var math = [];
+        var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+          function (m) { math.push(m); return '@@M' + (math.length - 1) + '@@'; });
+        var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
+        html = html.replace(/@@M(\d+)@@/g, function (_, i) { return math[+i]; });
+        html = html.replace(/\[(\d+)\]/g, function (_, n) {
+          return '<a href="#src-' + n + '" class="cite">[' + n + ']</a>';
+        });
+        el.innerHTML = html;
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+      }
+      document.querySelectorAll('.md-render').forEach(render);
+    })();
+  </script>
 {% endblock %}
