@@ -85,3 +85,58 @@ def plan_dedupe(convos: list, provenance: dict) -> DedupePlan:
     delete_ids.sort()
     return DedupePlan(delete_ids=delete_ids, repoint=repoint, n_groups=n_groups,
                       n_extra=len(delete_ids), n_roots=len(repoint))
+
+
+def title_material(messages: list, head_chars: int = 600, tail_chars: int = 1600) -> str:
+    """為標題取材（spec 027）：首段＋尾段並取（尾為主），讓標題反映**落點**、不只開頭。
+
+    修正舊 title 只餵 convo[:2000]（只看開頭）的成因。空→空字串、缺 content 不崩。
+    """
+    parts: list[str] = []
+    for m in messages or []:
+        if isinstance(m, dict):
+            parts.append(f"{m.get('role')}：{m.get('content') or ''}")
+    convo = "\n".join(parts)
+    if not convo:
+        return ""
+    if len(convo) <= head_chars + tail_chars:
+        return convo
+    return convo[:head_chars] + "\n…（中略）…\n" + convo[-tail_chars:]
+
+
+def normalize_chapters(raw: list, n_messages: int) -> list:
+    """把切分器給的粗章節（可能越界/亂序/重疊）正規化（spec 027，純函式）。
+
+    以各章 start 為邊界：clamp 到 [1,n]、排序去重、首章補到 1，章 i 覆蓋 [start_i, start_{i+1}-1]、
+    末章到 n → 保證**涵蓋 [1,n] 且不重疊**。空/壞且 n≥1→整段一章；n≤0→[]。
+    """
+    if not n_messages or n_messages <= 0:
+        return []
+    items: list = []
+    for c in raw or []:
+        if not isinstance(c, dict):
+            continue
+        try:
+            s = int(c.get("start"))
+        except (TypeError, ValueError):
+            continue
+        s = max(1, min(s, n_messages))
+        items.append({"start": s, "title": (c.get("title") or "").strip(),
+                      "summary": (c.get("summary") or "").strip()})
+    if not items:
+        return [{"title": "整段", "start": 1, "end": n_messages, "summary": ""}]
+    items.sort(key=lambda x: x["start"])
+    dedup: list = []
+    seen: set = set()
+    for it in items:
+        if it["start"] in seen:
+            continue
+        seen.add(it["start"])
+        dedup.append(it)
+    dedup[0]["start"] = 1     # 首章補到開頭，確保涵蓋
+    out: list = []
+    for i, it in enumerate(dedup):
+        end = dedup[i + 1]["start"] - 1 if i + 1 < len(dedup) else n_messages
+        out.append({"title": it["title"] or f"第 {i + 1} 章", "start": it["start"],
+                    "end": end, "summary": it["summary"]})
+    return out

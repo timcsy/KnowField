@@ -19,7 +19,13 @@
       <ul class="divide-y divide-base-200">
         {% for c in conversations %}
           <li class="px-5 py-3">
-            <a href="/conversations/{{ c.id }}" class="link link-hover font-medium">{{ c.title or "（未命名對話）" }}</a>
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="/conversations/{{ c.id }}" class="link link-hover font-medium">{{ c.title or "（未命名對話）" }}</a>
+              <form action="/conversations/{{ c.id }}/rename" method="post" class="join">
+                <input name="title" placeholder="改名…" class="input input-bordered input-xs join-item w-40">
+                <button class="btn btn-xs join-item">改名</button>
+              </form>
+            </div>
             <div class="text-xs text-base-content/50 mt-0.5">
               {{ c.created_at[:10] }}
               {% if c.why_node_id %}<span class="badge badge-xs badge-outline ml-1">某條核心理解的由來</span>{% endif %}

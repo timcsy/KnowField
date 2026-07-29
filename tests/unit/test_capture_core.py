@@ -6,7 +6,9 @@ import unittest
 from learnnews.chat.capture import (
     conversation_fingerprint,
     distill_gap,
+    normalize_chapters,
     plan_dedupe,
+    title_material,
 )
 
 
@@ -103,6 +105,51 @@ class TestPlanDedupe(unittest.TestCase):
                   {"id": 2, "messages": [{"role": "user", "content": "70 句版"}]}]
         plan = plan_dedupe(convos, {})
         self.assertEqual(plan.delete_ids, [])   # 內容不同→不併
+
+
+class TestTitleMaterial(unittest.TestCase):
+    def test_tail_is_included(self):                        # T001 尾段有進（解「凍在第一句」）
+        msgs = ([{"role": "user", "content": "開頭主題A " * 300}]      # 大量開頭
+                + [{"role": "assistant", "content": "落點結論B_四元樹影片串流"}])  # 結尾落點
+        mat = title_material(msgs, head_chars=600, tail_chars=1600)
+        self.assertIn("落點結論B_四元樹影片串流", mat)       # 尾段落點有進取材
+        self.assertIn("開頭主題A", mat)                      # 首段也在
+
+    def test_short_returns_whole(self):                     # T001 短→全取
+        msgs = [{"role": "user", "content": "短"}]
+        self.assertIn("短", title_material(msgs))
+
+    def test_empty_and_missing(self):                       # T001 空/缺不崩
+        self.assertEqual(title_material([]), "")
+        self.assertIsInstance(title_material([{"role": "user"}]), str)
+
+
+class TestNormalizeChapters(unittest.TestCase):
+    def test_cover_no_overlap(self):                        # T002 涵蓋不重疊
+        raw = [{"title": "一", "start": 1, "summary": "s1"},
+               {"title": "二", "start": 5, "summary": "s2"}]
+        ch = normalize_chapters(raw, 10)
+        self.assertEqual([(c["start"], c["end"]) for c in ch], [(1, 4), (5, 10)])
+
+    def test_out_of_order_overlap_clamp(self):              # T002 亂序/越界/重疊→修正
+        raw = [{"start": 5}, {"start": 1}, {"start": 100}]  # 亂序＋越界
+        ch = normalize_chapters(raw, 10)
+        self.assertEqual([(c["start"], c["end"]) for c in ch], [(1, 4), (5, 9), (10, 10)])
+        # 涵蓋 [1,10]、不重疊
+        self.assertEqual(ch[0]["start"], 1)
+        self.assertEqual(ch[-1]["end"], 10)
+
+    def test_first_forced_to_one(self):                     # T002 首章補到 1
+        ch = normalize_chapters([{"start": 3}], 8)
+        self.assertEqual((ch[0]["start"], ch[0]["end"]), (1, 8))
+
+    def test_empty_raw_whole(self):                         # T002 空→整段一章
+        ch = normalize_chapters([], 6)
+        self.assertEqual(len(ch), 1)
+        self.assertEqual((ch[0]["start"], ch[0]["end"]), (1, 6))
+
+    def test_n_zero_empty(self):                            # T002 n<=0→[]
+        self.assertEqual(normalize_chapters([{"start": 1}], 0), [])
 
 
 if __name__ == "__main__":

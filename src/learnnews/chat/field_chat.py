@@ -123,6 +123,32 @@ def _parse_candidates(text: str) -> list[CandidateDraft]:
     return cands
 
 
+_SEGMENT = (
+    "把這段對話切成幾個章節（依主題轉折，通常 2–6 章）。每章一行，格式：\n"
+    "章：<小標>｜<起始訊息序號，從 1 起>｜<一句摘要>\n"
+    "起始序號＝該章第一則訊息在整段對話中的序（第 1 則為 1）。只輸出這些行，不要別的字。")
+
+
+def _parse_chapters(text: str) -> list[dict]:
+    """把切分輸出解析成 [{title, start, summary}]（每行『章：小標｜起｜摘要』）。"""
+    out: list[dict] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("章："):
+            continue
+        body = line[len("章："):]
+        parts = [p.strip() for p in body.split("｜")]
+        if len(parts) < 2:
+            continue
+        try:
+            start = int(parts[1])
+        except (TypeError, ValueError):
+            continue
+        out.append({"title": parts[0], "start": start,
+                    "summary": parts[2] if len(parts) > 2 else ""})
+    return out
+
+
 class FieldChat:
     """編排：組 messages（system 場脈絡＋歷史＋user）→ chat_backend；蒸餾冊封候選。"""
 
@@ -177,14 +203,18 @@ class FieldChat:
             self._messages(history, user_msg, roots, sources, brainstorm, max_history, url_contents))
 
     def title(self, messages: list[dict]) -> str:
-        """為一段對話生一句「由來」標題（≤20 字）。失敗→退回首個 user 訊息截斷（教訓 3）。"""
+        """為一段對話生一句反映**落點/全貌**的標題（≤20 字）。取材首尾並取（spec 027，
+        修正舊版只看開頭 convo[:2000]＝標題凍在第一句）。失敗→退回首個 user 訊息截斷（教訓 3）。"""
+        from .capture import title_material
         first = next((m.get("content", "") for m in messages
                       if m.get("role") == "user"), "")
-        convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in messages)[:2000]
+        convo = title_material(messages)
         try:
             t = self.backend.reply([
                 {"role": "system", "content":
-                 "用一句話（不超過 20 字）描述這段對話在聊什麼，當標題。只輸出標題，不要引號或別的字。"},
+                 "用一句話（不超過 20 字）描述這段對話**最後得出／聊到什麼（落點）與整體在講什麼**，"
+                 "當標題——若中途換了主題，以**最後聊到的**為主，不要只抓開頭。"
+                 "只輸出標題，不要引號或別的字。"},
                 {"role": "user", "content": convo}])
             t = (t or "").strip().splitlines()[0].strip().strip('"「」') if t else ""
         except Exception:  # noqa: BLE001 - 標題失敗不該讓「存對話」崩
@@ -203,6 +233,24 @@ class FieldChat:
         except Exception:  # noqa: BLE001 - query 抽取失敗退回原句，不拖垮對話
             q = ""
         return q or user_msg
+
+    def segment(self, messages: list[dict]) -> list[dict]:
+        """把一段對話切成章節（spec 027）：LLM 判轉折→解析→正規化（涵蓋不重疊）。
+        過短/失敗→整段一章（教訓 3）。回 [{title, start, end, summary}]。不落庫。"""
+        from .capture import normalize_chapters
+        n = len(messages or [])
+        if n <= 2:                                   # 太短→整段一章
+            return normalize_chapters([], n)
+        # 逐則短摘要（每則截 80 字）讓模型看到**全貌**，而非 convo[:N] 截頭只看開頭（真後端照出的坑）
+        convo = "\n".join(f"{i}. {m.get('role')}：{(m.get('content') or '')[:80]}"
+                          for i, m in enumerate(messages, 1))[:16000]
+        try:
+            raw = _parse_chapters(self.backend.reply(
+                [{"role": "system", "content": _SEGMENT},
+                 {"role": "user", "content": convo}]))
+        except Exception:  # noqa: BLE001 - 切分失敗不該炸
+            raw = []
+        return normalize_chapters(raw, n)
 
     def distill(self, history: list[dict], roots) -> list[CandidateDraft]:
         """蒸餾出一到多條值得留的重點（可能不同層次）。"""

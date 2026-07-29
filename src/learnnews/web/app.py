@@ -239,6 +239,11 @@ def create_app() -> FastAPI:
         return FieldChat(_chat_backend()).title(messages)
     app.state.title_factory = _default_title
 
+    def _default_segment(messages):
+        from ..chat.field_chat import FieldChat
+        return FieldChat(_chat_backend()).segment(messages)
+    app.state.segment_factory = _default_segment
+
     def _convo_title(messages):
         """自動由來標題；失敗/空 → 退回首個 user 訊息截斷（教訓 3，不讓存對話崩）。"""
         try:
@@ -787,13 +792,82 @@ def create_app() -> FastAPI:
         return PlainTextResponse(_export_conversation(title, messages, as_))
 
     @app.get("/conversations/{cid}/export")
-    async def conversation_export(cid: int, as_: str = Query("md", alias="as")):
+    async def conversation_export(cid: int, as_: str = Query("md", alias="as"),
+                                  from_: int = Query(0, alias="from"),
+                                  to: int = Query(0)):
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
         repo.close()
         if conv is None:
             return PlainTextResponse("找不到這段對話。", status_code=404)
-        return PlainTextResponse(_export_conversation(conv.title, conv.messages, as_))
+        msgs = conv.messages
+        if from_ and to:                     # 章節切片（spec 027 US3）：只匯出該章範圍
+            msgs = msgs[max(0, from_ - 1):to]
+        return PlainTextResponse(_export_conversation(conv.title, msgs, as_))
+
+    @app.post("/conversations/{cid}/rename")
+    async def conversation_rename(cid: int, title: str = Form("")):
+        """手動改名（spec 027 US1，人閘門）。空標題→不改。"""
+        repo = app.state.repo_factory(app.state.config)
+        repo.rename_conversation(cid, title)
+        repo.close()
+        return RedirectResponse(f"/conversations/{cid}", status_code=303)
+
+    @app.post("/conversations/{cid}/retitle")
+    async def conversation_retitle(cid: int):
+        """重生自動標題（spec 027 US1，人按才做，反映落點）。失敗→不改、不崩。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        if conv is not None:
+            try:
+                t = (app.state.title_factory(conv.messages) or "").strip()
+            except Exception as e:  # noqa: BLE001
+                _log.error("重生標題失敗", extra={"extra": {"reason": str(e)}})
+                t = ""
+            if t:
+                repo.rename_conversation(cid, t)
+        repo.close()
+        return RedirectResponse(f"/conversations/{cid}", status_code=303)
+
+    @app.post("/conversations/{cid}/segment", response_class=HTMLResponse)
+    async def conversation_segment(request: Request, cid: int):
+        """整理成章節（spec 027 US2，on-demand、不落庫）。失敗→整段一章、不崩。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        repo.close()
+        if conv is None:
+            return RedirectResponse("/conversations", status_code=303)
+        try:
+            chapters = app.state.segment_factory(conv.messages)
+        except Exception as e:  # noqa: BLE001 - 切分失敗退整段
+            _log.error("章節切分失敗", extra={"extra": {"reason": str(e)}})
+            from ..chat.capture import normalize_chapters
+            chapters = normalize_chapters([], len(conv.messages))
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="conversation.html",
+            context={"conv": conv, "chapters": chapters})
+
+    @app.post("/conversations/{cid}/distill", response_class=HTMLResponse)
+    async def conversation_chapter_distill(request: Request, cid: int,
+                                           from_: int = Query(0, alias="from"),
+                                           to: int = Query(0)):
+        """整理某一章成重點（spec 027 US3）：切片→既有蒸餾→候選頁（人閘門、不自動冊封）。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        repo.close()
+        if conv is None:
+            return RedirectResponse("/conversations", status_code=303)
+        slice_ = conv.messages[max(0, from_ - 1):to] if (from_ and to) else conv.messages
+        cands = err = None
+        try:
+            cands = app.state.distill_factory(slice_)
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("整理章節失敗", extra={"extra": {"reason": str(e)}})
+            err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": [], "history_json": json.dumps(slice_, ensure_ascii=False),
+                     "candidates": cands, "err": err, "root_count": _root_count()})
 
     @app.get("/roots/{wid}/export")
     async def root_export(wid: int, as_: str = Query("md", alias="as")):

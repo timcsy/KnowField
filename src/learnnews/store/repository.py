@@ -475,6 +475,16 @@ class Repository:
             " WHERE id=?", (cid,)).fetchone()
         return self._row_to_conversation(r) if r else None
 
+    def rename_conversation(self, cid: int, title: str) -> bool:
+        """改對話標題（spec 027，人按才呼叫）。只動 title 欄。回是否有更新。"""
+        title = (title or "").strip()
+        if not title:
+            return False
+        cur = self.conn.execute(
+            "UPDATE conversations SET title=? WHERE id=?", (title, cid))
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def dedupe_plan(self):
         """算既有重複對話清理計畫（spec 026）。唯讀、不寫庫。"""
         from ..chat.capture import plan_dedupe

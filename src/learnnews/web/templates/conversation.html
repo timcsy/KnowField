@@ -11,21 +11,63 @@
       <button type="button" class="btn btn-ghost btn-sm"
               onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls', {empty:'這段對話沒有被引用的佐證網址'})"
               title="複製佐證網址，貼進 NotebookLM 當網址來源">🔗 複製佐證網址</button>
+      <form action="/conversations/{{ conv.id }}/segment" method="post" class="inline">
+        <button class="btn btn-ghost btn-sm" title="把長對話切成可跳讀的章節">🔖 整理成章節</button>
+      </form>
       <a href="/conversations/{{ conv.id }}/resume" class="btn btn-primary btn-sm">以這段接著聊 →</a>
     </div>
+  </div>
+  <div class="flex items-center gap-2 mb-1 flex-wrap">
+    <form action="/conversations/{{ conv.id }}/rename" method="post" class="join">
+      <input name="title" value="{{ conv.title }}" placeholder="改個好找的名字…"
+             class="input input-bordered input-xs join-item w-56">
+      <button class="btn btn-xs join-item">改名</button>
+    </form>
+    <form action="/conversations/{{ conv.id }}/retitle" method="post" class="inline">
+      <button class="btn btn-ghost btn-xs" title="重生一個反映『落點/全貌』的標題">✨ 重新命名</button>
+    </form>
   </div>
   <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）·
     接著聊會載進對話頁、可從任一句編輯或開分支（原存檔不動）</p>
 
+  {% if chapters %}
+    <div class="card bg-base-100 shadow-sm mb-4">
+      <div class="card-body py-3 px-5">
+        <div class="font-semibold text-sm mb-1">🔖 章節（點小標跳到該段）</div>
+        <ol class="space-y-1.5">
+          {% for ch in chapters %}
+            <li class="text-sm">
+              <a href="#msg-{{ ch.start }}" class="link link-hover font-medium">{{ ch.title }}</a>
+              <span class="text-xs text-base-content/50">· 第 {{ ch.start }}–{{ ch.end }} 則</span>
+              {% if ch.summary %}<div class="text-xs text-base-content/60">{{ ch.summary }}</div>{% endif %}
+              <div class="flex gap-1 mt-0.5">
+                <button type="button" class="btn btn-ghost btn-xs"
+                        onclick="copyExport('/conversations/{{ conv.id }}/export?as=md&from={{ ch.start }}&to={{ ch.end }}')"
+                        title="只複製這一章的 Markdown">📋 這章 md</button>
+                <button type="button" class="btn btn-ghost btn-xs"
+                        onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls&from={{ ch.start }}&to={{ ch.end }}', {empty:'這章沒有佐證網址'})"
+                        title="只複製這一章的佐證網址">🔗 這章網址</button>
+                <form action="/conversations/{{ conv.id }}/distill?from={{ ch.start }}&to={{ ch.end }}"
+                      method="post" class="inline">
+                  <button class="btn btn-ghost btn-xs" title="就這一章整理成一條重點（要不要冊封你決定）">🧪 整理這章</button>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  {% endif %}
+
   <div class="space-y-4">
     {% for m in conv.messages %}
       {% if m.role == "user" %}
-        <div class="flex justify-end">
+        <div class="flex justify-end" id="msg-{{ loop.index }}" style="scroll-margin-top:5rem">
           <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
         </div>
       {% else %}
         {% set p = 'v' ~ loop.index %}
-        <div class="card bg-base-100 shadow-sm"><div class="card-body p-4">
+        <div class="card bg-base-100 shadow-sm" id="msg-{{ loop.index }}" style="scroll-margin-top:5rem"><div class="card-body p-4">
           <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
           {% if m.sources %}
             <div class="text-sm pt-2 border-t border-base-200 mt-1">
