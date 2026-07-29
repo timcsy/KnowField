@@ -129,12 +129,25 @@ class FieldChat:
     def __init__(self, chat_backend: ChatBackend) -> None:
         self.backend = chat_backend
 
-    def _messages(self, history, user_msg, roots, sources, brainstorm, max_history):
+    def _messages(self, history, user_msg, roots, sources, brainstorm, max_history,
+                  url_contents=None):
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
         messages = [{"role": "system", "content": build_field_system_prompt(roots)}]
         messages += hist
+        if url_contents:   # 使用者貼的網址，已抓到的內容（教訓 3：抓不到就給 note，不假裝讀過）
+            blocks = []
+            for c in url_contents:
+                if c.get("body"):
+                    blocks.append(f"【{c.get('title') or c.get('url')}】（{c.get('url')}）\n"
+                                  f"{c['body'][:3000]}")
+                else:
+                    blocks.append(f"（{c.get('url')}：抓不到內容，可能被擋或需登入——請據實說你讀不到、"
+                                  f"請使用者貼標題/摘要，不要假裝讀過。）")
+            messages.append({"role": "system", "content": (
+                "使用者在訊息裡貼了網址。以下是伺服器端抓到的內容（只依這些，不要杜撰網頁沒有的細節）：\n"
+                + "\n\n".join(blocks))})
         if brainstorm:
             messages.append({"role": "system", "content": (
                 "（這輪使用者想純腦力激盪：可以更放得開、多給可能性與大膽的連結；但一樣**不要說好聽話**、"
@@ -152,16 +165,16 @@ class FieldChat:
         return messages
 
     def reply(self, history: list[dict], user_msg: str, roots, sources=None,
-              brainstorm: bool = False, max_history: int = 0) -> str:
-        """一輪對話。sources 非空時，令回答在被支持處句尾標 [n]；max_history>0 只帶最近 N 則歷史。"""
+              brainstorm: bool = False, max_history: int = 0, url_contents=None) -> str:
+        """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。"""
         return self.backend.reply(
-            self._messages(history, user_msg, roots, sources, brainstorm, max_history))
+            self._messages(history, user_msg, roots, sources, brainstorm, max_history, url_contents))
 
     def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
-                     brainstorm: bool = False, max_history: int = 0):
+                     brainstorm: bool = False, max_history: int = 0, url_contents=None):
         """串流版 reply：yield 逐段 token。"""
         yield from self.backend.stream(
-            self._messages(history, user_msg, roots, sources, brainstorm, max_history))
+            self._messages(history, user_msg, roots, sources, brainstorm, max_history, url_contents))
 
     def title(self, messages: list[dict]) -> str:
         """為一段對話生一句「由來」標題（≤20 字）。失敗→退回首個 user 訊息截斷（教訓 3）。"""

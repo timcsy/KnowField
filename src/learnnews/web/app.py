@@ -180,6 +180,26 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
+    def _fetch_message_urls(message):
+        """偵測訊息裡的網址→伺服器端抓內容（best-effort，抓不到也回一筆 note，教訓 3）。"""
+        urls = re.findall(r"https?://[^\s，。）)】\]]+", message or "")[:3]
+        if not urls:
+            return []
+        fetch = getattr(app.state, "chat_fetch_for_test", None)
+        out = []
+        for u in dict.fromkeys(urls):        # 去重、保序
+            try:
+                if fetch is not None:
+                    out.append(fetch(u))
+                else:
+                    from ..seed.fetch import fetch_url
+                    it = fetch_url(u)
+                    out.append({"url": u, "title": it.title, "body": it.abstract})
+            except Exception as e:  # noqa: BLE001 - 抓不到不崩，回 note（教訓 3）
+                _log.error("對話抓網址失敗", extra={"extra": {"reason": str(e), "url": u}})
+                out.append({"url": u, "title": "", "body": ""})
+        return out
+
     def _default_chat(history, message, brainstorm=False):
         from ..chat.field_chat import FieldChat
         repo = app.state.repo_factory(app.state.config)
@@ -188,13 +208,15 @@ def create_app() -> FastAPI:
         finally:
             repo.close()
         fc = FieldChat(_chat_backend())
+        url_contents = _fetch_message_urls(message)   # 貼的網址→讀進來（best-effort）
         if brainstorm:
             sources = []
         else:
             q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
             sources = _chat_search(q)
         text = fc.reply(history, message, roots, sources, brainstorm=brainstorm,
-                        max_history=app.state.config.chat_context_messages)
+                        max_history=app.state.config.chat_context_messages,
+                        url_contents=url_contents)
         # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
         cited = {int(n) for n in re.findall(r"\[(\d+)\]", text)}
         numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
@@ -577,6 +599,9 @@ def create_app() -> FastAPI:
                 repo.close()
             fc = FieldChat(_chat_backend())
             try:
+                url_contents = _fetch_message_urls(message)
+                if url_contents:
+                    yield _sse({"type": "stage", "text": "讀取你貼的網址…"})
                 if bs:
                     sources = []
                 else:
@@ -587,7 +612,8 @@ def create_app() -> FastAPI:
                 yield _sse({"type": "stage", "text": "回答中…"})
                 full = ""
                 for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
-                                             max_history=cfg.chat_context_messages):
+                                             max_history=cfg.chat_context_messages,
+                                             url_contents=url_contents):
                     full += delta
                     yield _sse({"type": "token", "text": delta})
                 cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}

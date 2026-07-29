@@ -139,52 +139,93 @@
       el.innerHTML = html;
       if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
     }
-    document.querySelectorAll('.md-render').forEach(renderMd);
-
-    // 串流送出（漸進增強：不支援 fetch/stream 就退回 form POST）
+    // 對話：history 驅動渲染 ＋ 編輯已送出的訊息（從那句重問）＋ 串流送出
     (function () {
       var form = document.getElementById('chat-form');
-      if (!form || !window.fetch || !window.ReadableStream) return;
-      var history = {{ messages | tojson }};
       var box = document.getElementById('messages');
-      var seq = 0;
+      var history = {{ messages | tojson }};
+      var canStream = form && window.fetch && window.ReadableStream;
+      function ta() { return form.querySelector('textarea[name=message]'); }
+      function syncHidden() {
+        document.querySelectorAll('input[name=history]').forEach(function (i) { i.value = JSON.stringify(history); });
+      }
+      function userBubble(m, i) {
+        var wrap = document.createElement('div'); wrap.className = 'flex justify-end items-start gap-1';
+        var edit = document.createElement('button');
+        edit.type = 'button'; edit.className = 'btn btn-ghost btn-xs opacity-40 mt-1';
+        edit.textContent = '✏️'; edit.title = '編輯這句、從這裡重問';
+        edit.addEventListener('click', function () { editAt(i); });
+        var b = document.createElement('div');
+        b.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
+        b.textContent = m.content;
+        wrap.appendChild(edit); wrap.appendChild(b); return wrap;
+      }
+      function assistantCard(m, i) {
+        var prefix = 'm' + i + '-src';
+        var card = document.createElement('div'); card.className = 'card bg-base-100 shadow-sm';
+        var bd = document.createElement('div'); bd.className = 'card-body p-4';
+        var md = document.createElement('div');
+        md.className = 'md-render answer-md leading-relaxed text-[15px]';
+        md.setAttribute('data-src-prefix', prefix); md.textContent = m.content || '';
+        bd.appendChild(md);
+        if (m.sources && m.sources.length) {
+          var sw = document.createElement('div'); sw.className = 'text-sm pt-2 border-t border-base-200 mt-1';
+          var h = document.createElement('div'); h.className = 'font-semibold text-base-content/60 mb-1 text-xs'; h.textContent = '來源'; sw.appendChild(h);
+          var ul = document.createElement('ul'); ul.className = 'space-y-0.5';
+          m.sources.forEach(function (s) {
+            var li = document.createElement('li'); li.id = prefix + '-' + s.n; li.className = 'src-item px-1 py-0.5 text-[13px]';
+            var a = document.createElement('a'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener';
+            a.className = 'link link-primary'; a.textContent = '[' + s.n + '] ' + (s.title || s.url);
+            li.appendChild(a); ul.appendChild(li);
+          });
+          sw.appendChild(ul); bd.appendChild(sw);
+        }
+        card.appendChild(bd); return card;
+      }
+      function renderConversation() {
+        box.innerHTML = '';
+        history.forEach(function (m, i) {
+          box.appendChild(m.role === 'user' ? userBubble(m, i) : assistantCard(m, i));
+        });
+        box.querySelectorAll('.md-render').forEach(renderMd);
+      }
+      function editAt(i) {
+        ta().value = history[i] ? history[i].content : '';
+        history.length = i;                 // 砍掉這句及之後（從這裡重問）
+        syncHidden(); renderConversation(); ta().focus();
+      }
+
+      if (!canStream) {   // 無 JS 串流：至少渲染 markdown（server 已渲染訊息，無編輯鈕）
+        document.querySelectorAll('.md-render').forEach(renderMd);
+        return;
+      }
+      renderConversation();
+
       form.addEventListener('submit', function (e) {
-        var ta = form.querySelector('textarea[name=message]');
-        var msg = (ta.value || '').trim();
+        var msg = (ta().value || '').trim();
         if (!msg) { e.preventDefault(); return; }
         e.preventDefault();
         var bs = form.querySelector('input[name=brainstorm]').checked;
         var btn = form.querySelector('button'); btn.disabled = true;
-        // user 泡泡
         var u = document.createElement('div'); u.className = 'flex justify-end';
         var ub = document.createElement('div');
-        ub.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap';
+        ub.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
         ub.textContent = msg; u.appendChild(ub); box.appendChild(u);
-        // assistant 卡
-        var prefix = 'js' + (++seq) + '-src';
         var card = document.createElement('div'); card.className = 'card bg-base-100 shadow-sm';
-        card.innerHTML = '<div class="card-body p-4"><div class="answer-md leading-relaxed text-[15px]" data-src-prefix="' + prefix + '"></div><div class="src-wrap"></div></div>';
-        box.appendChild(card);
-        var textEl = card.querySelector('.answer-md');
-        var srcWrap = card.querySelector('.src-wrap');
-        busyShow('思考中…');
-        ta.value = '';
+        card.innerHTML = '<div class="card-body p-4"><div class="answer-md leading-relaxed text-[15px]"></div></div>';
+        box.appendChild(card); var textEl = card.querySelector('.answer-md');
+        busyShow('思考中…'); ta().value = '';
         var body = new URLSearchParams();
         body.set('history', JSON.stringify(history)); body.set('message', msg);
         body.set('brainstorm', bs ? '1' : '');
         var raw = '', started = false;
         fetch('/chat/stream', { method: 'POST', body: body }).then(function (resp) {
           var reader = resp.body.getReader(), dec = new TextDecoder(), buf = '';
-          function done(sources) {
-            textEl.textContent = raw; renderMd(textEl);
-            if (sources && sources.length) {
-              srcWrap.innerHTML = '<div class="text-sm pt-2 border-t border-base-200 mt-1"><div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div><ul class="space-y-0.5">' +
-                sources.map(function (s) { return '<li id="' + prefix + '-' + s.n + '" class="src-item px-1 py-0.5 text-[13px]"><span class="badge badge-xs badge-outline">' + s.n + '</span> <a href="' + s.url + '" target="_blank" rel="noopener" class="link link-primary">' + (s.title || s.url) + '</a></li>'; }).join('') + '</ul></div>';
-            }
+          function finish(sources) {
             history.push({ role: 'user', content: msg });
             history.push({ role: 'assistant', content: raw, sources: sources || [] });
-            document.querySelectorAll('input[name=history]').forEach(function (i) { i.value = JSON.stringify(history); });
-            busyHide(); btn.disabled = false;
+            syncHidden(); renderConversation();     // 正規化（含新 user 訊息的編輯鈕）
+            busyHide(); btn.disabled = false; window.scrollTo(0, document.body.scrollHeight);
           }
           function pump() {
             return reader.read().then(function (r) {
@@ -196,7 +237,7 @@
                 var d; try { d = JSON.parse(ln.slice(5).trim()); } catch (x) { return; }
                 if (d.type === 'stage') { busyShow(d.text); }
                 else if (d.type === 'token') { if (!started) { started = true; busyHide(); } raw += d.text; textEl.textContent = raw; window.scrollTo(0, document.body.scrollHeight); }
-                else if (d.type === 'done') { raw = d.text || raw; done(d.sources || []); }
+                else if (d.type === 'done') { raw = d.text || raw; finish(d.sources || []); }
                 else if (d.type === 'error') { textEl.textContent = '⚠ ' + d.text; busyHide(); btn.disabled = false; }
               });
               return pump();

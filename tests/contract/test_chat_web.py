@@ -120,6 +120,29 @@ class TestChatWeb(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(called["n"], 0)                         # 腦力激盪→不搜尋
 
+    def test_url_reading(self):                                  # 貼網址→抓內容注入
+        app = build_app(temp_db())
+        app.state.chat_search_for_test = lambda q: []
+        app.state.chat_fetch_for_test = lambda u: {
+            "url": u, "title": "arXiv 某篇", "body": "論文全文 ABCDEF"}
+        captured = {}
+        app.state.chat_backend_for_test = type("B", (), {
+            "reply": lambda self, m: captured.update(sys=" ".join(x["content"] for x in m)) or "ok"})()
+        TestClient(app).post("/chat", data={
+            "history": "[]", "message": "那用這篇 https://arxiv.org/abs/2511.11665 說的呢？"},
+            follow_redirects=True)
+        self.assertIn("論文全文 ABCDEF", captured.get("sys", ""))   # 抓到的內容進了提示
+
+    def test_no_url_no_fetch(self):                              # 沒網址→不抓
+        app = build_app(temp_db())
+        app.state.chat_search_for_test = lambda q: []
+        called = {"n": 0}
+        app.state.chat_fetch_for_test = lambda u: called.update(n=called["n"] + 1) or {"url": u}
+        app.state.chat_backend_for_test = type("B", (), {"reply": lambda self, m: "ok"})()
+        TestClient(app).post("/chat", data={"history": "[]", "message": "純文字問題"},
+                             follow_redirects=True)
+        self.assertEqual(called["n"], 0)
+
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())
 

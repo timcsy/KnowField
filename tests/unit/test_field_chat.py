@@ -112,6 +112,24 @@ class TestTitle(unittest.TestCase):
         self.assertIn("X", t)                                    # 退回首個 user 訊息
 
 
+class TestUrlContents(unittest.TestCase):
+    def test_url_content_injected(self):                         # 貼的網址內容進提示
+        spy = _SpyBackend()
+        FieldChat(spy).reply([], "看這篇 https://a/1", [], url_contents=[
+            {"url": "https://a/1", "title": "某論文", "body": "這是全文內容 XYZ"}])
+        joined = " ".join(m["content"] for m in spy.seen)
+        self.assertIn("這是全文內容 XYZ", joined)                # 抓到的內容注入了
+        self.assertIn("某論文", joined)
+
+    def test_unfetchable_url_gives_note(self):                   # 抓不到→note、不假裝讀過
+        spy = _SpyBackend()
+        FieldChat(spy).reply([], "看這 https://blocked/x", [], url_contents=[
+            {"url": "https://blocked/x", "title": "", "body": ""}])
+        joined = " ".join(m["content"] for m in spy.seen)
+        self.assertIn("抓不到", joined)
+        self.assertIn("不要假裝讀過", joined)
+
+
 class TestSearchQuery(unittest.TestCase):
     def test_extracts_query(self):
         q = FieldChat(_SpyBackend(reply="flow matching generative model")).search_query(
