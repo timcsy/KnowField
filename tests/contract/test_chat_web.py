@@ -29,8 +29,8 @@ class TestChatWeb(unittest.TestCase):
     def test_post_multiturn(self):                               # T008
         app = build_app(temp_db())
         seen = {}
-        app.state.chat_factory = lambda history, message: (
-            seen.update(history=history, message=message)
+        app.state.chat_factory = lambda history, message, brainstorm=False: (
+            seen.update(history=history, message=message, brainstorm=brainstorm)
             or ("（回應）[1]", [{"n": 1, "url": "https://a/1", "title": "來源A"}]))
         hist = [{"role": "user", "content": "前"}, {"role": "assistant", "content": "答"}]
         r = TestClient(app).post("/chat", data={"history": json.dumps(hist),
@@ -67,7 +67,7 @@ class TestChatWeb(unittest.TestCase):
         db = temp_db()
         app = build_app(db)
         # 聊天/distill 不寫 bedrock
-        app.state.chat_factory = lambda history, message: "（回應）"
+        app.state.chat_factory = lambda history, message, brainstorm=False: "（回應）"
         app.state.distill_factory = lambda history: CandidateDraft(
             claim="蒸餾出的根因", ladder=["因為A"], evidence_urls=["https://a/1"])
         c = TestClient(app)
@@ -90,7 +90,7 @@ class TestChatWeb(unittest.TestCase):
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())
 
-        def boom(history, message):
+        def boom(history, message, brainstorm=False):
             raise SourceUnavailable("對話炸了")
         app.state.chat_factory = boom
         r = TestClient(app, raise_server_exceptions=False).post(
@@ -103,6 +103,43 @@ class TestChatWeb(unittest.TestCase):
         r = TestClient(app).post("/chat", data={"history": "[]", "message": "嗨"},
                                  follow_redirects=True)
         self.assertEqual(r.status_code, 200)   # 不崩（走 stub，場空 prompt）
+
+    def test_brainstorm_skips_search(self):                      # 腦力激盪＝不撒網
+        app = build_app(temp_db())
+        seen = {}
+        app.state.chat_factory = lambda history, message, brainstorm=False: (
+            seen.update(bs=brainstorm) or ("（發想）", []))
+        c = TestClient(app)
+        c.post("/chat", data={"history": "[]", "message": "亂想", "brainstorm": "1"},
+               follow_redirects=True)
+        self.assertTrue(seen["bs"])                              # 旗標傳到 factory
+        seen.clear()
+        c.post("/chat", data={"history": "[]", "message": "正經問"}, follow_redirects=True)
+        self.assertFalse(seen["bs"])                             # 未勾＝照常撒網
+
+    def test_default_brainstorm_no_sources(self):                # 預設路徑：腦力激盪不附來源
+        app = build_app(temp_db())
+        called = {"search": 0}
+        app.state.chat_search_for_test = lambda m: called.update(search=called["search"] + 1) or []
+        app.state.chat_backend_for_test = type("B", (), {"reply": lambda self, m: "（發想）"})()
+        r = TestClient(app).post("/chat", data={"history": "[]", "message": "亂想",
+                                                "brainstorm": "1"}, follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(called["search"], 0)                   # 腦力激盪→根本沒呼叫搜尋
+
+    def test_only_cited_sources_shown(self):                     # 只列被引用的來源，濾垃圾
+        app = build_app(temp_db())
+        app.state.chat_search_for_test = lambda q: [
+            SearchResult("相關", "https://good/2", "有料"),        # 會被 [1]? 由回答決定
+            SearchResult("垃圾", "https://junk/x", "無關")]
+        # backend：search_query 回 query；答案只引用 [1]（即第 1 條來源）
+        app.state.chat_backend_for_test = type("B", (), {
+            "reply": lambda self, m: "這句有依據 [1]。第二條沒引用。"})()
+        r = TestClient(app).post("/chat", data={"history": "[]", "message": "問"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("https://good/2", r.text)                  # 被引用的（第1條）有列
+        self.assertNotIn("https://junk/x", r.text)              # 沒被引用的（第2條）不列
 
 
 if __name__ == "__main__":

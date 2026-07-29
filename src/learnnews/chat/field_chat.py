@@ -28,6 +28,10 @@ _MEMBRANE = """你是使用者的思考夥伴——幫他把新東西接到他�
 8. 若有一條想法夠紮實、值得長期留著，可以**建議**他存起來，但只是建議；要不要存是他決定，你不能自己存。
 可用 Markdown（粗體、清單、$數學$）讓回答好讀。"""
 
+_SEARCH_Q = """使用者在對話中問了下面的內容。請給出**一個**最適合拿去 web 搜尋、能找到相關優質資料的
+查詢字串：精簡、含關鍵術語，**必要時用英文或補上領域脈絡以消除歧義**（例如只寫「flow matching」會搜到
+無關的「flow」，應補成「flow matching generative model」）。只輸出那一行查詢，不要引號、不要別的字。"""
+
 _DISTILL = """把以下對話蒸餾成一條值得長期留著的核心理解，用使用者的語氣、挖到最根本。嚴格用此格式：
 主張：<一句話的核心理解>
 階梯：
@@ -109,10 +113,16 @@ class FieldChat:
     def __init__(self, chat_backend: ChatBackend) -> None:
         self.backend = chat_backend
 
-    def reply(self, history: list[dict], user_msg: str, roots, sources=None) -> str:
-        """一輪對話。sources（本輪撒網找到的資料）非空時，令回答在被支持處句尾標 [n]。"""
+    def reply(self, history: list[dict], user_msg: str, roots, sources=None,
+              brainstorm: bool = False) -> str:
+        """一輪對話。sources（本輪撒網找到的資料）非空時，令回答在被支持處句尾標 [n]。
+        brainstorm=純發想模式：不找佐證、可放得更開（但一樣不逢迎、不把猜測當事實）。"""
         messages = [{"role": "system", "content": build_field_system_prompt(roots)}]
         messages += list(history)
+        if brainstorm:
+            messages.append({"role": "system", "content": (
+                "（這輪使用者想純腦力激盪：可以更放得開、多給可能性與大膽的連結；但一樣**不要說好聽話**、"
+                "**不要把猜測講成事實**，該說「這只是發想」就說。這輪不附佐證。）")})
         if sources:
             src = "\n".join(
                 f"[{i}] {(getattr(s, 'title', '') or '').strip()}："
@@ -124,6 +134,19 @@ class FieldChat:
                 f"用不到的資料就忽略。\n{src}")})
         messages.append({"role": "user", "content": user_msg})
         return self.backend.reply(messages)
+
+    def search_query(self, history: list[dict], user_msg: str) -> str:
+        """把使用者這輪的問題轉成好的 web 搜尋 query（消歧義）。失敗/空→退回原句。"""
+        ctx = ""
+        for m in list(history)[-2:]:
+            ctx += f"{m.get('role')}：{m.get('content')}\n"
+        try:
+            q = self.backend.reply([{"role": "system", "content": _SEARCH_Q},
+                                    {"role": "user", "content": f"{ctx}使用者：{user_msg}"}])
+            q = (q or "").strip().splitlines()[0].strip().strip('"「」') if q else ""
+        except Exception:  # noqa: BLE001 - query 抽取失敗退回原句，不拖垮對話
+            q = ""
+        return q or user_msg
 
     def distill(self, history: list[dict], roots) -> CandidateDraft:
         convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in history)

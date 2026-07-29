@@ -48,12 +48,18 @@
     </div>
   {% endif %}
 
-  <form action="/chat" method="post" class="mb-2" onsubmit="return busy(this, '思考中…（一邊撒網找佐證）')">
+  <form action="/chat" method="post" class="mb-2" onsubmit="return chatBusy(this)">
     <input type="hidden" name="history" value='{{ history_json }}'>
     <textarea name="message" rows="2" autofocus
               class="textarea textarea-bordered w-full mb-2"
               placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…"></textarea>
-    <button class="btn btn-primary btn-sm">送出</button>
+    <div class="flex items-center gap-3">
+      <button class="btn btn-primary btn-sm">送出</button>
+      <label class="label cursor-pointer gap-2 py-0">
+        <input type="checkbox" name="brainstorm" value="1" class="checkbox checkbox-sm">
+        <span class="label-text text-sm">🧠 腦力激盪（這輪純聊、不找佐證）</span>
+      </label>
+    </div>
   </form>
 
   {% if messages %}
@@ -88,6 +94,10 @@
       b.classList.remove('hidden');
       var btn = form.querySelector('button'); if (btn) btn.disabled = true;
       return true;
+    }
+    function chatBusy(form) {
+      var bs = form.querySelector('input[name="brainstorm"]');
+      return busy(form, bs && bs.checked ? '腦力激盪中…（純聊、不找佐證）' : '思考中…（一邊撒網找佐證）');
     }
     (function () {
       function render(el) {

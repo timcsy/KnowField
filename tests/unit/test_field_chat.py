@@ -66,6 +66,17 @@ class TestReplyWithSources(unittest.TestCase):
         self.assertEqual(len(spy.seen), 2)
 
 
+class TestSearchQuery(unittest.TestCase):
+    def test_extracts_query(self):
+        q = FieldChat(_SpyBackend(reply="flow matching generative model")).search_query(
+            [], "Flow Matching 是什麼？")
+        self.assertEqual(q, "flow matching generative model")
+
+    def test_fallback_to_message_on_empty(self):
+        q = FieldChat(_SpyBackend(reply="")).search_query([], "原問題")
+        self.assertEqual(q, "原問題")
+
+
 class TestStubBackend(unittest.TestCase):
     def test_deterministic_offline(self):                        # T002
         out = StubChatBackend().reply([{"role": "user", "content": "嗨"}])

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -179,17 +180,24 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
-    def _default_chat(history, message):
+    def _default_chat(history, message, brainstorm=False):
         from ..chat.field_chat import FieldChat
         repo = app.state.repo_factory(app.state.config)
         try:
             roots = repo.list_why_nodes("anointed")
         finally:
             repo.close()
-        sources = _chat_search(message)                 # 每輪自動撒網
-        text = FieldChat(_chat_backend()).reply(history, message, roots, sources)
+        fc = FieldChat(_chat_backend())
+        if brainstorm:
+            sources = []
+        else:
+            q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
+            sources = _chat_search(q)
+        text = fc.reply(history, message, roots, sources, brainstorm=brainstorm)
+        # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
+        cited = {int(n) for n in re.findall(r"\[(\d+)\]", text)}
         numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
-                    for i, s in enumerate(sources, 1)]
+                    for i, s in enumerate(sources, 1) if i in cited]
         return text, numbered
     app.state.chat_factory = _default_chat
 
@@ -504,14 +512,16 @@ def create_app() -> FastAPI:
             context={"messages": [], "history_json": "[]", "root_count": _root_count()})
 
     @app.post("/chat", response_class=HTMLResponse)
-    async def chat_post(request: Request, history: str = Form("[]"), message: str = Form("")):
-        """一輪對話：從你冊封的根因往下推、反逢迎的膜（原則 5/6）。對話不落庫、不自動改場。"""
+    async def chat_post(request: Request, history: str = Form("[]"), message: str = Form(""),
+                        brainstorm: str = Form("")):
+        """一輪對話：從你冊封的根因往下推、反逢迎的膜（原則 5/6）。對話不落庫、不自動改場。
+        brainstorm=1：純發想、不撒網找佐證（沙盒模式，principle 6）。"""
         hist = _parse_history(history)
         message = (message or "").strip()
         err = None
         if message:
             try:
-                result = app.state.chat_factory(hist, message)  # 傳「先前歷史＋這句」
+                result = app.state.chat_factory(hist, message, brainstorm == "1")
                 text, sources = result if isinstance(result, tuple) else (result, [])
                 hist = hist + [{"role": "user", "content": message},
                                {"role": "assistant", "content": text, "sources": sources}]
