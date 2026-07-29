@@ -91,6 +91,35 @@ class TestChatWeb(unittest.TestCase):
         self.assertEqual(anointed[0].claim, "蒸餾出的根因")
         repo.close()
 
+    def test_stream_sse(self):                                   # 串流：token 事件＋done＋來源
+        app = build_app(temp_db())
+        app.state.chat_search_for_test = lambda q: [
+            SearchResult("相關", "https://good/1", "有料")]
+
+        class _B:
+            def reply(self, m): return "flow matching query"          # search_query 用
+            def stream(self, m):
+                yield "這句有依據 "
+                yield "[1]。"
+        app.state.chat_backend_for_test = _B()
+        r = TestClient(app).post("/chat/stream", data={"history": "[]", "message": "問"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('"type": "token"', r.text)                 # 有逐段 token
+        self.assertIn('"type": "done"', r.text)
+        self.assertIn("https://good/1", r.text)                  # 被引用來源在 done
+        self.assertIn("找關鍵字", r.text)                        # 分段進度
+
+    def test_stream_brainstorm_no_search(self):                  # 串流腦力激盪：不撒網
+        app = build_app(temp_db())
+        called = {"n": 0}
+        app.state.chat_search_for_test = lambda q: called.update(n=called["n"] + 1) or []
+        app.state.chat_backend_for_test = type("B", (), {
+            "reply": lambda self, m: "q", "stream": lambda self, m: iter(["發想"])})()
+        r = TestClient(app).post("/chat/stream",
+                                 data={"history": "[]", "message": "亂想", "brainstorm": "1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(called["n"], 0)                         # 腦力激盪→不搜尋
+
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())
 

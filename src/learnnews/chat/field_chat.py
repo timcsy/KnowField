@@ -50,15 +50,19 @@ class ChatBackend(Protocol):
 
 
 class StubChatBackend:
-    """離線確定性：回一段膜式回應（含界線標記與場-增量），零外部呼叫。"""
+    """離線確定性：回一段膜式回應，零外部呼叫。"""
 
     def reply(self, messages: list[dict]) -> str:
         last = next((m["content"] for m in reversed(messages)
                      if m.get("role") == "user"), "")
         return (
             f"（離線示意）就「{last[:40]}」——設定 LLM 金鑰後啟用真實的反逢迎對話。\n"
-            "grounded：（離線無法從你的場推）／猜：（離線示意）。\n"
-            "場-增量：離線示意，無法給接上/收斂/缺口/冊封候選。")
+            "有依據的地方會直說、只是推測會講明；能證明／觀察到的規律／類比會分清楚。")
+
+    def stream(self, messages: list[dict]):
+        text = self.reply(messages)
+        for i in range(0, len(text), 24):     # 分段模擬串流
+            yield text[i:i + 24]
 
 
 @dataclass
@@ -125,11 +129,7 @@ class FieldChat:
     def __init__(self, chat_backend: ChatBackend) -> None:
         self.backend = chat_backend
 
-    def reply(self, history: list[dict], user_msg: str, roots, sources=None,
-              brainstorm: bool = False, max_history: int = 0) -> str:
-        """一輪對話。sources（本輪撒網找到的資料）非空時，令回答在被支持處句尾標 [n]。
-        brainstorm=純發想模式：不找佐證、可放得更開（但一樣不逢迎、不把猜測當事實）。
-        max_history>0：只帶最近 N 則歷史給 LLM（省 token；system＋場仍在前給快取命中）。"""
+    def _messages(self, history, user_msg, roots, sources, brainstorm, max_history):
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
@@ -149,7 +149,19 @@ class FieldChat:
                 "（n 是編號，可多個如 [1][2]）；沒被支持的地方不要標，也**不要杜撰**來源或內容。"
                 f"用不到的資料就忽略。\n{src}")})
         messages.append({"role": "user", "content": user_msg})
-        return self.backend.reply(messages)
+        return messages
+
+    def reply(self, history: list[dict], user_msg: str, roots, sources=None,
+              brainstorm: bool = False, max_history: int = 0) -> str:
+        """一輪對話。sources 非空時，令回答在被支持處句尾標 [n]；max_history>0 只帶最近 N 則歷史。"""
+        return self.backend.reply(
+            self._messages(history, user_msg, roots, sources, brainstorm, max_history))
+
+    def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
+                     brainstorm: bool = False, max_history: int = 0):
+        """串流版 reply：yield 逐段 token。"""
+        yield from self.backend.stream(
+            self._messages(history, user_msg, roots, sources, brainstorm, max_history))
 
     def search_query(self, history: list[dict], user_msg: str) -> str:
         """把使用者這輪的問題轉成好的 web 搜尋 query（消歧義）。失敗/空→退回原句。"""

@@ -535,6 +535,50 @@ def create_app() -> FastAPI:
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
                      "err": err, "root_count": _root_count()})
 
+    @app.post("/chat/stream")
+    async def chat_stream(history: str = Form("[]"), message: str = Form(""),
+                          brainstorm: str = Form("")):
+        """串流版對話：分段進度（找關鍵字→撒網→回答中）＋逐 token 串流；只列被引用來源。"""
+        from ..chat.field_chat import FieldChat
+        hist = _parse_history(history)
+        message = (message or "").strip()
+        bs = brainstorm == "1"
+        cfg = app.state.config
+
+        def gen():
+            if not message:
+                yield _sse({"type": "done", "text": ""})
+                return
+            repo = app.state.repo_factory(cfg)
+            try:
+                roots = repo.list_why_nodes("anointed")
+            finally:
+                repo.close()
+            fc = FieldChat(_chat_backend())
+            try:
+                if bs:
+                    sources = []
+                else:
+                    yield _sse({"type": "stage", "text": "找關鍵字…"})
+                    q = fc.search_query(hist, message)
+                    yield _sse({"type": "stage", "text": "撒網找佐證…"})
+                    sources = _chat_search(q)
+                yield _sse({"type": "stage", "text": "回答中…"})
+                full = ""
+                for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
+                                             max_history=cfg.chat_context_messages):
+                    full += delta
+                    yield _sse({"type": "token", "text": delta})
+                cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
+                numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
+                            for i, s in enumerate(sources, 1) if i in cited]
+                yield _sse({"type": "done", "text": full, "sources": numbered})
+            except (SourceUnavailable, OpenAIError) as e:
+                _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
+                yield _sse({"type": "error", "text": str(e)})
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
+
     @app.post("/chat/distill", response_class=HTMLResponse)
     async def chat_distill(request: Request, history: str = Form("[]")):
         hist = _parse_history(history)

@@ -16,8 +16,8 @@
     <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「根因」頁存幾條核心理解，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
   {% endif %}
 
-  {% if messages %}
-    <div class="space-y-4 mb-5">
+  <div id="messages" class="space-y-4 mb-5">
+    {% if messages %}
       {% for m in messages %}
         {% if m.role == "user" %}
           <div class="flex justify-end">
@@ -45,10 +45,10 @@
           </div>
         {% endif %}
       {% endfor %}
-    </div>
-  {% endif %}
+    {% endif %}
+  </div>
 
-  <form action="/chat" method="post" class="mb-2" onsubmit="return chatBusy(this)">
+  <form id="chat-form" action="/chat" method="post" class="mb-2" onsubmit="return chatBusy(this)">
     <input type="hidden" name="history" value='{{ history_json }}'>
     <textarea name="message" rows="2" autofocus
               class="textarea textarea-bordered w-full mb-2"
@@ -100,10 +100,13 @@
   {% endif %}
 
   <script>
-    function busy(form, msg) {
-      var b = document.getElementById('busy');
+    function busyShow(msg) {
       document.getElementById('busy-msg').textContent = msg || '思考中…';
-      b.classList.remove('hidden');
+      document.getElementById('busy').classList.remove('hidden');
+    }
+    function busyHide() { document.getElementById('busy').classList.add('hidden'); }
+    function busy(form, msg) {   // 表單 fallback（distill/無 JS 串流時）
+      busyShow(msg);
       var btn = form.querySelector('button'); if (btn) btn.disabled = true;
       return true;
     }
@@ -111,22 +114,86 @@
       var bs = form.querySelector('input[name="brainstorm"]');
       return busy(form, bs && bs.checked ? '腦力激盪中…（純聊、不找佐證）' : '思考中…（一邊撒網找佐證）');
     }
+    function renderMd(el) {
+      var prefix = el.getAttribute('data-src-prefix') || 'src';
+      var raw = el.textContent;
+      var math = [];
+      var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+        function (m) { math.push(m); return '@@M' + (math.length - 1) + '@@'; });
+      var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
+      html = html.replace(/@@M(\d+)@@/g, function (_, i) { return math[+i]; });
+      html = html.replace(/\[(\d+)\]/g, function (_, n) {
+        return '<a href="#' + prefix + '-' + n + '" class="cite">[' + n + ']</a>';
+      });
+      el.innerHTML = html;
+      if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+    }
+    document.querySelectorAll('.md-render').forEach(renderMd);
+
+    // 串流送出（漸進增強：不支援 fetch/stream 就退回 form POST）
     (function () {
-      function render(el) {
-        var prefix = el.getAttribute('data-src-prefix') || 'src';
-        var raw = el.textContent;
-        var math = [];
-        var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
-          function (m) { math.push(m); return '@@M' + (math.length - 1) + '@@'; });
-        var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
-        html = html.replace(/@@M(\d+)@@/g, function (_, i) { return math[+i]; });
-        html = html.replace(/\[(\d+)\]/g, function (_, n) {
-          return '<a href="#' + prefix + '-' + n + '" class="cite">[' + n + ']</a>';
-        });
-        el.innerHTML = html;
-        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
-      }
-      document.querySelectorAll('.md-render').forEach(render);
+      var form = document.getElementById('chat-form');
+      if (!form || !window.fetch || !window.ReadableStream) return;
+      var history = {{ messages | tojson }};
+      var box = document.getElementById('messages');
+      var seq = 0;
+      form.addEventListener('submit', function (e) {
+        var ta = form.querySelector('textarea[name=message]');
+        var msg = (ta.value || '').trim();
+        if (!msg) { e.preventDefault(); return; }
+        e.preventDefault();
+        var bs = form.querySelector('input[name=brainstorm]').checked;
+        var btn = form.querySelector('button'); btn.disabled = true;
+        // user 泡泡
+        var u = document.createElement('div'); u.className = 'flex justify-end';
+        var ub = document.createElement('div');
+        ub.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap';
+        ub.textContent = msg; u.appendChild(ub); box.appendChild(u);
+        // assistant 卡
+        var prefix = 'js' + (++seq) + '-src';
+        var card = document.createElement('div'); card.className = 'card bg-base-100 shadow-sm';
+        card.innerHTML = '<div class="card-body p-4"><div class="answer-md leading-relaxed text-[15px]" data-src-prefix="' + prefix + '"></div><div class="src-wrap"></div></div>';
+        box.appendChild(card);
+        var textEl = card.querySelector('.answer-md');
+        var srcWrap = card.querySelector('.src-wrap');
+        busyShow('思考中…');
+        ta.value = '';
+        var body = new URLSearchParams();
+        body.set('history', JSON.stringify(history)); body.set('message', msg);
+        body.set('brainstorm', bs ? '1' : '');
+        var raw = '', started = false;
+        fetch('/chat/stream', { method: 'POST', body: body }).then(function (resp) {
+          var reader = resp.body.getReader(), dec = new TextDecoder(), buf = '';
+          function done(sources) {
+            textEl.textContent = raw; renderMd(textEl);
+            if (sources && sources.length) {
+              srcWrap.innerHTML = '<div class="text-sm pt-2 border-t border-base-200 mt-1"><div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div><ul class="space-y-0.5">' +
+                sources.map(function (s) { return '<li id="' + prefix + '-' + s.n + '" class="src-item px-1 py-0.5 text-[13px]"><span class="badge badge-xs badge-outline">' + s.n + '</span> <a href="' + s.url + '" target="_blank" rel="noopener" class="link link-primary">' + (s.title || s.url) + '</a></li>'; }).join('') + '</ul></div>';
+            }
+            history.push({ role: 'user', content: msg });
+            history.push({ role: 'assistant', content: raw, sources: sources || [] });
+            document.querySelectorAll('input[name=history]').forEach(function (i) { i.value = JSON.stringify(history); });
+            busyHide(); btn.disabled = false;
+          }
+          function pump() {
+            return reader.read().then(function (r) {
+              if (r.done) { busyHide(); btn.disabled = false; return; }
+              buf += dec.decode(r.value, { stream: true });
+              var parts = buf.split('\n\n'); buf = parts.pop();
+              parts.forEach(function (p) {
+                var ln = p.trim(); if (ln.indexOf('data:') !== 0) return;
+                var d; try { d = JSON.parse(ln.slice(5).trim()); } catch (x) { return; }
+                if (d.type === 'stage') { busyShow(d.text); }
+                else if (d.type === 'token') { if (!started) { started = true; busyHide(); } raw += d.text; textEl.textContent = raw; window.scrollTo(0, document.body.scrollHeight); }
+                else if (d.type === 'done') { raw = d.text || raw; done(d.sources || []); }
+                else if (d.type === 'error') { textEl.textContent = '⚠ ' + d.text; busyHide(); btn.disabled = false; }
+              });
+              return pump();
+            });
+          }
+          return pump();
+        }).catch(function () { textEl.textContent = '⚠ 連線中斷，請重試。'; busyHide(); btn.disabled = false; });
+      });
     })();
   </script>
 {% endblock %}

@@ -77,6 +77,27 @@ class TestReplyWithSources(unittest.TestCase):
         self.assertEqual(spy.seen[0]["role"], "system")          # 場仍在最前（快取前綴）
 
 
+class _StreamSpy:
+    """回固定 reply；stream 把它分兩段吐。"""
+    def reply(self, messages):
+        self.seen = messages
+        return "串流回應 [1]"
+    def stream(self, messages):
+        self.seen = messages
+        yield "串流"
+        yield "回應 [1]"
+
+
+class TestReplyStream(unittest.TestCase):
+    def test_reply_stream_yields_tokens(self):
+        chunks = list(FieldChat(_StreamSpy()).reply_stream([], "問", [], max_history=0))
+        self.assertEqual("".join(chunks), "串流回應 [1]")
+
+    def test_stub_backend_streams(self):
+        out = "".join(StubChatBackend().stream([{"role": "user", "content": "嗨"}]))
+        self.assertEqual(out, StubChatBackend().reply([{"role": "user", "content": "嗨"}]))
+
+
 class TestSearchQuery(unittest.TestCase):
     def test_extracts_query(self):
         q = FieldChat(_SpyBackend(reply="flow matching generative model")).search_query(

@@ -206,28 +206,72 @@ class OpenAIAnswerer:
         return data["choices"][0]["message"]["content"].strip()
 
 
+def _post_stream(base_url: str, path: str, api_key: str, payload: dict, timeout: int = 120):
+    """串流版 chat：yield 逐段 token（OpenAI SSE delta）。失敗拋 OpenAIError。"""
+    body = {**payload, "stream": True}
+    req = urllib.request.Request(
+        f"{base_url}{path}", data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json",
+                 "Authorization": f"Bearer {api_key}"}, method="POST")
+    try:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+    except Exception as e:  # noqa: BLE001
+        raise OpenAIError(f"對話串流失敗：{e}") from e
+    saw_sse = False
+    buf = b""
+    for raw in resp:
+        line = raw.decode("utf-8", "ignore").strip()
+        if line.startswith("data:"):
+            saw_sse = True
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                delta = json.loads(data)["choices"][0]["delta"].get("content")
+            except Exception:  # noqa: BLE001 - 心跳/非內容行跳過
+                continue
+            if delta:
+                yield delta
+        else:
+            buf += raw          # 非 SSE：後端忽略了 stream，收整包稍後一次吐
+    if not saw_sse and buf.strip():   # 後端不支援串流 → 退回解析整包 completion（穩健）
+        try:
+            content = json.loads(buf.decode("utf-8", "ignore"))["choices"][0]["message"]["content"]
+        except Exception as e:  # noqa: BLE001
+            raise OpenAIError(f"對話回應無法解析：{e}") from e
+        if content:
+            yield content
+
+
 class OpenAIChatBackend:
     """OpenAI 格式 /chat/completions 多輪對話（spec 022）：直接吃 messages list。
 
-    `poster` 可注入供測試。失敗統一成友善的 `OpenAIError`（教訓 3）。
+    `poster`／`streamer` 可注入供測試。失敗統一成友善的 `OpenAIError`（教訓 3）。
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str, poster=_post) -> None:
+    def __init__(self, base_url: str, api_key: str, model: str, poster=_post,
+                 streamer=_post_stream) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self._poster = poster
+        self._streamer = streamer
+
+    def _payload(self, messages: list) -> dict:
+        return {"model": self.model, "max_tokens": 1200, "temperature": 0.4,
+                "messages": messages}
 
     def reply(self, messages: list) -> str:
         try:
-            data = self._poster(self.base_url, "/chat/completions", self.api_key, {
-                "model": self.model,
-                "max_tokens": 1200,
-                "temperature": 0.4,
-                "messages": messages,
-            })
+            data = self._poster(self.base_url, "/chat/completions", self.api_key,
+                                self._payload(messages))
             return (data["choices"][0]["message"]["content"] or "").strip()
         except OpenAIError:
             raise
         except Exception as e:  # noqa: BLE001 - 邊界統一成友善 OpenAIError（教訓 3）
             raise OpenAIError(f"對話失敗：{e}") from e
+
+    def stream(self, messages: list):
+        """yield 逐段 token；失敗拋 OpenAIError（由路由攔成 SSE error 事件）。"""
+        yield from self._streamer(self.base_url, "/chat/completions", self.api_key,
+                                  self._payload(messages))
