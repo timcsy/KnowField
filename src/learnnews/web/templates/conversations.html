@@ -1,11 +1,18 @@
 {% extends "base.html" %}
 {% block title %}對話存檔 — LearnNews{% endblock %}
 {% block content %}
-  <div class="flex items-center gap-2 mb-1">
+  <div class="flex items-center gap-2 mb-1 flex-wrap">
     <h1 class="text-2xl font-bold">🗂️ 對話存檔</h1>
     <span class="text-sm text-base-content/60">存下來的對話——當初怎麼想到的「由來」，隨時回來查</span>
+    {% if conversations %}
+      <a href="/conversations/dedupe" class="btn btn-ghost btn-sm ml-auto">🧹 清理重複對話</a>
+    {% endif %}
   </div>
   <p class="text-xs text-base-content/50 mb-4">這些是**唯讀的參考**，不會被當成你的核心理解餵回對話（只有「根因」才是地基）。</p>
+
+  {% if cleaned %}
+    <div class="alert alert-success mb-4"><span>✅ 已清理：併掉 {{ removed }} 份多餘、重指 {{ repointed }} 條根因的由來。</span></div>
+  {% endif %}
 
   {% if conversations %}
     <div class="card bg-base-100 shadow-sm">

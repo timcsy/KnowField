@@ -711,14 +711,38 @@ def create_app() -> FastAPI:
             context={"messages": [], "history_json": "[]", "anoint_msg": saved_msg,
                      "root_count": _root_count()})
 
+    @app.get("/conversations/dedupe", response_class=HTMLResponse)
+    async def dedupe_preview(request: Request):
+        """清理重複對話——預覽（唯讀、人閘門，原則 5）。算計畫、不動資料。"""
+        repo = app.state.repo_factory(app.state.config)
+        plan = repo.dedupe_plan()
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="dedupe.html",
+            context={"n_groups": plan.n_groups, "n_extra": plan.n_extra,
+                     "n_roots": plan.n_roots})
+
+    @app.post("/conversations/dedupe")
+    async def dedupe_apply(request: Request):
+        """清理重複對話——執行（人確認後）：同指紋併一份、根因重指、刪其餘（非破壞）。"""
+        repo = app.state.repo_factory(app.state.config)
+        summary = repo.apply_dedupe()
+        repo.close()
+        return RedirectResponse(
+            f"/conversations?cleaned=1&removed={summary['removed']}"
+            f"&repointed={summary['repointed']}", status_code=303)
+
     @app.get("/conversations", response_class=HTMLResponse)
-    async def conversations_list(request: Request):
-        """存下的對話清單（唯讀；不入地基，原則 6）。"""
+    async def conversations_list(request: Request, cleaned: str = "", removed: str = "",
+                                 repointed: str = ""):
+        """存下的對話清單（唯讀；不入地基，原則 6）。cleaned=1 時顯示清理成功 flash。"""
         repo = app.state.repo_factory(app.state.config)
         convs = repo.list_conversations()
         repo.close()
         return _TEMPLATES.TemplateResponse(
-            request=request, name="conversations.html", context={"conversations": convs})
+            request=request, name="conversations.html",
+            context={"conversations": convs,
+                     "cleaned": cleaned == "1", "removed": removed, "repointed": repointed})
 
     @app.get("/conversations/{cid}", response_class=HTMLResponse)
     async def conversation_view(request: Request, cid: int):

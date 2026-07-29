@@ -1,8 +1,17 @@
-"""spec 025：收料純核心——內容指紋（去重識別）＋收尾缺口判準。離線、缺項不崩。"""
+"""spec 025：收料純核心——內容指紋（去重識別）＋收尾缺口判準。離線、缺項不崩。
+spec 026：既有重複清理計畫 plan_dedupe。"""
 
 import unittest
 
-from learnnews.chat.capture import conversation_fingerprint, distill_gap
+from learnnews.chat.capture import (
+    conversation_fingerprint,
+    distill_gap,
+    plan_dedupe,
+)
+
+
+def _m(tag):
+    return [{"role": "user", "content": tag}]
 
 
 class TestFingerprint(unittest.TestCase):
@@ -56,6 +65,44 @@ class TestDistillGap(unittest.TestCase):
     def test_nonpositive_total_none(self):                  # T003
         self.assertIsNone(distill_gap(0, 0, 8, 6))
         self.assertIsNone(distill_gap(-1, 0, 8, 6))
+
+
+class TestPlanDedupe(unittest.TestCase):
+    def test_groups_survivor_repoint(self):                 # T001
+        # A 組（同內容）id 1,2,3；B 組 id 4,5；單份 id 6
+        convos = [{"id": 1, "messages": _m("A")}, {"id": 2, "messages": _m("A")},
+                  {"id": 3, "messages": _m("A")}, {"id": 4, "messages": _m("B")},
+                  {"id": 5, "messages": _m("B")}, {"id": 6, "messages": _m("C")}]
+        prov = {10: 1, 11: 3, 12: 4, 13: 6}   # 10→loser,11→survivorA,12→loserB,13→單份
+        plan = plan_dedupe(convos, prov)
+        self.assertEqual(plan.n_groups, 2)
+        self.assertEqual(sorted(plan.delete_ids), [1, 2, 4])   # 各組非最大
+        self.assertEqual(plan.n_extra, 3)
+        self.assertEqual(plan.repoint, {10: 3, 12: 5})         # loser→survivor；survivor/單份不變
+        self.assertEqual(plan.n_roots, 2)
+
+    def test_no_dup_empty_plan(self):                       # T001
+        convos = [{"id": 1, "messages": _m("X")}, {"id": 2, "messages": _m("Y")}]
+        plan = plan_dedupe(convos, {5: 1, 6: 2})
+        self.assertEqual(plan.delete_ids, [])
+        self.assertEqual(plan.repoint, {})
+        self.assertEqual((plan.n_groups, plan.n_extra, plan.n_roots), (0, 0, 0))
+
+    def test_empty_convos(self):                            # T001
+        plan = plan_dedupe([], {})
+        self.assertEqual((plan.n_groups, plan.n_extra, plan.n_roots), (0, 0, 0))
+
+    def test_extra_without_root_still_deleted(self):        # T001 未連根因的多餘份仍刪
+        convos = [{"id": 1, "messages": _m("A")}, {"id": 2, "messages": _m("A")}]
+        plan = plan_dedupe(convos, {})     # 無任何根因連結
+        self.assertEqual(plan.delete_ids, [1])   # 留 2、刪 1
+        self.assertEqual(plan.repoint, {})       # 無重指
+
+    def test_different_content_not_grouped(self):           # T001 異指紋不入計畫
+        convos = [{"id": 1, "messages": [{"role": "user", "content": "65 句版"}]},
+                  {"id": 2, "messages": [{"role": "user", "content": "70 句版"}]}]
+        plan = plan_dedupe(convos, {})
+        self.assertEqual(plan.delete_ids, [])   # 內容不同→不併
 
 
 if __name__ == "__main__":

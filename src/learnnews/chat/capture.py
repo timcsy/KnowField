@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, field
 
 
 def conversation_fingerprint(messages: list) -> str:
@@ -38,3 +39,49 @@ def distill_gap(total: int, last_captured: int | None,
     if total >= min_total and (total - lc) >= gap_threshold:
         return (lc + 1, total)
     return None
+
+
+@dataclass
+class DedupePlan:
+    """既有重複對話清理計畫（spec 026）：純值、不落庫。"""
+    delete_ids: list = field(default_factory=list)   # 待刪的多餘份 ids
+    repoint: dict = field(default_factory=dict)      # {why_node_id: 留存 conversation_id}
+    n_groups: int = 0                                # 有重複的組數
+    n_extra: int = 0                                 # 多餘份數（＝len(delete_ids)）
+    n_roots: int = 0                                 # 將重指的根因數（＝len(repoint)）
+
+
+def plan_dedupe(convos: list, provenance: dict) -> DedupePlan:
+    """算既有重複對話的清理計畫（純函式，非破壞）。
+
+    依內容指紋分組；每組（>1 份）留 id 最大者（最新），其餘列入待刪；指向待刪份的根因
+    連結（provenance: {wid: cid}）重指到留存份。只併同指紋、異指紋不入計畫。空/無重複→空計畫。
+    """
+    groups: dict = {}
+    for c in convos or []:
+        if not isinstance(c, dict) or "id" not in c:
+            continue
+        fp = conversation_fingerprint(c.get("messages") or [])
+        groups.setdefault(fp, []).append(c["id"])
+
+    delete_ids: list = []
+    survivor_of: dict = {}     # {loser_cid: survivor_cid}
+    n_groups = 0
+    for ids in groups.values():
+        if len(ids) < 2:
+            continue
+        n_groups += 1
+        survivor = max(ids)
+        for cid in ids:
+            if cid != survivor:
+                delete_ids.append(cid)
+                survivor_of[cid] = survivor
+
+    repoint: dict = {}
+    for wid, cid in (provenance or {}).items():
+        if cid in survivor_of:
+            repoint[wid] = survivor_of[cid]
+
+    delete_ids.sort()
+    return DedupePlan(delete_ids=delete_ids, repoint=repoint, n_groups=n_groups,
+                      n_extra=len(delete_ids), n_roots=len(repoint))

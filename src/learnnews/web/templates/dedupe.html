@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}清理重複對話 — LearnNews{% endblock %}
+{% block content %}
+  <a href="/conversations" class="link link-hover text-sm">← 對話存檔</a>
+  <h1 class="text-2xl font-bold mt-1 mb-1">🧹 清理重複對話</h1>
+  <p class="text-xs text-base-content/50 mb-4">只併**內容完全相同**的對話（非破壞）；內容不同的一律保留。刪除不可逆——看清楚再按。</p>
+
+  {% if n_groups and n_groups > 0 %}
+    <div class="card bg-base-100 shadow-sm mb-4">
+      <div class="card-body py-4">
+        <p>發現 <b>{{ n_groups }}</b> 組重複，共 <b>{{ n_extra }}</b> 份多餘份會被刪除，
+           <b>{{ n_roots }}</b> 條根因的「由來」會重指到留存的那一份。</p>
+        <p class="text-sm text-base-content/60">每組只留**最新一份**；根因主張／階梯不會被更動。</p>
+      </div>
+    </div>
+    <form action="/conversations/dedupe" method="post" class="flex gap-2"
+          onsubmit="return confirm('確定清理？將刪除 {{ n_extra }} 份多餘、重指 {{ n_roots }} 條根因（不可逆）。');">
+      <button class="btn btn-primary btn-sm">確認清理</button>
+      <a href="/conversations" class="btn btn-ghost btn-sm">取消</a>
+    </form>
+  {% else %}
+    <div class="alert"><span class="opacity-70">✅ 沒有重複可清——你的對話存檔很乾淨。</span></div>
+    <a href="/conversations" class="btn btn-ghost btn-sm mt-3">← 回對話存檔</a>
+  {% endif %}
+{% endblock %}

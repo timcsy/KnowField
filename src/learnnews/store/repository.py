@@ -475,6 +475,24 @@ class Repository:
             " WHERE id=?", (cid,)).fetchone()
         return self._row_to_conversation(r) if r else None
 
+    def dedupe_plan(self):
+        """算既有重複對話清理計畫（spec 026）。唯讀、不寫庫。"""
+        from ..chat.capture import plan_dedupe
+        convos = [{"id": c.id, "messages": c.messages} for c in self.list_conversations()]
+        return plan_dedupe(convos, self.why_node_provenance())
+
+    def apply_dedupe(self) -> dict:
+        """執行清理（人確認後）：重指根因由來連結＋刪多餘份。只動連結與多餘對話，不碰根因主張。"""
+        plan = self.dedupe_plan()
+        for wid, survivor in plan.repoint.items():
+            self.conn.execute(
+                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (survivor, wid))
+        for cid in plan.delete_ids:
+            self.conn.execute("DELETE FROM conversations WHERE id=?", (cid,))
+        self.conn.commit()
+        return {"groups": plan.n_groups, "removed": plan.n_extra,
+                "repointed": plan.n_roots}
+
     def why_node_provenance(self) -> dict:
         """{why_node_id: conversation_id}——供 /roots 顯示「← 由來」（spec 025 改讀 why_node 側，
         多條根因可映同一 cid）。只含連結非空、且該對話仍存在者（JOIN conversations）。刪根因→列消→自動不含。"""
