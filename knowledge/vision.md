@@ -607,6 +607,33 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 存/讀/標題可注入 → 離線可測（教訓 1）；標題失敗退回不崩＋刪根因不孤兒（教訓 3）；全繁中；測試 348→362 不回歸
 - [x] **out of scope**：自動存全部、注入回對話、對話全文搜尋、跨對話關聯（未做）
 
+## 階段 19：匯出給 NotebookLM（複製 Markdown＋複製佐證網址）
+
+> 用了 `/chat` 後使用者問「**不會跟 NotebookLM 重疊嗎？**」→ 定調**不是競爭是接力**：這工具做**膜／蒸餾**
+> （護城河），NotebookLM 做**打磨輸出**（audio/study guide）；**不重蓋 audio，匯出讓它接力**。要匯出
+> **兩種料**：**蒸餾內容**（貼文字來源＝真價值，NotebookLM 抓不到）＋**佐證網址**（當 URL 來源，它自己抓、
+> 但會踩 403，當附帶）。設計源＝`draft/2026-07-29-匯出給NotebookLM.md`。
+
+- [ ] **待實作**：`/chat`、`/conversations/{id}`、`/roots` 各加兩顆鈕——**📋 複製 Markdown**（整段/根因→乾淨
+  Markdown：標題＋內文＋行末 `[n]`＋底部來源）＋**🔗 複製佐證網址**（被引用 URL 每行一個）。純前端複製
+  （複用 `.mathcopy` clipboard）＋伺服器端**可測純 formatter**（對話→Markdown／→網址清單）。
+
+<!--
+  規劃：knowie-next/capture（2026-07-29）。使用者定案：「複製 Markdown 和複製佐證網址都要，才能都丟給
+  NotebookLM」。最快＝純前端複製鈕、零後端（資料已在頁面）；可測核心＝純函式 formatter（離線可測、
+  失敗不崩）。誠實判準（膜）：只給網址＝降成書籤匯出器、丟了蒸餾——內容為主、網址為輔。
+  out：下載 .md 檔、LLM 洗「蒸餾 brief」（fast-follow）、直推 NotebookLM API、對話全文搜尋。
+-->
+
+**成功標準（可驗）：**
+- [ ] `/chat`、`/conversations/{id}`、`/roots` 皆可**一鍵複製 Markdown**（乾淨、含引用與來源清單，貼進
+  NotebookLM 當文字來源可讀）
+- [ ] 皆可**一鍵複製佐證網址**（被引用來源、每行一個，貼進 NotebookLM 當 URL 來源）
+- [ ] **可測純 formatter**：對話→Markdown、對話→網址清單為純函式，離線可測、失敗不崩（教訓 1/3）
+- [ ] **純匯出、唯讀**：不改場、不注入回對話（不觸 principle 6 污染面）；全繁中；核心零相依（憲章 IV）
+- [ ] 測試 368→（新增）不回歸
+- [ ] **out of scope**：下載 `.md` 檔、LLM「蒸餾 brief」、直推 NotebookLM API、對話全文搜尋（未做）
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
