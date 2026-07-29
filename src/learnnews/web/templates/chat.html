@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}跟你的場聊 — LearnNews{% endblock %}
+{% block content %}
+  <div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-bold">🧠 跟你的場聊</h1>
+    <span class="text-sm text-base-content/60">從你冊封的 {{ root_count }} 條根因往下推、反逢迎、不順著你圓</span>
+  </div>
+  <p class="text-xs text-base-content/50 mb-4">
+    聊得越多、餵得越多，場越靠近「優質知識」。AI 只提冊封候選，**冊封是你按的那一下**。
+  </p>
+
+  {% if anoint_msg %}<div class="alert alert-success mb-4"><span>✅ {{ anoint_msg }}</span></div>{% endif %}
+  {% if err %}<div class="alert alert-error mb-4"><span>❌ {{ err }}</span></div>{% endif %}
+
+  {% if root_count == 0 %}
+    <div class="alert mb-4"><span class="opacity-70">🌱 你的場還空——先到「根因」冊封幾條，聊起來才會從你的 bedrock 推。仍可先一般聊。</span></div>
+  {% endif %}
+
+  {% if messages %}
+    <div class="space-y-3 mb-4">
+      {% for m in messages %}
+        {% if m.role == "user" %}
+          <div class="chat chat-end"><div class="chat-bubble chat-bubble-primary whitespace-pre-wrap">{{ m.content }}</div></div>
+        {% else %}
+          <div class="chat chat-start">
+            <div class="chat-bubble whitespace-pre-wrap">{{ m.content }}</div>
+          </div>
+          {% if loop.last %}
+            <form action="/chat/cite" method="post" class="ml-2">
+              <input type="hidden" name="history" value='{{ history_json }}'>
+              <input type="hidden" name="claim" value="{{ m.content[:200] }}">
+              <button class="btn btn-ghost btn-xs">🔍 找佐證</button>
+            </form>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if cite_claim %}
+    <div class="card bg-base-200/50 shadow-sm mb-4"><div class="card-body p-4 gap-1">
+      <h2 class="font-semibold text-sm">佐證（對：{{ cite_claim[:60] }}）</h2>
+      {% if cites %}
+        <ul class="text-sm space-y-1">
+          {% for s in cites %}<li><a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-hover">🔗 {{ s.title or s.url }}</a></li>{% endfor %}
+        </ul>
+      {% else %}<span class="opacity-70 text-sm">沒搜到可靠佐證——這主張可能太新或站不住，別當定論。</span>{% endif %}
+    </div></div>
+  {% endif %}
+
+  {% if candidate %}
+    <div class="card bg-base-100 shadow-sm mb-4 border border-primary/30"><div class="card-body p-4 gap-2">
+      <h2 class="font-semibold text-sm">冊封候選（審過再按，冊封是你的決定）</h2>
+      <form action="/chat/anoint" method="post" class="space-y-2">
+        <input name="claim" value="{{ candidate.claim }}" class="input input-bordered input-sm w-full">
+        <textarea name="ladder" rows="3" class="textarea textarea-bordered textarea-sm w-full"
+                  placeholder="推導階梯，一行一階">{{ candidate.ladder | join('\n') }}</textarea>
+        <input name="evidence_urls" value="{{ candidate.evidence_urls | join(', ') }}"
+               class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
+        <button class="btn btn-primary btn-sm">冊封進我的場</button>
+      </form>
+    </div></div>
+  {% endif %}
+
+  <form action="/chat" method="post" class="mb-2">
+    <input type="hidden" name="history" value='{{ history_json }}'>
+    <textarea name="message" rows="2" autofocus
+              class="textarea textarea-bordered w-full mb-2"
+              placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…"></textarea>
+    <button class="btn btn-primary btn-sm">送出</button>
+  </form>
+
+  {% if messages %}
+    <form action="/chat/distill" method="post">
+      <input type="hidden" name="history" value='{{ history_json }}'>
+      <button class="btn btn-outline btn-sm">整理成冊封候選</button>
+    </form>
+  {% endif %}
+{% endblock %}

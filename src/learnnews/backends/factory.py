@@ -78,6 +78,15 @@ def make_answerer(config: Config):
     return StubAnswerer()
 
 
+def make_chat_backend(config: Config):
+    """多輪對話後端（spec 022）：真實走 OpenAI 格式 chat，否則離線 stub。"""
+    from ..chat.field_chat import StubChatBackend
+    if config.backend == "openai" and config.api_key:
+        from .openai_api import OpenAIChatBackend
+        return OpenAIChatBackend(config.api_base_url, config.api_key, config.chat_model)
+    return StubChatBackend()
+
+
 def make_worthit_synthesizer(config: Config):
     """反逢迎「值不值得」綜合後端（spec 021）：真實走 OpenAI 格式 chat，否則離線 stub。"""
     from ..search.worthit import StubWorthItSynthesizer

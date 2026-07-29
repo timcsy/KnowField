@@ -161,6 +161,39 @@ def create_app() -> FastAPI:
         return fetch_url(url).title
     app.state.worth_fetch_title = _default_worth_fetch_title
 
+    # 跟你的場聊天（spec 022）：可注入的多輪對話／蒸餾／佐證（測試覆寫）
+    def _chat_backend():
+        from ..backends.factory import make_chat_backend
+        return getattr(app.state, "chat_backend_for_test", None) or make_chat_backend(app.state.config)
+
+    def _default_chat(history, message):
+        from ..chat.field_chat import FieldChat
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            roots = repo.list_why_nodes("anointed")
+        finally:
+            repo.close()
+        return FieldChat(_chat_backend()).reply(history, message, roots)
+    app.state.chat_factory = _default_chat
+
+    def _default_distill(history):
+        from ..chat.field_chat import FieldChat
+        return FieldChat(_chat_backend()).distill(history, [])
+    app.state.distill_factory = _default_distill
+
+    def _default_cite(claim):
+        from ..backends.factory import make_web_search
+        ws = make_web_search(app.state.config)
+        results, seen = [], set()
+        for q in (f"{claim} 研究 論文", f"{claim} evidence paper", f"{claim} 是否成立 批評"):
+            for r in ws.search(q, news=False):
+                u = (r.url or "").strip()
+                if u and u not in seen:
+                    seen.add(u)
+                    results.append(r)
+        return results[:8]
+    app.state.cite_factory = _default_cite
+
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
@@ -444,6 +477,96 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="worth.html",
             context={"verdict": verdict, "err": err, "subject": subj})
+
+    def _root_count():
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            return len(repo.list_why_nodes("anointed"))
+        finally:
+            repo.close()
+
+    def _parse_history(history: str) -> list:
+        try:
+            h = json.loads(history or "[]")
+            return h if isinstance(h, list) else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    @app.get("/chat", response_class=HTMLResponse)
+    async def chat_get(request: Request):
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": [], "history_json": "[]", "root_count": _root_count()})
+
+    @app.post("/chat", response_class=HTMLResponse)
+    async def chat_post(request: Request, history: str = Form("[]"), message: str = Form("")):
+        """一輪對話：從你冊封的根因往下推、反逢迎的膜（原則 5/6）。對話不落庫、不自動改場。"""
+        hist = _parse_history(history)
+        message = (message or "").strip()
+        err = None
+        if message:
+            try:
+                reply = app.state.chat_factory(hist, message)   # 傳「先前歷史＋這句」
+                hist = hist + [{"role": "user", "content": message},
+                               {"role": "assistant", "content": reply}]
+            except (SourceUnavailable, OpenAIError) as e:        # 對話失敗→友善（教訓 3）
+                _log.error("場對話失敗", extra={"extra": {"reason": str(e)}})
+                hist = hist + [{"role": "user", "content": message}]
+                err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
+                     "err": err, "root_count": _root_count()})
+
+    @app.post("/chat/distill", response_class=HTMLResponse)
+    async def chat_distill(request: Request, history: str = Form("[]")):
+        hist = _parse_history(history)
+        cand = err = None
+        try:
+            cand = app.state.distill_factory(hist)
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("蒸餾候選失敗", extra={"extra": {"reason": str(e)}})
+            err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
+                     "candidate": cand, "err": err, "root_count": _root_count()})
+
+    @app.post("/chat/anoint", response_class=HTMLResponse)
+    async def chat_anoint(request: Request, claim: str = Form(""),
+                          ladder: str = Form(""), evidence_urls: str = Form("")):
+        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。可回 /roots 檢視/刪。"""
+        claim = (claim or "").strip()
+        msg = None
+        if claim:
+            steps = [s.strip() for s in ladder.splitlines() if s.strip()]
+            urls = [u.strip() for u in evidence_urls.replace("，", ",").replace("\n", ",").split(",")
+                    if u.strip().startswith("http")]
+            repo = app.state.repo_factory(app.state.config)
+            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
+            repo.anoint_why_node(wid)
+            repo.close()
+            msg = f"已冊封進你的場：「{claim[:40]}」（可到『根因』檢視或刪除）"
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": [], "history_json": "[]", "anoint_msg": msg,
+                     "root_count": _root_count()})
+
+    @app.post("/chat/cite", response_class=HTMLResponse)
+    async def chat_cite(request: Request, history: str = Form("[]"), claim: str = Form("")):
+        hist = _parse_history(history)
+        cites = err = None
+        claim = (claim or "").strip()
+        if claim:
+            try:
+                cites = app.state.cite_factory(claim)
+            except (SourceUnavailable, OpenAIError) as e:        # 搜尋失敗→友善（教訓 3）
+                _log.error("找佐證失敗", extra={"extra": {"reason": str(e)}})
+                err = str(e)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
+                     "cites": cites, "cite_claim": claim, "err": err, "root_count": _root_count()})
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):

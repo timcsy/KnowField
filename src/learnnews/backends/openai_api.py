@@ -204,3 +204,30 @@ class OpenAIAnswerer:
             ],
         })
         return data["choices"][0]["message"]["content"].strip()
+
+
+class OpenAIChatBackend:
+    """OpenAI 格式 /chat/completions 多輪對話（spec 022）：直接吃 messages list。
+
+    `poster` 可注入供測試。失敗統一成友善的 `OpenAIError`（教訓 3）。
+    """
+
+    def __init__(self, base_url: str, api_key: str, model: str, poster=_post) -> None:
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+        self._poster = poster
+
+    def reply(self, messages: list) -> str:
+        try:
+            data = self._poster(self.base_url, "/chat/completions", self.api_key, {
+                "model": self.model,
+                "max_tokens": 1200,
+                "temperature": 0.4,
+                "messages": messages,
+            })
+            return (data["choices"][0]["message"]["content"] or "").strip()
+        except OpenAIError:
+            raise
+        except Exception as e:  # noqa: BLE001 - 邊界統一成友善 OpenAIError（教訓 3）
+            raise OpenAIError(f"對話失敗：{e}") from e
