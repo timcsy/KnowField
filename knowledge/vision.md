@@ -614,9 +614,10 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 > **兩種料**：**蒸餾內容**（貼文字來源＝真價值，NotebookLM 抓不到）＋**佐證網址**（當 URL 來源，它自己抓、
 > 但會踩 403，當附帶）。設計源＝`draft/2026-07-29-匯出給NotebookLM.md`。
 
-- [ ] **待實作**：`/chat`、`/conversations/{id}`、`/roots` 各加兩顆鈕——**📋 複製 Markdown**（整段/根因→乾淨
-  Markdown：標題＋內文＋行末 `[n]`＋底部來源）＋**🔗 複製佐證網址**（被引用 URL 每行一個）。純前端複製
-  （複用 `.mathcopy` clipboard）＋伺服器端**可測純 formatter**（對話→Markdown／→網址清單）。
+- [x] **已完成（2026-07-29）**：`/chat`、`/conversations/{id}`、`/roots` 各加**📋 複製 Markdown**＋
+  **🔗 複製佐證網址**兩顆鈕。純 formatter 模組 `export/notebooklm.py`（零相依 4 函式）＋3 個 `text/plain`
+  端點（`as=md|urls`）＋共用 `copyExport`/toast。**來源逐訊息塊**（避 `[n]` 撞號，非全域清單）。
+  spec 024、history/063；368→393 綠。**零外部相依**故離線測即完整驗證（無真後端待驗）。
 
 <!--
   規劃：knowie-next/capture（2026-07-29）。使用者定案：「複製 Markdown 和複製佐證網址都要，才能都丟給
@@ -626,13 +627,12 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 -->
 
 **成功標準（可驗）：**
-- [ ] `/chat`、`/conversations/{id}`、`/roots` 皆可**一鍵複製 Markdown**（乾淨、含引用與來源清單，貼進
-  NotebookLM 當文字來源可讀）
-- [ ] 皆可**一鍵複製佐證網址**（被引用來源、每行一個，貼進 NotebookLM 當 URL 來源）
-- [ ] **可測純 formatter**：對話→Markdown、對話→網址清單為純函式，離線可測、失敗不崩（教訓 1/3）
-- [ ] **純匯出、唯讀**：不改場、不注入回對話（不觸 principle 6 污染面）；全繁中；核心零相依（憲章 IV）
-- [ ] 測試 368→（新增）不回歸
-- [ ] **out of scope**：下載 `.md` 檔、LLM「蒸餾 brief」、直推 NotebookLM API、對話全文搜尋（未做）
+- [x] `/chat`、`/conversations/{id}`、`/roots` 皆可**一鍵複製 Markdown**（乾淨、含引用與來源，貼 NotebookLM 文字來源）
+- [x] 皆可**一鍵複製佐證網址**（被引用來源、去重每行一個，貼 NotebookLM URL 來源）
+- [x] **可測純 formatter**：對話→Markdown、對話→網址清單為純函式，離線可測、失敗不崩（教訓 1/3）
+- [x] **純匯出、唯讀**：不改場、不注入回對話（守衛測：匯出後 `build_field_system_prompt` 不含發想內容，principle 6）；全繁中；核心零相依
+- [x] 測試 368→393（＋25）不回歸
+- [x] **out of scope**：下載 `.md` 檔、LLM「蒸餾 brief」、直推 NotebookLM API、對話全文搜尋（未做）
 
 ## 關鍵延伸（主題觸發必讀）
 
