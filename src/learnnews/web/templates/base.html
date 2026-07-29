@@ -111,14 +111,36 @@
       var prev = m.style.background; m.style.background = 'rgba(34,197,94,.30)';
       setTimeout(function () { m.style.background = prev; }, 450);
     });
+    // 複製一整段（可含多個數學片段）：把選取範圍內每個 .mathcopy 還原成其 LaTeX 原始碼
+    // （含 $ / $$ 分隔符），其餘文字照舊 → 貼出來就是可再編輯的原始碼，不是 MathJax 渲染物。
+    function mathOf(n) {
+      if (!n) return null;
+      var el = n.nodeType === 1 ? n : n.parentElement;
+      return el && el.closest ? el.closest('.mathcopy') : null;
+    }
     document.addEventListener('copy', function (e) {
-      var sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return;
-      function mathOf(n) { if (!n) return null; var el = n.nodeType === 1 ? n : n.parentElement; return el && el.closest ? el.closest('.mathcopy') : null; }
-      var a = mathOf(sel.anchorNode);
-      if (a && a === mathOf(sel.focusNode) && e.clipboardData) {
-        e.clipboardData.setData('text/plain', a.getAttribute('data-tex'));
-        e.preventDefault();
+      var sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !e.clipboardData) return;
+      var range = sel.getRangeAt(0);
+      var frag = range.cloneContents();
+      var maths = frag.querySelectorAll ? frag.querySelectorAll('.mathcopy') : [];
+      if (!maths.length) {
+        // 選取整個落在單一數學元素內（cloneContents 不含該祖先）→ 直接回傳其 LaTeX
+        var a = mathOf(sel.anchorNode);
+        if (a && a === mathOf(sel.focusNode)) {
+          e.clipboardData.setData('text/plain', a.getAttribute('data-tex'));
+          e.preventDefault();
+        }
+        return;   // 純文字、無數學 → 讓瀏覽器預設處理
       }
+      // 混合選取：逐一把 .mathcopy 換成其 data-tex（block 前後補換行，較像 markdown）
+      maths.forEach(function (m) {
+        var tex = m.getAttribute('data-tex') || '';
+        var block = m.classList && m.classList.contains('mathcopy-block');
+        m.replaceWith(document.createTextNode(block ? ('\n' + tex + '\n') : tex));
+      });
+      e.clipboardData.setData('text/plain', frag.textContent);
+      e.preventDefault();
     });
   </script>
 </body>
