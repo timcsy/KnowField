@@ -143,6 +143,16 @@ class TestChatWeb(unittest.TestCase):
                              follow_redirects=True)
         self.assertEqual(called["n"], 0)
 
+    def test_branch_loads_prefix_and_draft(self):                # 開新分支：載入前綴＋預填
+        app = build_app(temp_db())
+        hist = json.dumps([{"role": "user", "content": "第一句"},
+                           {"role": "assistant", "content": "第一答"}])
+        r = TestClient(app).post("/chat/branch",
+                                 data={"history": hist, "draft": "改寫的問法"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("第一句", r.text)                          # 前綴載入
+        self.assertIn("改寫的問法", r.text)                      # 那句放回輸入框（draft）
+
     def test_failure_friendly(self):                             # T016
         app = build_app(temp_db())
 

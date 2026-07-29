@@ -626,6 +626,15 @@ def create_app() -> FastAPI:
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
+    @app.post("/chat/branch", response_class=HTMLResponse)
+    async def chat_branch(request: Request, history: str = Form("[]"), draft: str = Form("")):
+        """從某句開新分支：另開一頁、載入 history 前綴＋把那句放回輸入框（原對話那頁不動）。"""
+        hist = _parse_history(history)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
+                     "draft": draft, "root_count": _root_count()})
+
     @app.post("/chat/distill", response_class=HTMLResponse)
     async def chat_distill(request: Request, history: str = Form("[]")):
         hist = _parse_history(history)

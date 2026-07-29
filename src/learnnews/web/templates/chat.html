@@ -52,7 +52,7 @@
     <input type="hidden" name="history" value='{{ history_json }}'>
     <textarea name="message" rows="2" autofocus
               class="textarea textarea-bordered w-full mb-2"
-              placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…"></textarea>
+              placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…">{{ draft or '' }}</textarea>
     <div class="flex items-center gap-3">
       <button class="btn btn-primary btn-sm">送出</button>
       <label class="label cursor-pointer gap-2 py-0">
@@ -151,14 +151,20 @@
       }
       function userBubble(m, i) {
         var wrap = document.createElement('div'); wrap.className = 'flex justify-end items-start gap-1';
+        var tools = document.createElement('div'); tools.className = 'flex flex-col gap-0.5 mt-1';
         var edit = document.createElement('button');
-        edit.type = 'button'; edit.className = 'btn btn-ghost btn-xs opacity-40 mt-1';
-        edit.textContent = '✏️'; edit.title = '編輯這句、從這裡重問';
+        edit.type = 'button'; edit.className = 'btn btn-ghost btn-xs opacity-40';
+        edit.textContent = '✏️'; edit.title = '編輯這句、從這裡重問（這串會改）';
         edit.addEventListener('click', function () { editAt(i); });
+        var branch = document.createElement('button');
+        branch.type = 'button'; branch.className = 'btn btn-ghost btn-xs opacity-40';
+        branch.textContent = '🌱'; branch.title = '從這裡開新分支（另開一頁，這串保留）';
+        branch.addEventListener('click', function () { branchAt(i); });
+        tools.appendChild(edit); tools.appendChild(branch);
         var b = document.createElement('div');
         b.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
         b.textContent = m.content;
-        wrap.appendChild(edit); wrap.appendChild(b); return wrap;
+        wrap.appendChild(tools); wrap.appendChild(b); return wrap;
       }
       function assistantCard(m, i) {
         var prefix = 'm' + i + '-src';
@@ -193,6 +199,15 @@
         ta().value = history[i] ? history[i].content : '';
         history.length = i;                 // 砍掉這句及之後（從這裡重問）
         syncHidden(); renderConversation(); ta().focus();
+      }
+      function branchAt(i) {                 // 從這裡開新分支：另開一頁載入前綴（原頁不動）
+        var f = document.createElement('form');
+        f.method = 'POST'; f.action = '/chat/branch'; f.target = '_blank'; f.style.display = 'none';
+        var h = document.createElement('input'); h.name = 'history';
+        h.value = JSON.stringify(history.slice(0, i)); f.appendChild(h);
+        var d = document.createElement('input'); d.name = 'draft';
+        d.value = history[i] ? history[i].content : ''; f.appendChild(d);
+        document.body.appendChild(f); f.submit(); document.body.removeChild(f);
       }
 
       if (!canStream) {   // 無 JS 串流：至少渲染 markdown（server 已渲染訊息，無編輯鈕）
