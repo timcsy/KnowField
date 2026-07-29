@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     source_entry_id INTEGER,           -- 來源種子 digest_entries.id
     created_at TEXT                    -- 建立時間（呼叫端傳入）
 );
+
+-- 對話的「由來」存檔（spec 023，episodes 層）：第一個落庫的對話產物。唯讀參考、不入地基（原則 6）。
+CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,                        -- 自動「由來」標題（一句摘要）
+    messages TEXT DEFAULT '[]',        -- JSON：整段訊息（role/content/sources）
+    why_node_id INTEGER,               -- 可空：連到的核心理解；無 FK（刪根因→對話變獨立、不崩）
+    created_at TEXT
+);
 """
 
 
@@ -131,3 +140,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
     wn_cols = {r[1] for r in conn.execute("PRAGMA table_info(why_nodes)").fetchall()}
     if wn_cols and "ladder" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN ladder TEXT DEFAULT '[]'")
+    # spec 023：既有 db 補 conversations 表（對話由來存檔，CREATE IF NOT EXISTS，不動既有表）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            messages TEXT DEFAULT '[]',
+            why_node_id INTEGER,
+            created_at TEXT
+        )""")

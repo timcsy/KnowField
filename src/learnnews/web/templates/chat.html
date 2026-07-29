@@ -63,10 +63,16 @@
   </form>
 
   {% if messages %}
-    <form action="/chat/distill" method="post" onsubmit="return busy(this, '整理中…')">
-      <input type="hidden" name="history" value='{{ history_json }}'>
-      <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
-    </form>
+    <div class="flex gap-2 flex-wrap">
+      <form action="/chat/distill" method="post" onsubmit="return busy(this, '整理中…')">
+        <input type="hidden" name="history" value='{{ history_json }}'>
+        <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
+      </form>
+      <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
+        <input type="hidden" name="history" value='{{ history_json }}'>
+        <button class="btn btn-ghost btn-sm">💾 存這段對話</button>
+      </form>
+    </div>
   {% endif %}
 
   <div id="busy" class="hidden fixed inset-x-0 bottom-6 flex justify-center z-40">
@@ -91,6 +97,11 @@
                         placeholder="為什麼會這樣，一行一層">{{ c.ladder | join('\n') }}</textarea>
               <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}"
                      class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
+              <input type="hidden" name="history" value='{{ history_json }}'>
+              <label class="label cursor-pointer justify-start gap-2 py-0">
+                <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
+                <span class="label-text text-xs">連同這段對話存成「由來」（日後查得到當初怎麼想的）</span>
+              </label>
               <button class="btn btn-primary btn-sm">存這條</button>
             </form>
           </div></div>

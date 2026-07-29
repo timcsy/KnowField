@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ conv.title or "對話" }} — LearnNews{% endblock %}
+{% block content %}
+  <a href="/conversations" class="link link-hover text-sm">← 對話存檔</a>
+  <div class="flex items-center gap-2 mt-1 mb-1">
+    <h1 class="text-xl font-bold">{{ conv.title or "（未命名對話）" }}</h1>
+  </div>
+  <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）</p>
+
+  <div class="space-y-4">
+    {% for m in conv.messages %}
+      {% if m.role == "user" %}
+        <div class="flex justify-end">
+          <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
+        </div>
+      {% else %}
+        {% set p = 'v' ~ loop.index %}
+        <div class="card bg-base-100 shadow-sm"><div class="card-body p-4">
+          <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
+          {% if m.sources %}
+            <div class="text-sm pt-2 border-t border-base-200 mt-1">
+              <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
+              <ul class="space-y-0.5">
+                {% for s in m.sources %}
+                  <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
+                    <span class="badge badge-xs badge-outline">{{ s.n }}</span>
+                    <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title or s.url }}</a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </div></div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <script>
+    (function () {
+      function render(el) {
+        var prefix = el.getAttribute('data-src-prefix') || 'src';
+        var raw = el.textContent, math = [];
+        var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+          function (m) { math.push(m); return '@@M' + (math.length - 1) + '@@'; });
+        var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
+        html = html.replace(/@@M(\d+)@@/g, function (_, i) { return math[+i]; });
+        html = html.replace(/\[(\d+)\]/g, function (_, n) {
+          return '<a href="#' + prefix + '-' + n + '" class="cite">[' + n + ']</a>'; });
+        el.innerHTML = html;
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+      }
+      document.querySelectorAll('.md-render').forEach(render);
+    })();
+  </script>
+{% endblock %}

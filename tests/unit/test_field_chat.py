@@ -98,6 +98,20 @@ class TestReplyStream(unittest.TestCase):
         self.assertEqual(out, StubChatBackend().reply([{"role": "user", "content": "嗨"}]))
 
 
+class TestTitle(unittest.TestCase):
+    def test_title_from_backend(self):                           # T005
+        t = FieldChat(_SpyBackend(reply="注意力為何用加權")).title(
+            [{"role": "user", "content": "attention 的本質？"}])
+        self.assertEqual(t, "注意力為何用加權")
+
+    def test_title_fallback_on_failure(self):                    # T005（教訓 3）
+        class _Boom:
+            def reply(self, m): raise RuntimeError("炸")
+        t = FieldChat(_Boom()).title([{"role": "user", "content": "這段對話在聊 X 的原理"}])
+        self.assertTrue(t.strip())                               # 不崩、有 fallback
+        self.assertIn("X", t)                                    # 退回首個 user 訊息
+
+
 class TestSearchQuery(unittest.TestCase):
     def test_extracts_query(self):
         q = FieldChat(_SpyBackend(reply="flow matching generative model")).search_query(

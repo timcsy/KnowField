@@ -163,6 +163,21 @@ class FieldChat:
         yield from self.backend.stream(
             self._messages(history, user_msg, roots, sources, brainstorm, max_history))
 
+    def title(self, messages: list[dict]) -> str:
+        """為一段對話生一句「由來」標題（≤20 字）。失敗→退回首個 user 訊息截斷（教訓 3）。"""
+        first = next((m.get("content", "") for m in messages
+                      if m.get("role") == "user"), "")
+        convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in messages)[:2000]
+        try:
+            t = self.backend.reply([
+                {"role": "system", "content":
+                 "用一句話（不超過 20 字）描述這段對話在聊什麼，當標題。只輸出標題，不要引號或別的字。"},
+                {"role": "user", "content": convo}])
+            t = (t or "").strip().splitlines()[0].strip().strip('"「」') if t else ""
+        except Exception:  # noqa: BLE001 - 標題失敗不該讓「存對話」崩
+            t = ""
+        return t or (first.strip()[:20] if first.strip() else "（未命名對話）")
+
     def search_query(self, history: list[dict], user_msg: str) -> str:
         """把使用者這輪的問題轉成好的 web 搜尋 query（消歧義）。失敗/空→退回原句。"""
         ctx = ""

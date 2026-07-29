@@ -428,6 +428,48 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # --- 對話的「由來」存檔（spec 023，episodes 層）---
+    def save_conversation(self, title: str, messages: list,
+                          why_node_id: int | None = None) -> int:
+        """存下整段對話（人按才呼叫）。why_node_id 可空（獨立存）。回 id。"""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = self.conn.execute(
+            "INSERT INTO conversations (title, messages, why_node_id, created_at)"
+            " VALUES (?,?,?,?)",
+            (title, json.dumps(messages, ensure_ascii=False), why_node_id, now))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def _row_to_conversation(self, r):
+        from ..models import Conversation
+        return Conversation(
+            id=r["id"], title=r["title"] or "",
+            messages=json.loads(r["messages"] or "[]"),
+            why_node_id=r["why_node_id"], created_at=r["created_at"] or "")
+
+    def list_conversations(self) -> list:
+        rows = self.conn.execute(
+            "SELECT id, title, messages, why_node_id, created_at FROM conversations"
+            " ORDER BY id DESC").fetchall()
+        return [self._row_to_conversation(r) for r in rows]
+
+    def get_conversation(self, cid: int):
+        r = self.conn.execute(
+            "SELECT id, title, messages, why_node_id, created_at FROM conversations"
+            " WHERE id=?", (cid,)).fetchone()
+        return self._row_to_conversation(r) if r else None
+
+    def why_node_provenance(self) -> dict:
+        """{why_node_id: conversation_id}——供 /roots 顯示「← 由來」。只含**仍存在**的根因
+        （JOIN why_nodes：刪根因後對話變獨立、不再連得到，D3）。同一根因多段取最新。"""
+        out: dict = {}
+        for r in self.conn.execute(
+            "SELECT c.why_node_id AS wid, c.id AS cid FROM conversations c"
+            " JOIN why_nodes w ON w.id=c.why_node_id ORDER BY c.id ASC").fetchall():
+            out[r["wid"]] = r["cid"]   # ASC → 後者覆蓋＝最新
+        return out
+
     def set_seed_class(self, entry_id: int, cls: str) -> bool:
         """重分類種子（限種子容器）。cls∈{explainer,ordinary}；否則/非種子 → 回 False。"""
         if cls not in ("explainer", "ordinary"):

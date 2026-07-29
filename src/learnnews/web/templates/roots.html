@@ -83,6 +83,9 @@
                   <a href="{{ u }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ u }}</a>{% if not loop.last %}、{% endif %}
                 {% endfor %}
               </div>
+              {% if provenance and w.id in provenance %}
+                <a href="/conversations/{{ provenance[w.id] }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（當初怎麼想到的對話）</a>
+              {% endif %}
             </div>
             <form action="/whynode/remove" method="post" class="shrink-0"
                   onsubmit="return confirm('退回這個已冊封的根因？（問答將不再用它）');">

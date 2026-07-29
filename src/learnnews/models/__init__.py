@@ -157,3 +157,14 @@ class BehaviorSignal:
     def __post_init__(self) -> None:
         if self.action not in ("clicked", "skipped"):
             raise ValueError(f"未知的行為：{self.action}")
+
+
+@dataclass
+class Conversation:
+    """存下的對話（spec 023，episodes 層）：整段訊息＋自動由來標題＋可選連到的核心理解。"""
+
+    id: int
+    title: str
+    messages: list = field(default_factory=list)   # [{role, content, sources?}]
+    why_node_id: int | None = None
+    created_at: str = ""

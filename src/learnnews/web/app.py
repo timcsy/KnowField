@@ -207,6 +207,25 @@ def create_app() -> FastAPI:
         return FieldChat(_chat_backend()).distill(history, [])
     app.state.distill_factory = _default_distill
 
+    def _default_title(messages):
+        from ..chat.field_chat import FieldChat
+        return FieldChat(_chat_backend()).title(messages)
+    app.state.title_factory = _default_title
+
+    def _convo_title(messages):
+        """自動由來標題；失敗/空 → 退回首個 user 訊息截斷（教訓 3，不讓存對話崩）。"""
+        try:
+            t = (app.state.title_factory(messages) or "").strip()
+        except Exception as e:  # noqa: BLE001
+            _log.error("生對話標題失敗", extra={"extra": {"reason": str(e)}})
+            t = ""
+        if not t:
+            first = next((m.get("content", "") for m in messages
+                          if m.get("role") == "user"), "")
+            t = first.strip()[:20] or "（未命名對話）"
+        return t
+    app.state._convo_title = _convo_title
+
 
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
@@ -412,10 +431,12 @@ def create_app() -> FastAPI:
         repo = app.state.repo_factory(app.state.config)
         candidates = repo.list_why_nodes("candidate")
         anointed = repo.list_why_nodes("anointed")
+        provenance = repo.why_node_provenance()     # {why_node_id: conversation_id}（spec 023 由來連結）
         repo.close()
         return _TEMPLATES.TemplateResponse(
             request=request, name="roots.html",
-            context={"candidates": candidates, "anointed": anointed, "msg": msg})
+            context={"candidates": candidates, "anointed": anointed, "msg": msg,
+                     "provenance": provenance})
 
     @app.post("/whynode/extract")
     async def whynode_extract(entry_id: int = Form(0)):
@@ -595,8 +616,9 @@ def create_app() -> FastAPI:
 
     @app.post("/chat/anoint", response_class=HTMLResponse)
     async def chat_anoint(request: Request, claim: str = Form(""),
-                          ladder: str = Form(""), evidence_urls: str = Form("")):
-        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。可回 /roots 檢視/刪。"""
+                          ladder: str = Form(""), evidence_urls: str = Form(""),
+                          save_convo: str = Form(""), history: str = Form("[]")):
+        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。save_convo=1 連同存這段對話成由來（spec 023）。"""
         claim = (claim or "").strip()
         msg = None
         if claim:
@@ -606,12 +628,53 @@ def create_app() -> FastAPI:
             repo = app.state.repo_factory(app.state.config)
             wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
             repo.anoint_why_node(wid)
-            repo.close()
             msg = f"已存進你的知識庫：「{claim[:40]}」（可到『根因』頁檢視或刪除）"
+            if save_convo == "1":               # 連同這段對話存成由來（連到剛冊封的根因）
+                messages = _parse_history(history)
+                if messages:
+                    repo.save_conversation(_convo_title(messages), messages, wid)
+                    msg += "，並存下這段對話當它的由來"
+            repo.close()
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": [], "history_json": "[]", "anoint_msg": msg,
                      "root_count": _root_count()})
+
+    @app.post("/chat/save", response_class=HTMLResponse)
+    async def chat_save(request: Request, history: str = Form("[]")):
+        """獨立存這段對話（spec 023，人閘門、原則 5）。空對話→友善不存。"""
+        messages = _parse_history(history)
+        saved_msg = None
+        if messages:
+            repo = app.state.repo_factory(app.state.config)
+            repo.save_conversation(_convo_title(messages), messages, None)
+            repo.close()
+            saved_msg = "已存下這段對話（可到『對話存檔』檢視）"
+        else:
+            saved_msg = "這段對話還是空的，沒有東西可存。"
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": [], "history_json": "[]", "anoint_msg": saved_msg,
+                     "root_count": _root_count()})
+
+    @app.get("/conversations", response_class=HTMLResponse)
+    async def conversations_list(request: Request):
+        """存下的對話清單（唯讀；不入地基，原則 6）。"""
+        repo = app.state.repo_factory(app.state.config)
+        convs = repo.list_conversations()
+        repo.close()
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="conversations.html", context={"conversations": convs})
+
+    @app.get("/conversations/{cid}", response_class=HTMLResponse)
+    async def conversation_view(request: Request, cid: int):
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        repo.close()
+        if conv is None:
+            return RedirectResponse("/conversations", status_code=303)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="conversation.html", context={"conv": conv})
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):
