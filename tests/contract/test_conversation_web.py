@@ -94,6 +94,22 @@ class TestConversationWeb(unittest.TestCase):
         self.assertEqual(r2.status_code, 200)
         self.assertIn("答X", r2.text)                            # 單篇含整段
 
+    def test_resume_loads_into_chat(self):                       # 存下的對話接著聊
+        db = temp_db()
+        repo = Repository(db)
+        cid = repo.save_conversation("舊探索", [
+            {"role": "user", "content": "當初問的 UNIQUE_Q"},
+            {"role": "assistant", "content": "當初的答"}], None)
+        repo.close()
+        r = TestClient(build_app(db)).get(f"/conversations/{cid}/resume")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("UNIQUE_Q", r.text)                        # 載入了存下的對話
+        self.assertIn("/chat/stream", r.text)                    # 是 live 對話頁（可繼續聊）
+        # 存檔原封不動（接著聊不改快照）
+        repo = Repository(db)
+        self.assertEqual(len(repo.list_conversations()), 1)
+        repo.close()
+
     def test_roots_shows_provenance_link(self):                  # T012 根因由來連結
         db = temp_db()
         repo = Repository(db)

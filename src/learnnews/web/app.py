@@ -711,6 +711,21 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="conversation.html", context={"conv": conv})
 
+    @app.get("/conversations/{cid}/resume", response_class=HTMLResponse)
+    async def conversation_resume(request: Request, cid: int):
+        """以存下的對話接著聊：載進 live /chat（原存檔是快照、不動）；載進去後可從任一句編輯/開分支。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        rc = len(repo.list_why_nodes("anointed"))
+        repo.close()
+        if conv is None:
+            return RedirectResponse("/conversations", status_code=303)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="chat.html",
+            context={"messages": conv.messages,
+                     "history_json": json.dumps(conv.messages, ensure_ascii=False),
+                     "root_count": rc})
+
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_get(request: Request):
         repo = app.state.repo_factory(app.state.config)

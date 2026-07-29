@@ -2,10 +2,12 @@
 {% block title %}{{ conv.title or "對話" }} — LearnNews{% endblock %}
 {% block content %}
   <a href="/conversations" class="link link-hover text-sm">← 對話存檔</a>
-  <div class="flex items-center gap-2 mt-1 mb-1">
+  <div class="flex items-center justify-between gap-2 mt-1 mb-1 flex-wrap">
     <h1 class="text-xl font-bold">{{ conv.title or "（未命名對話）" }}</h1>
+    <a href="/conversations/{{ conv.id }}/resume" class="btn btn-primary btn-sm">以這段接著聊 →</a>
   </div>
-  <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）</p>
+  <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）·
+    接著聊會載進對話頁、可從任一句編輯或開分支（原存檔不動）</p>
 
   <div class="space-y-4">
     {% for m in conv.messages %}
