@@ -115,7 +115,7 @@
                 {%- elif '規律' in c.kind %} badge-info
                 {%- else %} badge-ghost{% endif %} w-fit">{{ c.kind }}</span>
             {% endif %}
-            <form action="/chat/anoint" method="post" class="space-y-2">
+            <form action="/chat/anoint" method="post" class="space-y-2" onsubmit="return anointOne(this)">
               <input name="claim" value="{{ c.claim }}" class="input input-bordered input-sm w-full">
               <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full"
                         placeholder="為什麼會這樣，一行一層">{{ c.ladder | join('\n') }}</textarea>
@@ -132,6 +132,33 @@
         {% endfor %}
       </div>
     </div>
+    <script>
+      // 存這條＝AJAX 存、**不跳頁**（多條候選可逐條存，剩下的還在）。spec 025 去重讓多條連同一份對話。
+      async function anointOne(form) {
+        var btn = form.querySelector('button');
+        if (btn) { btn.disabled = true; btn.textContent = '存中…'; }
+        try {
+          var resp = await fetch('/chat/anoint', { method: 'POST', body: new FormData(form) });
+          if (!resp.ok) throw new Error(resp.status);
+          var claim = (form.querySelector('[name=claim]') || {}).value || '';
+          var card = form.closest('.card');
+          if (card) {
+            var body = card.querySelector('.card-body');
+            body.textContent = '';
+            var ok = document.createElement('div');
+            ok.className = 'text-success text-sm py-1';
+            ok.textContent = '✅ 已存進知識庫：' + claim.slice(0, 40) + '（可到「根因」頁看）';
+            body.appendChild(ok);
+          }
+          if (window.markCaptured) window.markCaptured();
+          if (window.showToast) window.showToast('已存這條');
+        } catch (e) {
+          if (btn) { btn.disabled = false; btn.textContent = '存這條'; }
+          if (window.showToast) window.showToast('存這條失敗，請再試一次', true);
+        }
+        return false;   // 阻止表單導頁
+      }
+    </script>
   {% endif %}
 
   <script>
