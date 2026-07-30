@@ -643,7 +643,11 @@ def create_app() -> FastAPI:
                 cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
                 numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
                             for i, s in enumerate(sources, 1) if i in cited]
-                yield _sse({"type": "done", "text": full, "sources": numbered})
+                # 有撒到、但沒被引用的來源 → 收進折疊區「也找到（未直接引用）」（不進存檔）
+                extra = [{"n": i, "url": s.url, "title": s.title or s.url}
+                         for i, s in enumerate(sources, 1) if i not in cited]
+                yield _sse({"type": "done", "text": full, "sources": numbered,
+                            "found_extra": extra})
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
                 yield _sse({"type": "error", "text": str(e)})
