@@ -30,62 +30,77 @@
   <p class="text-xs text-base-content/50 mb-4">{{ conv.created_at[:10] }} · 唯讀存檔（不入地基）·
     接著聊會載進對話頁、可從任一句編輯或開分支（原存檔不動）</p>
 
-  {% if chapters %}
-    <div class="card bg-base-100 shadow-sm mb-4">
-      <div class="card-body py-3 px-5">
-        <div class="font-semibold text-sm mb-1">🔖 章節（點小標跳到該段）</div>
-        <ol class="space-y-1.5">
-          {% for ch in chapters %}
-            <li class="text-sm">
-              <a href="#msg-{{ ch.start }}" class="link link-hover font-medium">{{ ch.title }}</a>
-              <span class="text-xs text-base-content/50">· 第 {{ ch.start }}–{{ ch.end }} 則</span>
-              {% if ch.summary %}<div class="text-xs text-base-content/60">{{ ch.summary }}</div>{% endif %}
-              <div class="flex gap-1 mt-0.5">
-                <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/conversations/{{ conv.id }}/export?as=md&from={{ ch.start }}&to={{ ch.end }}')"
-                        title="只複製這一章的 Markdown">📋 這章 md</button>
-                <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls&from={{ ch.start }}&to={{ ch.end }}', {empty:'這章沒有佐證網址'})"
-                        title="只複製這一章的佐證網址">🔗 這章網址</button>
-                <form action="/conversations/{{ conv.id }}/distill?from={{ ch.start }}&to={{ ch.end }}"
-                      method="post" class="inline">
-                  <button class="btn btn-ghost btn-xs" title="就這一章整理成一條重點（要不要冊封你決定）">🧪 整理這章</button>
-                </form>
-              </div>
-            </li>
-          {% endfor %}
-        </ol>
+  {# ── 一則訊息的渲染（章節模式與平鋪模式共用）── #}
+  {% macro render_msg(m, idx) %}
+    {% if m.role == "user" %}
+      <div class="flex justify-end" id="msg-{{ idx }}" style="scroll-margin-top:5rem">
+        <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
       </div>
+    {% else %}
+      {% set p = 'v' ~ idx %}
+      <div class="card bg-base-100 shadow-sm" id="msg-{{ idx }}" style="scroll-margin-top:5rem"><div class="card-body p-4">
+        <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
+        {% if m.sources %}
+          <div class="text-sm pt-2 border-t border-base-200 mt-1">
+            <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
+            <ul class="space-y-0.5">
+              {% for s in m.sources %}
+                <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
+                  <span class="badge badge-xs badge-outline">{{ s.n }}</span>
+                  <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title or s.url }}</a>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div></div>
+    {% endif %}
+  {% endmacro %}
+
+  {% if chapters %}
+    {# 章節模式：每章一個可折疊區塊（展開收合），內含該章訊息 #}
+    <div class="flex items-center gap-2 mb-2 text-sm flex-wrap">
+      <span class="text-base-content/60">🔖 共 {{ chapters|length }} 章</span>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="toggleChapters(true)">全部展開</button>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="toggleChapters(false)">全部收合</button>
+    </div>
+    <div class="space-y-3">
+      {% for ch in chapters %}
+        <details open class="chapter card bg-base-100 shadow-sm">
+          <summary class="cursor-pointer select-none px-4 py-2 flex items-center gap-2 flex-wrap">
+            <span class="font-medium">{{ ch.title }}</span>
+            <span class="text-xs text-base-content/50">第 {{ ch.start }}–{{ ch.end }} 則</span>
+          </summary>
+          <div class="px-4 pb-3">
+            {% if ch.summary %}<p class="text-xs text-base-content/60 mb-2">{{ ch.summary }}</p>{% endif %}
+            <div class="flex gap-1 mb-3 flex-wrap">
+              <button type="button" class="btn btn-ghost btn-xs"
+                      onclick="copyExport('/conversations/{{ conv.id }}/export?as=md&from={{ ch.start }}&to={{ ch.end }}')"
+                      title="只複製這一章的 Markdown">📋 這章 md</button>
+              <button type="button" class="btn btn-ghost btn-xs"
+                      onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls&from={{ ch.start }}&to={{ ch.end }}', {empty:'這章沒有佐證網址'})"
+                      title="只複製這一章的佐證網址">🔗 這章網址</button>
+              <form action="/conversations/{{ conv.id }}/distill?from={{ ch.start }}&to={{ ch.end }}"
+                    method="post" class="inline">
+                <button class="btn btn-ghost btn-xs" title="就這一章整理成一條重點（要不要冊封你決定）">🧪 整理這章</button>
+              </form>
+            </div>
+            <div class="space-y-4">
+              {% for ci in range(ch.start, ch.end + 1) %}
+                {{ render_msg(conv.messages[ci - 1], ci) }}
+              {% endfor %}
+            </div>
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="space-y-4">
+      {% for m in conv.messages %}
+        {{ render_msg(m, loop.index) }}
+      {% endfor %}
     </div>
   {% endif %}
-
-  <div class="space-y-4">
-    {% for m in conv.messages %}
-      {% if m.role == "user" %}
-        <div class="flex justify-end" id="msg-{{ loop.index }}" style="scroll-margin-top:5rem">
-          <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
-        </div>
-      {% else %}
-        {% set p = 'v' ~ loop.index %}
-        <div class="card bg-base-100 shadow-sm" id="msg-{{ loop.index }}" style="scroll-margin-top:5rem"><div class="card-body p-4">
-          <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
-          {% if m.sources %}
-            <div class="text-sm pt-2 border-t border-base-200 mt-1">
-              <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
-              <ul class="space-y-0.5">
-                {% for s in m.sources %}
-                  <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
-                    <span class="badge badge-xs badge-outline">{{ s.n }}</span>
-                    <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title or s.url }}</a>
-                  </li>
-                {% endfor %}
-              </ul>
-            </div>
-          {% endif %}
-        </div></div>
-      {% endif %}
-    {% endfor %}
-  </div>
 
   <script>
     (function () {
@@ -109,5 +124,16 @@
       }
       document.querySelectorAll('.md-render').forEach(render);
     })();
+    // 章節展開/收合（spec 027 UI）
+    function toggleChapters(open) {
+      document.querySelectorAll('details.chapter').forEach(function (d) { d.open = open; });
+    }
   </script>
+  <style>
+    details.chapter > summary { list-style: none; }
+    details.chapter > summary::-webkit-details-marker { display: none; }
+    details.chapter > summary::before { content: '▸'; margin-right: .4rem; color: #2563eb; transition: transform .15s; display: inline-block; }
+    details.chapter[open] > summary::before { transform: rotate(90deg); }
+    details.chapter > summary:hover { background: rgba(37,99,235,.06); border-radius: 6px; }
+  </style>
 {% endblock %}
