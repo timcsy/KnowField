@@ -28,6 +28,10 @@
 9. **串流**：blocking 50-70s → SSE 串流＋分段進度。**真後端照出使用者的 API 閘道不支援串流**（送
    stream:true 仍回整包 JSON）→ `_post_stream` 偵測非 SSE 就退回解析整包、一次吐完整答案（穩健、
    未來換串流端就真串流）。＝供應商限制、非 bug；真實測試才照得出。
+   - **潛在回歸（2026-07-31 使用者踩到）**：動作列（整理/存/匯出）綁在**伺服器端** `{% if messages %}`，但
+     串流對話 server 端 `messages=[]`（對話由 client JS 建）→ **全新串流 session 那排按鈕從沒 render**、「不能
+     存檔」。修：動作列**永遠在 DOM、由 client `history` 顯隱**（syncHidden 同步隱藏欄、copyChat 讀 live）。
+     教訓：**串流化把渲染搬到 client 時，所有依賴 server render 的 UI 都得一起搬**，漏一個就潛伏到有人踩。純前端、441 綠。
 10. **網址讀取**：貼 arXiv 網址 AI 只能說「打不開」→ 偵測訊息裡 URL、伺服器端 best-effort 抓內容
     （複用 `fetch_url`）注入該輪場脈絡；抓不到→給 note、令 AI **據實說讀不到、不假裝讀過**（教訓 3）。
     真驗：貼 2511.11665 → 真讀到（RoPE→Clifford rotor）。＝moment-A「收內容 vs 收網址」在對話重現。

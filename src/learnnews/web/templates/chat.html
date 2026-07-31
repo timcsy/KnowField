@@ -72,32 +72,32 @@
     </div>
   </form>
 
-  {% if messages %}
-    <div class="flex gap-2 flex-wrap">
-      <form id="distill-form" action="/chat/distill" method="post" onsubmit="markCaptured(); return busy(this, '整理中…')">
-        <input type="hidden" name="history" value='{{ history_json }}'>
-        <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
-      </form>
-      <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
-        <input type="hidden" name="history" value='{{ history_json }}'>
-        <button class="btn btn-ghost btn-sm">💾 存這段對話</button>
-      </form>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('md')"
-              title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('urls')"
-              title="複製被引用的佐證網址，貼進 NotebookLM 當網址來源">🔗 複製佐證網址</button>
-    </div>
-    <script>
-      // 匯出當前對話給 NotebookLM（spec 024）：帶 live history POST 到 /chat/export。
-      function copyChat(as) {
-        var fd = new FormData();
-        fd.append('history', {{ history_json | tojson }});
-        fd.append('as', as);
-        window.copyExport('/chat/export', { method: 'POST', body: fd,
-          empty: as === 'urls' ? '這段對話沒有被引用的佐證網址' : '這段對話還是空的' });
-      }
-    </script>
-  {% endif %}
+  {# 動作列：永遠在 DOM，串流建立的對話也顯示；無訊息時隱藏（依 client history 由 JS 切換）#}
+  <div id="chat-actions" class="flex gap-2 flex-wrap {% if not messages %}hidden{% endif %}">
+    <form id="distill-form" action="/chat/distill" method="post" onsubmit="markCaptured(); return busy(this, '整理中…')">
+      <input type="hidden" name="history" value='{{ history_json }}'>
+      <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
+    </form>
+    <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
+      <input type="hidden" name="history" value='{{ history_json }}'>
+      <button class="btn btn-ghost btn-sm">💾 存這段對話</button>
+    </form>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('md')"
+            title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('urls')"
+            title="複製被引用的佐證網址，貼進 NotebookLM 當網址來源">🔗 複製佐證網址</button>
+  </div>
+  <script>
+    // 匯出當前對話給 NotebookLM（spec 024）：讀 **live** history（syncHidden 已同步到隱藏欄）。
+    function copyChat(as) {
+      var h = (document.querySelector('input[name=history]') || {}).value || '[]';
+      var fd = new FormData();
+      fd.append('history', h);
+      fd.append('as', as);
+      window.copyExport('/chat/export', { method: 'POST', body: fd,
+        empty: as === 'urls' ? '這段對話沒有被引用的佐證網址' : '這段對話還是空的' });
+    }
+  </script>
 
   <div id="busy" class="hidden fixed inset-x-0 bottom-6 flex justify-center z-40">
     <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
@@ -268,6 +268,8 @@
           box.appendChild(m.role === 'user' ? userBubble(m, i) : assistantCard(m, i));
         });
         box.querySelectorAll('.md-render').forEach(renderMd);
+        var acts = document.getElementById('chat-actions');    // 有對話才顯示存/整理/匯出
+        if (acts) acts.classList.toggle('hidden', history.length === 0);
       }
       function editAt(i) {
         ta().value = history[i] ? history[i].content : '';
