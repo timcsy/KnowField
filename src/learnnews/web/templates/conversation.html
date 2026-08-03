@@ -9,8 +9,8 @@
               onclick="copyExport('/conversations/{{ conv.id }}/export?as=md')"
               title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
       <button type="button" class="btn btn-ghost btn-sm"
-              onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls', {empty:'這段對話沒有被引用的佐證網址'})"
-              title="複製佐證網址，貼進 NotebookLM 當網址來源">🔗 複製佐證網址</button>
+              onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls', {empty:'這段對話沒有被引用的來源網址'})"
+              title="複製來源網址，貼進 NotebookLM 當網址來源">🔗 複製來源網址</button>
       <form action="/conversations/{{ conv.id }}/segment" method="post" class="inline">
         <button class="btn btn-ghost btn-sm" title="把長對話切成可跳讀的章節">🔖 整理成章節</button>
       </form>
@@ -78,8 +78,8 @@
                       onclick="copyExport('/conversations/{{ conv.id }}/export?as=md&from={{ ch.start }}&to={{ ch.end }}')"
                       title="只複製這一章的 Markdown">📋 這章 md</button>
               <button type="button" class="btn btn-ghost btn-xs"
-                      onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls&from={{ ch.start }}&to={{ ch.end }}', {empty:'這章沒有佐證網址'})"
-                      title="只複製這一章的佐證網址">🔗 這章網址</button>
+                      onclick="copyExport('/conversations/{{ conv.id }}/export?as=urls&from={{ ch.start }}&to={{ ch.end }}', {empty:'這章沒有來源網址'})"
+                      title="只複製這一章的來源網址">🔗 這章網址</button>
               <form action="/conversations/{{ conv.id }}/distill?from={{ ch.start }}&to={{ ch.end }}"
                     method="post" class="inline">
                 <button class="btn btn-ghost btn-xs" title="就這一章整理成一條重點（要不要精選你決定）">🧪 整理這章</button>

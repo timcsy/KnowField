@@ -91,8 +91,8 @@
                         onclick="copyExport('/roots/{{ w.id }}/export?as=md')"
                         title="複製這條核心理解 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
                 <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條核心理解沒有佐證網址'})"
-                        title="複製這條核心理解的佐證網址">🔗 複製佐證網址</button>
+                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條核心理解沒有來源網址'})"
+                        title="複製這條核心理解的來源網址">🔗 複製來源網址</button>
               </div>
             </div>
             <form action="/whynode/remove" method="post" class="shrink-0"
