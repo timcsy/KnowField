@@ -100,7 +100,9 @@ CREATE TABLE IF NOT EXISTS conversations (
     title TEXT,                        -- 自動「由來」標題（一句摘要）
     messages TEXT DEFAULT '[]',        -- JSON：整段訊息（role/content/sources）
     why_node_id INTEGER,               -- 可空：連到的核心理解；無 FK（刪根因→對話變獨立、不崩）
-    created_at TEXT
+    created_at TEXT,
+    temporary INTEGER DEFAULT 0,       -- spec 028：0=永久 / 1=暫存（閒置 TTL 後懶清）
+    last_activity_at TEXT              -- spec 028：最後活動時間（TTL 起算）
 );
 """
 
@@ -163,3 +165,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
             why_node_id INTEGER,
             created_at TEXT
         )""")
+    # spec 028：conversations 補 temporary＋last_activity_at（暫存/永久生命週期）；既有列＝永久、回填時間
+    conv_cols = {r[1] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()}
+    if conv_cols and "temporary" not in conv_cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN temporary INTEGER DEFAULT 0")
+    if conv_cols and "last_activity_at" not in conv_cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN last_activity_at TEXT")
+        conn.execute(     # 既有存檔＝永久，last_activity 回填 created_at（一次性、冪等）
+            "UPDATE conversations SET last_activity_at=created_at WHERE last_activity_at IS NULL")

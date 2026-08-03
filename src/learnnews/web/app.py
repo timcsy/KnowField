@@ -563,6 +563,12 @@ def create_app() -> FastAPI:
     _NUDGE_MIN_TOTAL = 20     # 訊息數（約 10 輪）以下不吵
     _NUDGE_GAP = 16           # 自上次收又長出 ≥ 約 8 輪才提醒
 
+    def _temp_id(v) -> int:
+        try:
+            return int(v) if v else 0
+        except (TypeError, ValueError):
+            return 0
+
     def _distill_nudge(hist: list, last_captured: str):
         from ..chat.capture import distill_gap
         try:
@@ -574,9 +580,15 @@ def create_app() -> FastAPI:
 
     @app.get("/chat", response_class=HTMLResponse)
     async def chat_get(request: Request):
+        repo = app.state.repo_factory(app.state.config)
+        repo.purge_expired_temporary(_now_iso())        # 順手懶清（spec 028）
+        temps = [c for c in repo.list_conversations() if c.temporary]
+        repo.close()
+        recent = temps[0] if temps else None            # list_conversations 新到舊 → 最近暫存
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
-            context={"messages": [], "history_json": "[]", "root_count": _root_count()})
+            context={"messages": [], "history_json": "[]", "root_count": _root_count(),
+                     "recent_temp": recent})
 
     @app.post("/chat", response_class=HTMLResponse)
     async def chat_post(request: Request, history: str = Form("[]"), message: str = Form(""),
@@ -664,7 +676,8 @@ def create_app() -> FastAPI:
                      "draft": draft, "root_count": _root_count()})
 
     @app.post("/chat/distill", response_class=HTMLResponse)
-    async def chat_distill(request: Request, history: str = Form("[]")):
+    async def chat_distill(request: Request, history: str = Form("[]"),
+                           temp_id: str = Form("")):
         hist = _parse_history(history)
         cands = err = None
         try:
@@ -675,12 +688,14 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "candidates": cands, "err": err, "root_count": _root_count()})
+                     "candidates": cands, "err": err, "root_count": _root_count(),
+                     "temp_id": temp_id})     # 傳遞暫存 id → 候選冊封時升永久（spec 028）
 
     @app.post("/chat/anoint", response_class=HTMLResponse)
     async def chat_anoint(request: Request, claim: str = Form(""),
                           ladder: str = Form(""), evidence_urls: str = Form(""),
-                          save_convo: str = Form(""), history: str = Form("[]")):
+                          save_convo: str = Form(""), history: str = Form("[]"),
+                          temp_id: str = Form("")):
         """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。save_convo=1 連同存這段對話成由來（spec 023）。"""
         claim = (claim or "").strip()
         msg = None
@@ -695,7 +710,11 @@ def create_app() -> FastAPI:
             if save_convo == "1":               # 連同這段對話存成由來（連到剛冊封的根因）
                 messages = _parse_history(history)
                 if messages:
-                    repo.save_conversation(_convo_title(messages), messages, wid)
+                    tid = _temp_id(temp_id)
+                    if tid:                     # 有暫存→升永久同一筆＋連根因（spec 028，不新增）
+                        repo.promote_conversation(tid, _convo_title(messages), wid)
+                    else:
+                        repo.save_conversation(_convo_title(messages), messages, wid)
                     msg += "，並存下這段對話當它的由來"
             repo.close()
         return _TEMPLATES.TemplateResponse(
@@ -703,14 +722,47 @@ def create_app() -> FastAPI:
             context={"messages": [], "history_json": "[]", "anoint_msg": msg,
                      "root_count": _root_count()})
 
+    @app.post("/chat/autosave")
+    async def chat_autosave(history: str = Form("[]"), temp_id: str = Form("")):
+        """自動暫存（spec 028）：每輪 upsert 一筆暫存、回 temp_id。best-effort——失敗回 null、不擋聊天。"""
+        from fastapi.responses import JSONResponse
+        messages = _parse_history(history)
+        try:
+            repo = app.state.repo_factory(app.state.config)
+            tid = repo.autosave_temporary(_temp_id(temp_id) or None, messages, _now_iso())
+            repo.close()
+        except Exception as e:  # noqa: BLE001 - autosave 不該擋聊天（教訓 3）
+            _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
+            tid = None
+        return JSONResponse({"temp_id": tid})
+
+    @app.post("/conversations/{cid}/promote")
+    async def conversation_promote(cid: int):
+        """把暫存升為永久（spec 028，人按「轉永久」）：生落點標題、解除 TTL。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        if conv is not None:
+            try:
+                t = (app.state.title_factory(conv.messages) or "").strip()
+            except Exception:  # noqa: BLE001
+                t = ""
+            repo.promote_conversation(cid, t or conv.title)
+        repo.close()
+        return RedirectResponse("/conversations", status_code=303)
+
     @app.post("/chat/save", response_class=HTMLResponse)
-    async def chat_save(request: Request, history: str = Form("[]")):
-        """獨立存這段對話（spec 023，人閘門、原則 5）。空對話→友善不存。"""
+    async def chat_save(request: Request, history: str = Form("[]"), temp_id: str = Form("")):
+        """獨立存這段對話（spec 023，人閘門、原則 5）。有暫存→升永久同一筆（spec 028）。空對話→友善不存。"""
         messages = _parse_history(history)
         saved_msg = None
         if messages:
             repo = app.state.repo_factory(app.state.config)
-            repo.save_conversation(_convo_title(messages), messages, None)
+            repo.purge_expired_temporary(_now_iso())
+            tid = _temp_id(temp_id)
+            if tid:                         # 有暫存→升永久同一筆＋生落點標題（不新增）
+                repo.promote_conversation(tid, _convo_title(messages))
+            else:
+                repo.save_conversation(_convo_title(messages), messages, None)
             repo.close()
             saved_msg = "已存下這段對話（可到『對話存檔』檢視）"
         else:
@@ -746,11 +798,14 @@ def create_app() -> FastAPI:
                                  repointed: str = ""):
         """存下的對話清單（唯讀；不入地基，原則 6）。cleaned=1 時顯示清理成功 flash。"""
         repo = app.state.repo_factory(app.state.config)
+        repo.purge_expired_temporary(_now_iso())      # 懶清過期暫存（spec 028，不開背景）
         convs = repo.list_conversations()
         repo.close()
+        permanent = [c for c in convs if not c.temporary]
+        temporary = [c for c in convs if c.temporary]
         return _TEMPLATES.TemplateResponse(
             request=request, name="conversations.html",
-            context={"conversations": convs,
+            context={"conversations": permanent, "temporary": temporary,
                      "cleaned": cleaned == "1", "removed": removed, "repointed": repointed})
 
     @app.get("/conversations/{cid}", response_class=HTMLResponse)
@@ -768,6 +823,8 @@ def create_app() -> FastAPI:
         """以存下的對話接著聊：載進 live /chat（原存檔是快照、不動）；載進去後可從任一句編輯/開分支。"""
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
+        if conv is not None and conv.temporary:
+            repo.touch_conversation(cid, _now_iso())    # 接回暫存→重設計時（spec 028）
         rc = len(repo.list_why_nodes("anointed"))
         repo.close()
         if conv is None:
@@ -776,6 +833,8 @@ def create_app() -> FastAPI:
             request=request, name="chat.html",
             context={"messages": conv.messages,
                      "history_json": json.dumps(conv.messages, ensure_ascii=False),
+                     # 接回暫存→續聊 autosave 更新同一筆（永久的則不帶，續聊會另開暫存）
+                     "temp_id": cid if conv.temporary else "",
                      "root_count": rc})
 
     # --- 匯出給 NotebookLM（spec 024）：純唯讀、只把沉澱物匯出，不注入回場（原則 6）---

@@ -140,3 +140,49 @@ def normalize_chapters(raw: list, n_messages: int) -> list:
         out.append({"title": it["title"] or f"第 {i + 1} 章", "start": it["start"],
                     "end": end, "summary": it["summary"]})
     return out
+
+
+def cheap_title(messages: list) -> str:
+    """暫存用便宜標題（spec 028）：首個 user 訊息截斷（≤20），不呼 LLM。空→「（暫存對話）」。"""
+    first = ""
+    for m in messages or []:
+        if isinstance(m, dict) and m.get("role") == "user" and (m.get("content") or "").strip():
+            first = m["content"].strip()
+            break
+    return first[:20] if first else "（暫存對話）"
+
+
+def _cget(o, key, default=None):
+    """物件/字典通用取值（Conversation 或 dict 皆可）。"""
+    if isinstance(o, dict):
+        return o.get(key, default)
+    return getattr(o, key, default)
+
+
+def expired_temp_ids(convos: list, now: str, ttl_days: int = 7) -> list:
+    """回過期暫存的 id（spec 028，純函式）：temporary 為真且 now - last_activity > ttl_days。
+
+    時間缺/壞 → 保守**不選**（不誤刪）；永久（temporary 假）一律不選。
+    """
+    from datetime import datetime, timedelta
+
+    def _parse(s):
+        if not s or not isinstance(s, str):
+            return None
+        try:
+            return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, TypeError):
+            return None
+
+    now_dt = _parse(now)
+    if now_dt is None:
+        return []
+    cutoff = now_dt - timedelta(days=ttl_days)
+    out = []
+    for c in convos or []:
+        if not _cget(c, "temporary"):
+            continue
+        la = _parse(_cget(c, "last_activity_at"))
+        if la is not None and la < cutoff:     # 嚴格 < cutoff ＝ 閒置 > ttl
+            out.append(_cget(c, "id"))
+    return out

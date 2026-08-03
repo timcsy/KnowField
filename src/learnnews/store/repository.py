@@ -458,22 +458,81 @@ class Repository:
 
     def _row_to_conversation(self, r):
         from ..models import Conversation
+        keys = r.keys()
         return Conversation(
             id=r["id"], title=r["title"] or "",
             messages=json.loads(r["messages"] or "[]"),
-            why_node_id=r["why_node_id"], created_at=r["created_at"] or "")
+            why_node_id=r["why_node_id"], created_at=r["created_at"] or "",
+            temporary=bool(r["temporary"]) if "temporary" in keys else False,
+            last_activity_at=(r["last_activity_at"] if "last_activity_at" in keys else "")
+            or (r["created_at"] or ""))
+
+    _CONV_COLS = "id, title, messages, why_node_id, created_at, temporary, last_activity_at"
 
     def list_conversations(self) -> list:
         rows = self.conn.execute(
-            "SELECT id, title, messages, why_node_id, created_at FROM conversations"
-            " ORDER BY id DESC").fetchall()
+            f"SELECT {self._CONV_COLS} FROM conversations ORDER BY id DESC").fetchall()
         return [self._row_to_conversation(r) for r in rows]
 
     def get_conversation(self, cid: int):
         r = self.conn.execute(
-            "SELECT id, title, messages, why_node_id, created_at FROM conversations"
-            " WHERE id=?", (cid,)).fetchone()
+            f"SELECT {self._CONV_COLS} FROM conversations WHERE id=?", (cid,)).fetchone()
         return self._row_to_conversation(r) if r else None
+
+    # --- 暫時存檔＋TTL 衰減（spec 028）---
+    def autosave_temporary(self, temp_id, messages: list, now: str):
+        """自動暫存（每輪 upsert 一筆）。空→None。temp_id 存在→更新同筆；否則新建暫存。回 id。"""
+        if not messages:
+            return None
+        if temp_id:
+            cur = self.conn.execute(
+                "UPDATE conversations SET messages=?, last_activity_at=?"
+                " WHERE id=? AND temporary=1",
+                (json.dumps(messages, ensure_ascii=False), now, temp_id))
+            if cur.rowcount > 0:
+                self.conn.commit()
+                return int(temp_id)
+        from ..chat.capture import cheap_title
+        cur = self.conn.execute(
+            "INSERT INTO conversations (title, messages, why_node_id, created_at,"
+            " temporary, last_activity_at) VALUES (?,?,?,?,1,?)",
+            (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def touch_conversation(self, cid: int, now: str) -> bool:
+        """接回時重設計時（更新 last_activity_at）。"""
+        cur = self.conn.execute(
+            "UPDATE conversations SET last_activity_at=? WHERE id=?", (now, cid))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def promote_conversation(self, cid: int, title: str | None = None,
+                             why_node_id: int | None = None) -> bool:
+        """升永久（spec 028，人按）：temporary→0（＋可設 title、連根因）。同一筆、不新增。"""
+        sets = ["temporary=0"]
+        args: list = []
+        if title and title.strip():
+            sets.append("title=?")
+            args.append(title.strip())
+        args.append(cid)
+        cur = self.conn.execute(
+            f"UPDATE conversations SET {', '.join(sets)} WHERE id=?", tuple(args))
+        if why_node_id is not None:
+            self.conn.execute(
+                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (cid, why_node_id))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def purge_expired_temporary(self, now: str, ttl_days: int = 7) -> int:
+        """懶清：刪閒置 >ttl_days 的暫存（只暫存、永久不動）。回刪除數。"""
+        from ..chat.capture import expired_temp_ids
+        ids = expired_temp_ids(self.list_conversations(), now, ttl_days)
+        for cid in ids:
+            self.conn.execute("DELETE FROM conversations WHERE id=? AND temporary=1", (cid,))
+        if ids:
+            self.conn.commit()
+        return len(ids)
 
     def rename_conversation(self, cid: int, title: str) -> bool:
         """改對話標題（spec 027，人按才呼叫）。只動 title 欄。回是否有更新。"""

@@ -14,28 +14,49 @@
     <div class="alert alert-success mb-4"><span>✅ 已清理：併掉 {{ removed }} 份多餘、重指 {{ repointed }} 條根因的由來。</span></div>
   {% endif %}
 
+  {% macro convrow(c, is_temp) %}
+    <li class="px-5 py-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <a href="/conversations/{{ c.id }}" class="link link-hover font-medium">{{ c.title or "（未命名對話）" }}</a>
+        {% if is_temp %}
+          <form action="/conversations/{{ c.id }}/promote" method="post" class="inline">
+            <button class="btn btn-xs btn-outline" title="轉為永久保存（不再自動清除）">📌 轉永久</button>
+          </form>
+        {% endif %}
+        <form action="/conversations/{{ c.id }}/rename" method="post" class="join">
+          <input name="title" placeholder="改名…" class="input input-bordered input-xs join-item w-40">
+          <button class="btn btn-xs join-item">改名</button>
+        </form>
+      </div>
+      <div class="text-xs text-base-content/50 mt-0.5">
+        {{ c.created_at[:10] }}
+        {% if c.why_node_id %}<span class="badge badge-xs badge-outline ml-1">某條核心理解的由來</span>{% endif %}
+        <span class="ml-1">· {{ c.messages | length }} 則</span>
+      </div>
+    </li>
+  {% endmacro %}
+
   {% if conversations %}
-    <div class="card bg-base-100 shadow-sm">
+    <h2 class="font-semibold text-sm text-base-content/70 mb-1">永久</h2>
+    <div class="card bg-base-100 shadow-sm mb-5">
       <ul class="divide-y divide-base-200">
-        {% for c in conversations %}
-          <li class="px-5 py-3">
-            <div class="flex items-center gap-2 flex-wrap">
-              <a href="/conversations/{{ c.id }}" class="link link-hover font-medium">{{ c.title or "（未命名對話）" }}</a>
-              <form action="/conversations/{{ c.id }}/rename" method="post" class="join">
-                <input name="title" placeholder="改名…" class="input input-bordered input-xs join-item w-40">
-                <button class="btn btn-xs join-item">改名</button>
-              </form>
-            </div>
-            <div class="text-xs text-base-content/50 mt-0.5">
-              {{ c.created_at[:10] }}
-              {% if c.why_node_id %}<span class="badge badge-xs badge-outline ml-1">某條核心理解的由來</span>{% endif %}
-              <span class="ml-1">· {{ c.messages | length }} 則</span>
-            </div>
-          </li>
-        {% endfor %}
+        {% for c in conversations %}{{ convrow(c, false) }}{% endfor %}
       </ul>
     </div>
-  {% else %}
-    <div class="alert"><span class="opacity-70">還沒存過對話。到「跟知識聊」聊一段，按「存這段對話」或冊封時「連同存成由來」就會出現在這。</span></div>
+  {% endif %}
+
+  {% if temporary %}
+    <h2 class="font-semibold text-sm text-base-content/70 mb-1">暫存
+      <span class="font-normal text-xs text-base-content/50">（自動存、超過 7 天沒碰會自動清除；想留就按「📌 轉永久」）</span>
+    </h2>
+    <div class="card bg-base-200/60 shadow-sm">
+      <ul class="divide-y divide-base-300">
+        {% for c in temporary %}{{ convrow(c, true) }}{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if not conversations and not temporary %}
+    <div class="alert"><span class="opacity-70">還沒存過對話。到「跟知識聊」聊一段——會自動暫存；按「存這段對話」或冊封「連同存成由來」就轉永久。</span></div>
   {% endif %}
 {% endblock %}

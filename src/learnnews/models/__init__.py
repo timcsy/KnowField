@@ -168,3 +168,5 @@ class Conversation:
     messages: list = field(default_factory=list)   # [{role, content, sources?}]
     why_node_id: int | None = None
     created_at: str = ""
+    temporary: bool = False                         # spec 028：暫存(True)/永久(False)
+    last_activity_at: str = ""                       # spec 028：最後活動時間（TTL 起算）

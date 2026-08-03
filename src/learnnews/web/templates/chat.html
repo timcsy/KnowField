@@ -16,6 +16,14 @@
     <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「根因」頁存幾條核心理解，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
   {% endif %}
 
+  {% if recent_temp and not messages %}
+    <div class="alert mb-4">
+      <span>💾 上次還沒存的對話還在（「{{ recent_temp.title }}」）——
+        <a href="/conversations/{{ recent_temp.id }}/resume" class="link font-semibold">接回繼續聊</a>？
+        （沒碰的話 7 天後會自動清除）</span>
+    </div>
+  {% endif %}
+
   <div id="messages" class="space-y-4 mb-5">
     {% if messages %}
       {% for m in messages %}
@@ -76,10 +84,12 @@
   <div id="chat-actions" class="flex gap-2 flex-wrap {% if not messages %}hidden{% endif %}">
     <form id="distill-form" action="/chat/distill" method="post" onsubmit="markCaptured(); return busy(this, '整理中…')">
       <input type="hidden" name="history" value='{{ history_json }}'>
+      <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
       <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
     </form>
     <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
       <input type="hidden" name="history" value='{{ history_json }}'>
+      <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
       <button class="btn btn-ghost btn-sm">💾 存這段對話</button>
     </form>
     <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('md')"
@@ -122,6 +132,7 @@
               <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}"
                      class="input input-bordered input-sm w-full" placeholder="佐證網址（可空）">
               <input type="hidden" name="history" value='{{ history_json }}'>
+              <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
               <label class="label cursor-pointer justify-start gap-2 py-0">
                 <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
                 <span class="label-text text-xs">連同這段對話存成「由來」（日後查得到當初怎麼想的）</span>
@@ -203,9 +214,20 @@
       var box = document.getElementById('messages');
       var history = {{ messages | tojson }};
       var canStream = form && window.fetch && window.ReadableStream;
+      var tempId = {{ (temp_id or '') | tojson }} || null;   // 暫存 id（spec 028）：接回時帶入、autosave 後更新
       function ta() { return form.querySelector('textarea[name=message]'); }
       function syncHidden() {
         document.querySelectorAll('input[name=history]').forEach(function (i) { i.value = JSON.stringify(history); });
+        document.querySelectorAll('input[name=temp_id]').forEach(function (i) { i.value = tempId || ''; });
+      }
+      function autosave() {   // best-effort：每輪自動暫存一筆、更新 tempId（失敗不擋聊天）
+        if (!history.length) return;
+        var b = new URLSearchParams();
+        b.set('history', JSON.stringify(history)); b.set('temp_id', tempId || '');
+        fetch('/chat/autosave', { method: 'POST', body: b })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d && d.temp_id) { tempId = d.temp_id; syncHidden(); } })
+          .catch(function () {});
       }
       function userBubble(m, i) {
         var wrap = document.createElement('div'); wrap.className = 'flex justify-end items-start gap-1';
@@ -316,6 +338,7 @@
             history.push({ role: 'user', content: msg });
             history.push({ role: 'assistant', content: raw, sources: sources || [], found_extra: extra || [] });
             syncHidden(); renderConversation();     // 正規化（含新 user 訊息的編輯鈕）
+            autosave();                              // 自動暫存這一輪（spec 028、best-effort）
             busyHide(); btn.disabled = false; window.scrollTo(0, document.body.scrollHeight);
           }
           function pump() {
