@@ -40,26 +40,15 @@
 <body class="min-h-screen bg-base-200 text-base-content">
   <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
     <div class="max-w-3xl mx-auto w-full px-3 flex flex-wrap items-center gap-2">
-      <a href="/" class="btn btn-ghost text-xl px-2">📰 LearnNews</a>
-      <div class="hidden sm:flex">
-        <a href="/" class="btn btn-ghost btn-sm">今日匯整</a>
-        <a href="/pull" class="btn btn-ghost btn-sm">主題深挖</a>
+      <a href="/chat" class="btn btn-ghost text-xl px-2">🧠 LearnNews</a>
+      <div class="hidden sm:flex ml-auto">
         <a href="/chat" class="btn btn-ghost btn-sm">跟知識聊</a>
-        <a href="/worth" class="btn btn-ghost btn-sm">值不值得</a>
-        <a href="/search" class="btn btn-ghost btn-sm">搜尋</a>
-        <a href="/ask" class="btn btn-ghost btn-sm">問答</a>
-        <a href="/ingest" class="btn btn-ghost btn-sm">收進</a>
-        <a href="/library" class="btn btn-ghost btn-sm">知識庫</a>
         <a href="/roots" class="btn btn-ghost btn-sm">核心理解</a>
         <a href="/conversations" class="btn btn-ghost btn-sm">對話存檔</a>
-        <a href="/sources" class="btn btn-ghost btn-sm">來源</a>
-        <a href="/interests" class="btn btn-ghost btn-sm">興趣</a>
+        <a href="/ingest" class="btn btn-ghost btn-sm">收進</a>
+        <a href="/library" class="btn btn-ghost btn-sm">知識庫</a>
+        <a href="/ask" class="btn btn-ghost btn-sm">問答</a>
       </div>
-      <form action="/pull" method="get" class="join ml-auto">
-        <input name="topic" value="{{ topic|default('') }}" placeholder="輸入主題即時拉…"
-               class="input input-bordered input-sm join-item w-40 sm:w-56">
-        <button class="btn btn-primary btn-sm join-item">拉</button>
-      </form>
     </div>
   </div>
 

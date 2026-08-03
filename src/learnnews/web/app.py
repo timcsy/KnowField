@@ -266,31 +266,10 @@ def create_app() -> FastAPI:
             request=request, name="error.html", context={"reason": str(exc)},
             status_code=503)
 
-    @app.get("/", response_class=HTMLResponse)
-    async def home(request: Request, msg: str = ""):
-        from ..trend.keywords import trend_keywords
-        config = app.state.config
-        repo = app.state.repo_factory(config)
-        digest = repo.get_last_digest()
-        # 趨勢讀數（spec 013）：從最近幾份真實匯整標題統計熱詞（純統計、不落庫）
-        titles = repo.recent_digest_titles(config.trend_recent_digests)
-        # 分區（spec 017）：依來源 type 把條目分「新聞流 / 基礎知識」兩區（concept 流 vs 吸引子）
-        type_by_id = {s.id: s.type for s in repo.list_sources()}
-        repo.close()
-        chips = trend_keywords(titles, top_n=config.trend_top_n)
-        news_entries, foundational_entries = [], []
-        for e in (digest.entries if digest else []):
-            sec = _section_of(type_by_id.get(e.item.source_id))
-            (foundational_entries if sec == "foundational" else news_entries).append(
-                entry_to_page(e))
-        return _TEMPLATES.TemplateResponse(request=request, name="digest.html", context={
-            "date": digest.date if digest else None,
-            "news_entries": news_entries,
-            "foundational_entries": foundational_entries,
-            "missing_sources": digest.missing_sources if digest else [],
-            "chips": chips,
-            "refresh_fail": msg == "refresh_fail",   # 重整失敗提示（spec 014）
-        })
+    @app.get("/")
+    async def home():
+        # 產品轉向後首頁＝聊天（新聞分診已退役，history/068）
+        return RedirectResponse("/chat", status_code=307)
 
     def _default_digest_refresh(config, repo):
         """重跑分診（spec 014）：啟用來源→run_digest→save_digest。複用 CLI 管線，不重寫。"""
