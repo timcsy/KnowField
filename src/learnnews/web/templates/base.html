@@ -25,6 +25,13 @@
     .answer-md h1, .answer-md h2, .answer-md h3 { font-weight: 700; margin: .7rem 0 .3rem; }
     .answer-md code { background: rgba(0,0,0,.06); padding: 0 .25rem; border-radius: 3px; }
     .answer-md a { text-decoration: underline; }
+    /* markdown 表格：有框、有內距、寬表可橫向捲動（不撐破版面） */
+    .answer-md table { border-collapse: collapse; margin: .7rem 0; display: block;
+                       overflow-x: auto; max-width: 100%; font-size: .93em; }
+    .answer-md th, .answer-md td { border: 1px solid rgba(0,0,0,.16);
+                       padding: .35rem .65rem; text-align: left; vertical-align: top; }
+    .answer-md th { background: rgba(0,0,0,.05); font-weight: 600; white-space: nowrap; }
+    .answer-md tbody tr:nth-child(even) td { background: rgba(0,0,0,.025); }
     /* 維基式引用上標連結 */
     .answer-md .cite { font-size: .72em; vertical-align: super; text-decoration: none;
                        color: #2563eb; padding: 0 .1em; }
