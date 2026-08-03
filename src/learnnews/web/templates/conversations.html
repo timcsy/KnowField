@@ -8,10 +8,10 @@
       <a href="/conversations/dedupe" class="btn btn-ghost btn-sm ml-auto">🧹 清理重複對話</a>
     {% endif %}
   </div>
-  <p class="text-xs text-base-content/50 mb-4">這些是**唯讀的參考**，不會被當成你的核心理解餵回對話（只有「根因」才是地基）。</p>
+  <p class="text-xs text-base-content/50 mb-4">這些是**唯讀的參考**，不會被當成你的核心理解餵回對話（只有「核心理解」才是地基）。</p>
 
   {% if cleaned %}
-    <div class="alert alert-success mb-4"><span>✅ 已清理：併掉 {{ removed }} 份多餘、重指 {{ repointed }} 條根因的由來。</span></div>
+    <div class="alert alert-success mb-4"><span>✅ 已清理：併掉 {{ removed }} 份多餘、重指 {{ repointed }} 條核心理解的由來。</span></div>
   {% endif %}
 
   {% macro convrow(c, is_temp) %}
@@ -57,6 +57,6 @@
   {% endif %}
 
   {% if not conversations and not temporary %}
-    <div class="alert"><span class="opacity-70">還沒存過對話。到「跟知識聊」聊一段——會自動暫存；按「存這段對話」或冊封「連同存成由來」就轉永久。</span></div>
+    <div class="alert"><span class="opacity-70">還沒存過對話。到「跟知識聊」聊一段——會自動暫存；按「存這段對話」或精選「連同存成由來」就轉永久。</span></div>
   {% endif %}
 {% endblock %}

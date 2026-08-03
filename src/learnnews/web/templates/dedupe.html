@@ -9,12 +9,12 @@
     <div class="card bg-base-100 shadow-sm mb-4">
       <div class="card-body py-4">
         <p>發現 <b>{{ n_groups }}</b> 組重複，共 <b>{{ n_extra }}</b> 份多餘份會被刪除，
-           <b>{{ n_roots }}</b> 條根因的「由來」會重指到留存的那一份。</p>
-        <p class="text-sm text-base-content/60">每組只留**最新一份**；根因主張／階梯不會被更動。</p>
+           <b>{{ n_roots }}</b> 條核心理解的「由來」會重指到留存的那一份。</p>
+        <p class="text-sm text-base-content/60">每組只留**最新一份**；核心理解的內容／階梯不會被更動。</p>
       </div>
     </div>
     <form action="/conversations/dedupe" method="post" class="flex gap-2"
-          onsubmit="return confirm('確定清理？將刪除 {{ n_extra }} 份多餘、重指 {{ n_roots }} 條根因（不可逆）。');">
+          onsubmit="return confirm('確定清理？將刪除 {{ n_extra }} 份多餘、重指 {{ n_roots }} 條核心理解（不可逆）。');">
       <button class="btn btn-primary btn-sm">確認清理</button>
       <a href="/conversations" class="btn btn-ghost btn-sm">取消</a>
     </form>

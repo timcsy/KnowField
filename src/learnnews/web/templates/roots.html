@@ -1,33 +1,33 @@
 {% extends "base.html" %}
-{% block title %}根因 — LearnNews{% endblock %}
+{% block title %}核心理解 — LearnNews{% endblock %}
 {% block content %}
   <div class="flex items-center gap-2 mb-1">
-    <h1 class="text-2xl font-bold">🧭 根因（吸引子）</h1>
-    <span class="text-sm text-base-content/60">AI 提候選、你冊封——冊封的成問答最重的依據</span>
+    <h1 class="text-2xl font-bold">💡 你的核心理解</h1>
+    <span class="text-sm text-base-content/60">AI 幫你整理候選、你精選——精選的，聊天時會最優先參考</span>
   </div>
-  <p class="text-xs text-base-content/50 mb-5">吸引子是「為何 work 的根因」，不是文件。候選只是推斷；你冊封才算數。</p>
+  <p class="text-xs text-base-content/50 mb-5">核心理解是「為什麼會這樣」最底層的原因，不是隨手筆記。候選只是 AI 推斷；你精選了才算數。</p>
 
   {% if msg == 'fail' %}
-    <div class="alert alert-error mb-4"><span>❌ 根因萃取暫時失敗（服務／金鑰問題），請稍後再試。</span></div>
+    <div class="alert alert-error mb-4"><span>❌ 整理核心理解暫時失敗（服務／金鑰問題），請稍後再試。</span></div>
   {% elif msg == 'nomat' %}
-    <div class="alert mb-4"><span class="opacity-80">這則材料抽不出有把握的根因——AI 未硬編（不杜撰）。</span></div>
+    <div class="alert mb-4"><span class="opacity-80">這則材料抽不出有把握的核心理解——AI 不硬掰。</span></div>
   {% endif %}
 
   {# ── 候選（AI 推斷，待冊封）── #}
-  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">候選（AI 推斷）</h2>
+  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">AI 幫你整理的（還沒精選）</h2>
   {% if candidates %}
     <div class="space-y-3 mb-6">
       {% for w in candidates %}
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body py-4">
             <div class="flex items-start gap-2">
-              <span class="badge badge-sm badge-warning badge-outline shrink-0">AI 推斷</span>
+              <span class="badge badge-sm badge-warning badge-outline shrink-0">候選</span>
               <div class="min-w-0 flex-1">
                 <div class="font-medium">💡 {{ w.claim }}</div>
                 {% if w.ladder %}
                   <ol class="text-xs text-base-content/70 mt-2 mb-1 border-l-2 border-base-300 pl-3 space-y-0.5">
                     {% for step in w.ladder %}
-                      <li>{% if loop.last %}<span class="font-semibold text-primary">↓ bedrock：</span>{% else %}<span class="opacity-50">↓</span> {% endif %}{{ step }}</li>
+                      <li>{% if loop.last %}<span class="font-semibold text-primary">↓ 最底層的原因：</span>{% else %}<span class="opacity-50">↓</span> {% endif %}{{ step }}</li>
                     {% endfor %}
                   </ol>
                 {% endif %}
@@ -53,8 +53,8 @@
                 <input type="hidden" name="id" value="{{ w.id }}">
                 <input name="claim" value="{{ w.claim }}"
                        class="input input-bordered input-sm join-item flex-1"
-                       title="可先編輯根因文字再冊封">
-                <button class="btn btn-primary btn-sm join-item">冊封</button>
+                       title="可先改文字再精選">
+                <button class="btn btn-primary btn-sm join-item">精選</button>
               </form>
               <form action="/whynode/remove" method="post">
                 <input type="hidden" name="id" value="{{ w.id }}">
@@ -66,18 +66,18 @@
       {% endfor %}
     </div>
   {% else %}
-    <p class="text-sm text-base-content/50 mb-6">目前沒有候選。到「<a href="/library" class="link link-primary">知識庫</a>」對種子按「萃取根因」。</p>
+    <p class="text-sm text-base-content/50 mb-6">目前沒有候選。到「<a href="/chat" class="link link-primary">跟知識聊</a>」聊一段、按「整理成一條重點」就會出現。</p>
   {% endif %}
 
   {# ── 已冊封（正式吸引子，問答最重）── #}
-  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">已冊封（正式吸引子）</h2>
+  <h2 class="font-semibold text-base-content/70 mt-2 mb-2">你精選的核心理解</h2>
   {% if anointed %}
     <div class="card bg-base-100 shadow-sm">
       <ul class="divide-y divide-base-200">
         {% for w in anointed %}
           <li class="flex items-start justify-between gap-3 px-5 py-3">
             <div class="min-w-0">
-              <div class="font-medium">🧲 {{ w.claim }}</div>
+              <div class="font-medium">💡 {{ w.claim }}</div>
               <div class="text-xs text-base-content/60 mt-0.5">
                 {% for u in w.evidence_urls %}
                   <a href="{{ u }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ u }}</a>{% if not loop.last %}、{% endif %}
@@ -89,14 +89,14 @@
               <div class="mt-1 flex gap-1 flex-wrap">
                 <button type="button" class="btn btn-ghost btn-xs"
                         onclick="copyExport('/roots/{{ w.id }}/export?as=md')"
-                        title="複製這條根因 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
+                        title="複製這條核心理解 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
                 <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條根因沒有佐證網址'})"
-                        title="複製這條根因的佐證網址">🔗 複製佐證網址</button>
+                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條核心理解沒有佐證網址'})"
+                        title="複製這條核心理解的佐證網址">🔗 複製佐證網址</button>
               </div>
             </div>
             <form action="/whynode/remove" method="post" class="shrink-0"
-                  onsubmit="return confirm('退回這個已冊封的根因？（問答將不再用它）');">
+                  onsubmit="return confirm('移除這條核心理解？（聊天將不再優先參考它）');">
               <input type="hidden" name="id" value="{{ w.id }}">
               <button class="btn btn-ghost btn-xs text-error">退回</button>
             </form>
@@ -105,6 +105,6 @@
       </ul>
     </div>
   {% else %}
-    <p class="text-sm text-base-content/50">還沒有冊封的根因。冊封後，它會成為問答檢索最重的依據。</p>
+    <p class="text-sm text-base-content/50">還沒有精選的核心理解。精選後，聊天會最優先參考它。</p>
   {% endif %}
 {% endblock %}

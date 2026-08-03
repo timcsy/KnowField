@@ -13,7 +13,7 @@
   {% if err %}<div class="alert alert-error mb-4"><span>❌ {{ err }}</span></div>{% endif %}
 
   {% if root_count == 0 %}
-    <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「根因」頁存幾條核心理解，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
+    <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「核心理解」頁精選幾條，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
   {% endif %}
 
   {% if recent_temp and not messages %}
@@ -58,7 +58,7 @@
 
   {% if distill_nudge %}
     <div class="alert alert-warning mb-4" id="distill-nudge">
-      <span>🧵 自上次整理後又聊了一大段（約第 {{ distill_nudge.from }}–{{ distill_nudge.to }} 句）還沒收——
+      <span>🧵 自上次整理後又聊了一大段（約第 {{ distill_nudge.from }}–{{ distill_nudge.to }} 句）還沒整理——
         <b>尾段常是最原創的地方</b>。要不要現在
         <button type="button" class="link link-hover font-semibold" onclick="triggerDistill()">整理成重點</button>？
         （忽略也行，不會自動存）</span>
@@ -115,7 +115,7 @@
 
   {% if candidates %}
     <div class="my-4">
-      <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要存的（可以改，存不存你決定）</h2>
+      <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要精選的（可以改，你決定）</h2>
       <div class="space-y-3">
         {% for c in candidates %}
           <div class="card bg-base-100 shadow-sm border border-primary/20"><div class="card-body p-4 gap-2">
@@ -137,7 +137,7 @@
                 <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
                 <span class="label-text text-xs">連同這段對話存成「由來」（日後查得到當初怎麼想的）</span>
               </label>
-              <button class="btn btn-primary btn-sm">存這條</button>
+              <button class="btn btn-primary btn-sm">精選這條</button>
             </form>
           </div></div>
         {% endfor %}
@@ -158,14 +158,14 @@
             body.textContent = '';
             var ok = document.createElement('div');
             ok.className = 'text-success text-sm py-1';
-            ok.textContent = '✅ 已存進知識庫：' + claim.slice(0, 40) + '（可到「根因」頁看）';
+            ok.textContent = '✅ 已精選：' + claim.slice(0, 40) + '（可到「核心理解」頁看）';
             body.appendChild(ok);
           }
           if (window.markCaptured) window.markCaptured();
-          if (window.showToast) window.showToast('已存這條');
+          if (window.showToast) window.showToast('已精選');
         } catch (e) {
-          if (btn) { btn.disabled = false; btn.textContent = '存這條'; }
-          if (window.showToast) window.showToast('存這條失敗，請再試一次', true);
+          if (btn) { btn.disabled = false; btn.textContent = '精選這條'; }
+          if (window.showToast) window.showToast('精選失敗，請再試一次', true);
         }
         return false;   // 阻止表單導頁
       }
