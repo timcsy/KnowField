@@ -43,6 +43,7 @@
                     {% for s in m.sources %}
                       <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
                         <span class="badge badge-xs badge-outline">{{ s.n }}</span>
+                        {% if s.kind == 'corpus' %}<span class="badge badge-xs badge-secondary">📎 你收藏的</span>{% endif %}
                         <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
                       </li>
                     {% endfor %}
@@ -260,6 +261,9 @@
           var ul = document.createElement('ul'); ul.className = 'space-y-0.5';
           m.sources.forEach(function (s) {
             var li = document.createElement('li'); li.id = prefix + '-' + s.n; li.className = 'src-item px-1 py-0.5 text-[13px]';
+            if (s.kind === 'corpus') {
+              var kb = document.createElement('span'); kb.className = 'badge badge-xs badge-secondary mr-1'; kb.textContent = '📎 你收藏的'; li.appendChild(kb);
+            }
             var a = document.createElement('a'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener';
             a.className = 'link link-primary'; a.textContent = '[' + s.n + '] ' + (s.title || s.url);
             li.appendChild(a); ul.appendChild(li);

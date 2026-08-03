@@ -108,6 +108,34 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
+    def _chat_corpus(query):
+        """檢索使用者收進的相關資料，當「你收藏的」證言（spec 029）。失敗/無語料→空、不擋聊天（教訓 3）。"""
+        inj = getattr(app.state, "corpus_search_for_test", None)
+        if inj is not None:
+            try:
+                return list(inj(query))
+            except Exception:  # noqa: BLE001
+                return []
+        try:
+            import types as _t
+
+            from ..backends.factory import make_embedder
+            from ..rag.service import retrieve_corpus
+            cfg = app.state.config
+            repo = app.state.repo_factory(cfg)
+            try:
+                hits = retrieve_corpus(repo, make_embedder(cfg), query,
+                                       top_k=cfg.rag_top_k, min_score=cfg.rag_min_score)
+            finally:
+                repo.close()
+            return [_t.SimpleNamespace(
+                title=(getattr(h, "headline", "") or getattr(h, "title", "")),
+                snippet=getattr(h, "body", "") or "", url=getattr(h, "url", ""),
+                kind="corpus") for h in hits]
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("聊天檢索收進失敗", extra={"extra": {"reason": str(e)}})
+            return []
+
     def _fetch_message_urls(message):
         """偵測訊息裡的網址→伺服器端抓內容（best-effort，抓不到也回一筆 note，教訓 3）。"""
         urls = re.findall(r"https?://[^\s，。）)】\]]+", message or "")[:3]
@@ -141,13 +169,15 @@ def create_app() -> FastAPI:
             sources = []
         else:
             q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
-            sources = _chat_search(q)
+            # web 撒網＋收進的文章併成一個連號來源清單（web 在前、收進在後，帶 kind）
+            sources = list(_chat_search(q)) + _chat_corpus(message)
         text = fc.reply(history, message, roots, sources, brainstorm=brainstorm,
                         max_history=app.state.config.chat_context_messages,
                         url_contents=url_contents)
         # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
         cited = {int(n) for n in re.findall(r"\[(\d+)\]", text)}
-        numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
+        numbered = [{"n": i, "url": s.url, "title": s.title or s.url,
+                     "kind": getattr(s, "kind", "web")}
                     for i, s in enumerate(sources, 1) if i in cited]
         return text, numbered
     app.state.chat_factory = _default_chat
@@ -194,16 +224,10 @@ def create_app() -> FastAPI:
         # 產品轉向後首頁＝聊天（新聞分診已退役，history/068）
         return RedirectResponse("/chat", status_code=307)
 
-    @app.get("/ask", response_class=HTMLResponse)
-    async def ask(request: Request, q: str = "", today: bool = False):
-        # 問答幾秒內就回，不需 SSE；後端失敗經全域 OpenAIError 處理器攔成友善頁。
-        question = q.strip()
-        answer = None
-        if question:
-            answer = app.state.rag_answer_factory(
-                question, today, app.state.config.article_lang)
-        return _TEMPLATES.TemplateResponse(request=request, name="ask.html", context={
-            "q": question, "today": today, "answer": answer})
+    @app.get("/ask")
+    async def ask():
+        # spec 029：問答併進聊天——「對收進內容發問」的能力現在在 /chat（帶膜、能引用「你收藏的」）。
+        return RedirectResponse("/chat", status_code=302)
 
     @app.get("/ingest", response_class=HTMLResponse)
     async def ingest_get(request: Request):
@@ -375,7 +399,9 @@ def create_app() -> FastAPI:
                     yield _sse({"type": "stage", "text": "找關鍵字…"})
                     q = fc.search_query(hist, message)
                     yield _sse({"type": "stage", "text": "撒網找佐證…"})
-                    sources = _chat_search(q)
+                    web = _chat_search(q)
+                    yield _sse({"type": "stage", "text": "翻你收進的資料…"})
+                    sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
                 yield _sse({"type": "stage", "text": "回答中…"})
                 full = ""
                 for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
@@ -384,10 +410,12 @@ def create_app() -> FastAPI:
                     full += delta
                     yield _sse({"type": "token", "text": delta})
                 cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
-                numbered = [{"n": i, "url": s.url, "title": s.title or s.url}
+                numbered = [{"n": i, "url": s.url, "title": s.title or s.url,
+                             "kind": getattr(s, "kind", "web")}
                             for i, s in enumerate(sources, 1) if i in cited]
                 # 有撒到、但沒被引用的來源 → 收進折疊區「也找到（未直接引用）」（不進存檔）
-                extra = [{"n": i, "url": s.url, "title": s.title or s.url}
+                extra = [{"n": i, "url": s.url, "title": s.title or s.url,
+                          "kind": getattr(s, "kind", "web")}
                          for i, s in enumerate(sources, 1) if i not in cited]
                 yield _sse({"type": "done", "text": full, "sources": numbered,
                             "found_extra": extra})

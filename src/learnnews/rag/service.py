@@ -27,6 +27,29 @@ def embedder_tag(embedder) -> str:
     return name
 
 
+def retrieve_corpus(repo, embedder, query, top_k=6, min_score=0.10,
+                    root_weight=2.0, explainer_weight=1.0, today=False):
+    """找相關收進條目（spec 029）：list_corpus_entries→ensure_embeddings→cosine→門檻→加權排序→top_k。
+
+    純檢索、不合成。空語料/無相關→[]。RAG 與聊天共用（DRY）。離線可測（注入 stub embedder）。
+    """
+    entries = repo.list_corpus_entries(today=today)
+    if not entries:
+        return []
+    tag = embedder_tag(embedder)
+    vecs = repo.ensure_embeddings(entries, embedder, tag)
+    qvec = embedder.embed(query)
+
+    def _w(sc):
+        return root_weight if sc == "root" else (explainer_weight if sc == "explainer" else 1.0)
+
+    # 門檻用原始 cosine 把關（不被權重繞過）；權重只排序入選者（spec 006 R5）
+    scored = [(cosine(qvec, vecs[e.entry_id]), e) for e in entries]
+    scored = [(s, e) for s, e in scored if s >= min_score]
+    scored.sort(key=lambda t: t[0] * _w(t[1].source_class), reverse=True)
+    return [e for _, e in scored][:top_k]
+
+
 class RagService:
     def __init__(self, repo, embedder, answerer: Answerer,
                  top_k: int = 6, min_score: float = 0.10,
@@ -50,21 +73,12 @@ class RagService:
     def answer(self, question: str, scope: Scope | None = None,
                lang: str = "繁體中文") -> RagAnswer:
         scope = scope or Scope()
-        entries = self.repo.list_corpus_entries(today=scope.today)
-        if not entries:
-            return RagAnswer(no_material=True)
-
-        tag = embedder_tag(self.embedder)
-        vecs: dict[int, Vector] = self.repo.ensure_embeddings(entries, self.embedder, tag)
-        qvec = self.embedder.embed(question)
-
-        # 門檻用「原始 cosine」把關相關性（不被權重繞過）；權重只排序入選者（spec 006 R5）。
-        relevant = [(cosine(qvec, vecs[e.entry_id]), e) for e in entries]
-        relevant = [(s, e) for s, e in relevant if s >= self.min_score]
-        relevant.sort(key=lambda t: t[0] * self._weight(t[1].source_class), reverse=True)
-        hits: list[CorpusEntry] = [e for _, e in relevant][: self.top_k]
+        hits: list[CorpusEntry] = retrieve_corpus(
+            self.repo, self.embedder, question, top_k=self.top_k, min_score=self.min_score,
+            root_weight=self.root_weight, explainer_weight=self.explainer_weight,
+            today=scope.today)
         if not hits:
-            # 查無相關：不呼叫合成後端、不產生任何內容/來源（FR-004、原則 3）
+            # 空語料 or 查無相關：不呼叫合成後端、不產生任何內容/來源（FR-004、原則 3）
             return RagAnswer(no_material=True)
 
         text = self.answerer.answer(question, hits, lang)
