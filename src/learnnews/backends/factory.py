@@ -30,36 +30,6 @@ def make_web_search(config: Config):
     return StubWebSearch()
 
 
-def make_query_expander(config: Config):
-    """查詢擴展（spec 011）：真實走 OpenAI 格式 chat 拆解，否則離線確定性 stub。"""
-    if config.backend == "openai" and config.api_key:
-        from ..search.expand import OpenAIQueryExpander
-        return OpenAIQueryExpander(config.api_base_url, config.api_key, config.chat_model,
-                                   max_n=config.explore_max_subqueries)
-    from ..search.expand import StubQueryExpander
-    return StubQueryExpander()
-
-
-def make_smart_search(config: Config):
-    """智慧搜尋（spec 010）＋多角度探索（spec 011）：組後端＋fetch_url＋expander，回 SmartSearch。"""
-    from ..search.smart import SmartSearch
-    return SmartSearch(web_search=make_web_search(config),
-                       embedder=make_embedder(config),
-                       answerer=make_answerer(config),
-                       top_n=config.smart_search_topn,
-                       expander=make_query_expander(config),
-                       max_subqueries=config.explore_max_subqueries)
-
-
-def make_relation_judge(config: Config):
-    """判關係（spec 018）：真實走 OpenAI 格式 chat，否則離線確定性 stub。"""
-    if config.backend == "openai" and config.api_key:
-        from ..field.relate import OpenAIRelationJudge
-        return OpenAIRelationJudge(config.api_base_url, config.api_key, config.chat_model)
-    from ..field.relate import StubRelationJudge
-    return StubRelationJudge()
-
-
 def make_root_cause_extractor(config: Config):
     """根因萃取（spec 012）：真實走 OpenAI 格式 chat，否則離線確定性 stub。"""
     if config.backend == "openai" and config.api_key:
@@ -87,15 +57,6 @@ def make_chat_backend(config: Config):
     return StubChatBackend()
 
 
-def make_worthit_synthesizer(config: Config):
-    """反逢迎「值不值得」綜合後端（spec 021）：真實走 OpenAI 格式 chat，否則離線 stub。"""
-    from ..search.worthit import StubWorthItSynthesizer
-    if config.backend == "openai" and config.api_key:
-        from ..search.worthit import OpenAIWorthItSynthesizer
-        return OpenAIWorthItSynthesizer(config.api_base_url, config.api_key, config.chat_model)
-    return StubWorthItSynthesizer()
-
-
 def make_article_backend(config: Config):
     """散文後端：真實走 OpenAI 格式 chat，否則離線 stub。"""
     from ..summarize.article import StubArticleBackend
@@ -104,12 +65,3 @@ def make_article_backend(config: Config):
         return OpenAIArticleWriter(config.api_base_url, config.api_key, config.chat_model,
                                    lang=config.article_lang)
     return StubArticleBackend()
-
-
-def make_ai_image_gen(config: Config):
-    """AI 示意圖產生器：真實走 OpenAI 格式 images，否則離線 stub。"""
-    if config.backend == "openai" and config.api_key:
-        from ..media.ai_image import OpenAIAIImage
-        return OpenAIAIImage(config)
-    from ..media.ai_image import StubAIImage
-    return StubAIImage()

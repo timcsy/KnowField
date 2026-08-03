@@ -1,8 +1,9 @@
-"""FastAPI web app（階段 6）。唯一 import 框架之處；核心全複用、零改動。
+"""FastAPI web app。唯一 import 框架之處；核心全複用、零改動。
 
-頁面：/（今日匯整）、/pull（即時拉＋快取）、/interests（增刪）。
+頁面（產品轉向後，新聞分診子系統已退役，見 knowledge/history/068）：
+/（導向 /chat）、/chat*、/roots、/conversations*、/ingest、/library、/ask。
 後端失敗經例外處理器攔成友善繁中頁（FR-009、experience 教訓 3）。
-可覆寫點（app.state）供測試注入：repo_factory、pull_service_factory、cache。
+可覆寫點（app.state）供測試注入：repo_factory、chat_factory、rag_answer_factory 等。
 """
 
 from __future__ import annotations
@@ -23,12 +24,9 @@ from fastapi.templating import Jinja2Templates
 from ..backends.openai_api import OpenAIError
 from ..config import Config
 from ..sources.base import SourceUnavailable
-from ..interests.service import InterestService
 from ..logging_setup import get_logger
-from ..pull.types import PullResult
 from ..store.repository import Repository
 from .cache import TTLCache
-from .views import entry_to_page
 
 _log = get_logger("learnnews.web")
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -37,16 +35,6 @@ _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 def _now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _section_of(source_type: str | None) -> str:
-    """分區（spec 017）：論文＋基礎部落格＝基礎知識（常青吸引子）；其餘（含未知/web）＝新聞流。"""
-    return "foundational" if source_type in ("paper", "blog") else "news"
-
-
-def render_entry(entry) -> str:
-    """把一則 PullEntry/DigestEntry 渲染成卡片 HTML 片段（供 SSE 逐則推送）。"""
-    return _TEMPLATES.get_template("_entry.html").render({"e": entry_to_page(entry)})
 
 
 def _sse(obj: dict) -> str:
@@ -60,25 +48,6 @@ def _default_repo_factory(config: Config) -> Repository:
         for s in DEFAULT_SOURCES:
             repo.upsert_source(s)
     return repo
-
-
-def _default_pull_service_factory(config: Config):
-    from ..cli.pull_cmd import build_backend_pull_service
-    return build_backend_pull_service(config)
-
-
-def _default_pull_stream(config: Config, repo_factory, service_factory, topic: str):
-    """實際串流即時拉：組 adapter＋service→service.pull_stream。逐步 yield 進度事件。
-    可被 app.state.pull_stream_factory 覆寫（測試）。web 縮小規模（少候選/少篇數）求快。"""
-    from ..cli.pull_cmd import build_pull_adapters
-    repo = repo_factory(config)
-    sources = repo.list_sources(enabled_only=True)
-    adapters = build_pull_adapters(sources, topic, max_results=12)
-    service = service_factory(config)
-    try:
-        yield from service.pull_stream(adapters=adapters, topic=topic, limit=6)
-    finally:
-        repo.close()
 
 
 def _default_rag_answer(config: Config, repo_factory, question: str, today: bool,
@@ -116,56 +85,10 @@ def create_app() -> FastAPI:
     app.state.config = Config.from_env()
     app.state.cache = TTLCache()
     app.state.repo_factory = _default_repo_factory
-    app.state.pull_service_factory = _default_pull_service_factory
-    app.state.pull_stream_factory = lambda topic: _default_pull_stream(
-        app.state.config, app.state.repo_factory, app.state.pull_service_factory, topic)
     app.state.rag_answer_factory = lambda question, today, lang: _default_rag_answer(
         app.state.config, app.state.repo_factory, question, today, lang)
     app.state.seed_ingest_factory = lambda ref, explainer: _default_seed_ingest(
         app.state.config, app.state.repo_factory, ref, explainer)
-
-    def _default_subscribe(url):
-        from ..sources.subscribe import subscribe
-        return subscribe(url)
-    app.state.subscribe_factory = _default_subscribe
-
-    # 場驅動來源推薦（spec 020）：可注入的撒網＋驗證＋場驅動排序（測試覆寫）
-    def _default_recommend():
-        from ..backends.factory import make_embedder, make_web_search
-        from ..sources.recommend import recommend_sources
-        cfg = app.state.config
-        repo = app.state.repo_factory(cfg)
-        try:
-            return recommend_sources(
-                make_web_search(cfg), make_embedder(cfg), repo,
-                queries=list(cfg.source_recommend_queries),
-                limit=cfg.source_recommend_limit)
-        finally:
-            repo.close()
-    app.state.recommend_factory = _default_recommend
-
-    def _default_web_search(query):
-        from ..backends.factory import make_web_search
-        return make_web_search(app.state.config).search(query)
-    app.state.web_search_factory = _default_web_search
-
-    def _default_smart_search(query, explore=False):
-        from ..backends.factory import make_smart_search
-        return make_smart_search(app.state.config).run(query, explore)
-    app.state.smart_search_factory = _default_smart_search
-
-    # 反逢迎「值不值得」副手（spec 021）：可注入撒網獵心得＋反逢迎綜合（測試覆寫）
-    def _default_worth(subject):
-        from ..backends.factory import make_web_search, make_worthit_synthesizer
-        from ..search.worthit import assess_worth
-        cfg = app.state.config
-        return assess_worth(make_web_search(cfg), make_worthit_synthesizer(cfg), subject)
-    app.state.worth_factory = _default_worth
-
-    def _default_worth_fetch_title(url):
-        from ..seed.fetch import fetch_url
-        return fetch_url(url).title
-    app.state.worth_fetch_title = _default_worth_fetch_title
 
     # 跟你的場聊天（spec 022）：可注入的多輪對話／蒸餾／佐證（測試覆寫）
     def _chat_backend():
@@ -271,80 +194,6 @@ def create_app() -> FastAPI:
         # 產品轉向後首頁＝聊天（新聞分診已退役，history/068）
         return RedirectResponse("/chat", status_code=307)
 
-    def _default_digest_refresh(config, repo):
-        """重跑分診（spec 014）：啟用來源→run_digest→save_digest。複用 CLI 管線，不重寫。"""
-        from ..cli.digest_cmd import build_backend_builder, run_digest
-        from ..cli.fetchers import DEFAULT_SOURCES, build_adapters
-        sources = repo.list_sources(enabled_only=True)
-        if not sources:
-            for s in DEFAULT_SOURCES:
-                repo.upsert_source(s)
-            sources = repo.list_sources(enabled_only=True)
-        adapters = build_adapters(sources, config)   # 傳 config → 啟用的 web 活水源生效（spec 015）
-        digest = run_digest(repo, adapters, date=_now_iso()[:10],
-                            limit=config.digest_limit,
-                            builder=build_backend_builder(config))
-        repo.save_digest(digest)
-    app.state.digest_refresh_factory = _default_digest_refresh
-
-    @app.post("/digest/refresh")
-    async def digest_refresh():
-        config = app.state.config
-        repo = app.state.repo_factory(config)
-        try:
-            # 使用者明確觸發（原則 5）；同步重跑分診（會抓＋消化，較慢）
-            app.state.digest_refresh_factory(config, repo)
-            return RedirectResponse("/", status_code=303)
-        except (SourceUnavailable, OpenAIError) as e:   # 外部失敗 → 友善、非 500（教訓 3）
-            _log.error("重新整理失敗", extra={"extra": {"reason": str(e)}})
-            return RedirectResponse("/?msg=refresh_fail", status_code=303)
-        except Exception as e:                          # noqa: BLE001 - 任何異常都友善、不吐堆疊
-            _log.error("重新整理失敗", extra={"extra": {"reason": str(e)}})
-            return RedirectResponse("/?msg=refresh_fail", status_code=303)
-        finally:
-            repo.close()
-
-    @app.get("/pull", response_class=HTMLResponse)
-    async def pull(request: Request, topic: str = ""):
-        # 串流殼：頁面立即回，實際結果由 /pull/stream 逐則推送到前端（即時進度）
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="pull.html", context={"topic": topic.strip()})
-
-    @app.get("/pull/stream")
-    async def pull_stream(topic: str = ""):
-        topic = topic.strip()
-
-        def gen():
-            if not topic:
-                yield _sse({"type": "done"})
-                return
-            cached = app.state.cache.get(topic)
-            if cached is not None:                       # 快取：逐則秒推
-                for e in cached.entries:
-                    yield _sse({"type": "card", "html": render_entry(e)})
-                if not cached.entries:
-                    yield _sse({"type": "empty"})
-                yield _sse({"type": "done"})
-                return
-            entries = []
-            try:
-                for ev in app.state.pull_stream_factory(topic):
-                    if ev["type"] == "card":
-                        entries.append(ev["entry"])
-                        yield _sse({"type": "card", "html": render_entry(ev["entry"]),
-                                    "progress": ev.get("progress")})
-                    elif ev["type"] == "stage":
-                        yield _sse({"type": "stage", "text": ev["text"]})
-                    elif ev["type"] == "empty":
-                        yield _sse({"type": "empty"})
-                app.state.cache.set(topic, PullResult(topic=topic, entries=entries))
-                yield _sse({"type": "done"})
-            except OpenAIError as e:                     # 串流中失敗 → 推 error 事件
-                _log.error("web 串流後端失敗", extra={"extra": {"reason": str(e)}})
-                yield _sse({"type": "error", "text": str(e)})
-
-        return StreamingResponse(gen(), media_type="text/event-stream")
-
     @app.get("/ask", response_class=HTMLResponse)
     async def ask(request: Request, q: str = "", today: bool = False):
         # 問答幾秒內就回，不需 SSE；後端失敗經全域 OpenAIError 處理器攔成友善頁。
@@ -399,44 +248,6 @@ def create_app() -> FastAPI:
             repo.close()
         return RedirectResponse("/library", status_code=303)
 
-    # --- 根因萃取（spec 012／階段 10）---
-    def _default_extractor():
-        from ..backends.factory import make_root_cause_extractor
-        return make_root_cause_extractor(app.state.config)
-    app.state.extractor_factory = _default_extractor
-
-    # 場對新材料做工（spec 018）：可注入的 relate（測試覆寫）
-    def _default_field_relate(title, body, exclude_url=None):
-        from ..backends.factory import make_embedder, make_relation_judge
-        from ..field.relate import FieldRelate
-        cfg = app.state.config
-        repo = app.state.repo_factory(cfg)
-        try:
-            return FieldRelate(make_embedder(cfg), make_relation_judge(cfg),
-                               repo, cfg.rag_min_score).relate(title, body, exclude_url)
-        finally:
-            repo.close()
-    app.state.field_relate_factory = _default_field_relate
-
-    @app.post("/field/relate")
-    async def field_relate(request: Request, entry_id: int = Form(0)):
-        repo = app.state.repo_factory(app.state.config)
-        # spec 019：以 digest_entries.id 取任一條目材料（種子或每日流皆可），不再只找種子
-        material = repo.get_entry_material(entry_id)
-        repo.close()
-        if material is None:
-            return RedirectResponse("/", status_code=303)
-        title, body, url = material
-        try:
-            # 材料在你的場裡跑一次 forward pass；排除材料自己（原則 5：只提關係、不改場）
-            rel = app.state.field_relate_factory(title, body, exclude_url=url)
-        except (SourceUnavailable, OpenAIError) as e:   # 判關係失敗 → 友善（教訓 3）
-            _log.error("關聯到場失敗", extra={"extra": {"reason": str(e)}})
-            rel = None
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="field_relate.html",
-            context={"material": {"title": title, "url": url}, "rel": rel})
-
     @app.get("/roots", response_class=HTMLResponse)
     async def roots(request: Request, msg: str = ""):
         repo = app.state.repo_factory(app.state.config)
@@ -448,31 +259,6 @@ def create_app() -> FastAPI:
             request=request, name="roots.html",
             context={"candidates": candidates, "anointed": anointed, "msg": msg,
                      "provenance": provenance})
-
-    @app.post("/whynode/extract")
-    async def whynode_extract(entry_id: int = Form(0)):
-        if not entry_id:
-            return RedirectResponse("/library", status_code=303)
-        repo = app.state.repo_factory(app.state.config)
-        try:
-            seed = next((s for s in repo.list_seeds() if s.entry_id == entry_id), None)
-            if seed is None:
-                repo.close()
-                return RedirectResponse("/library", status_code=303)
-            cand = app.state.extractor_factory().extract(seed.title, seed.body)
-            if cand.no_material:                       # 抽不出有把握的根因 → 不建候選（不杜撰）
-                repo.close()
-                return RedirectResponse("/roots?msg=nomat", status_code=303)
-            # grounding 落結構：候選必帶證據（種子 url）＋試金石，才可冊封（教訓 7）
-            from ..config import SEEDS_DATE  # noqa: F401
-            repo.add_why_node(cand.claim, [seed.url], cand.touchstones,
-                              cand.fog_flag, entry_id, _now_iso(), ladder=cand.ladder)
-            repo.close()
-            return RedirectResponse("/roots", status_code=303)
-        except SourceUnavailable as e:                 # 萃取失敗/逾時/無金鑰 → 友善繁中（教訓 3）
-            repo.close()
-            _log.error("根因萃取失敗", extra={"extra": {"reason": str(e)}})
-            return RedirectResponse("/roots?msg=fail", status_code=303)
 
     @app.post("/whynode/anoint")
     async def whynode_anoint(id: int = Form(0), claim: str = Form("")):
@@ -489,40 +275,6 @@ def create_app() -> FastAPI:
             repo.delete_why_node(id)
             repo.close()
         return RedirectResponse("/roots", status_code=303)
-
-    @app.get("/worth", response_class=HTMLResponse)
-    async def worth_get(request: Request):
-        return _TEMPLATES.TemplateResponse(request=request, name="worth.html", context={})
-
-    @app.post("/worth", response_class=HTMLResponse)
-    async def worth_post(request: Request, subject: str = Form(""),
-                         content: str = Form(""), url: str = Form("")):
-        """時刻 A：丟名字/內文/網址 → 撒網獵心得 → 反逢迎綜合（原則 5：不落庫、opt-in）。"""
-        # subject 解析序：名字 ＞ 內文首行 ＞ url 抓到的標題（best-effort）＞ url 本身（收內容口，FR-002/007）
-        subj = (subject or "").strip()
-        if not subj and content.strip():
-            subj = content.strip().splitlines()[0].strip()[:80]
-        if not subj and url.strip():
-            try:
-                subj = (app.state.worth_fetch_title(url.strip()) or "").strip()[:80]
-            except Exception as e:   # 伺服器抓被擋/牆內→退回用 url，不崩（教訓 3）
-                _log.error("值不值得抓標題失敗", extra={"extra": {"reason": str(e)}})
-                subj = ""
-            if not subj:
-                subj = url.strip()
-        if not subj:
-            return _TEMPLATES.TemplateResponse(
-                request=request, name="worth.html",
-                context={"err": "請貼一個名字、一段內文，或一個網址。"})
-        verdict = err = None
-        try:
-            verdict = app.state.worth_factory(subj)
-        except (SourceUnavailable, OpenAIError) as e:   # 搜尋/綜合失敗→友善（教訓 3）
-            _log.error("值不值得綜合失敗", extra={"extra": {"reason": str(e)}})
-            err = str(e)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="worth.html",
-            context={"verdict": verdict, "err": err, "subject": subj})
 
     def _root_count():
         repo = app.state.repo_factory(app.state.config)
@@ -923,117 +675,6 @@ def create_app() -> FastAPI:
             return PlainTextResponse("\n".join(dedup_urls(node.evidence_urls)))
         return PlainTextResponse(
             why_node_to_markdown(node.claim, node.ladder, node.evidence_urls))
-
-    @app.get("/sources", response_class=HTMLResponse)
-    async def sources_get(request: Request):
-        repo = app.state.repo_factory(app.state.config)
-        srcs = repo.list_sources()
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="sources.html", context={"sources": srcs})
-
-    @app.post("/sources/add", response_class=HTMLResponse)
-    async def sources_add(request: Request, url: str = Form("")):
-        from ..sources.base import SourceUnavailable
-        url = url.strip()
-        msg = err = None
-        repo = app.state.repo_factory(app.state.config)
-        if url:
-            try:
-                src = app.state.subscribe_factory(url)      # 探測＋驗證有料才回 Source
-                if any(s.id == src.id for s in repo.list_sources()):
-                    msg = f"已在追蹤：{src.name}"
-                else:
-                    repo.upsert_source(src)                 # 驗證過才落庫（不加壞來源）
-                    msg = f"已加入來源：{src.name}"
-            except SourceUnavailable as e:
-                _log.error("web 加來源失敗", extra={"extra": {"reason": str(e)}})
-                err = str(e)
-        srcs = repo.list_sources()
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="sources.html",
-            context={"sources": srcs, "msg": msg, "err": err})
-
-    @app.post("/sources/recommend", response_class=HTMLResponse)
-    async def sources_recommend(request: Request):
-        """opt-in 撒網找新來源（原則 5：人按才跑、訂閱才進名冊）。"""
-        repo = app.state.repo_factory(app.state.config)
-        srcs = repo.list_sources()
-        repo.close()
-        recs = []
-        rec_msg = rec_err = None
-        try:
-            recs = app.state.recommend_factory()
-            if not recs:
-                rec_msg = "這次沒找到可訂的新來源——過一陣子再試，或直接貼網址追蹤。"
-        except (SourceUnavailable, OpenAIError) as e:   # 搜尋/抓 feed 失敗 → 友善（教訓 3）
-            _log.error("找新來源失敗", extra={"extra": {"reason": str(e)}})
-            rec_err = str(e)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="sources.html",
-            context={"sources": srcs, "recommendations": recs,
-                     "rec_msg": rec_msg, "rec_err": rec_err})
-
-    @app.post("/sources/toggle")
-    async def sources_toggle(source_id: str = Form(""), enabled: str = Form("1")):
-        if source_id:
-            repo = app.state.repo_factory(app.state.config)
-            repo.set_source_enabled(source_id, enabled == "1")
-            repo.close()
-        return RedirectResponse("/sources", status_code=303)
-
-    @app.post("/sources/remove")
-    async def sources_remove(source_id: str = Form("")):
-        if source_id:
-            repo = app.state.repo_factory(app.state.config)
-            repo.delete_source(source_id)
-            repo.close()
-        return RedirectResponse("/sources", status_code=303)
-
-    @app.get("/search", response_class=HTMLResponse)
-    async def search_get(request: Request, q: str = "", explore: str = ""):
-        q = q.strip()
-        explore_on = bool(explore)                           # opt-in（spec 011）；預設關
-        result = err = None
-        if q:
-            try:
-                # 智慧搜尋：搜尋→排序→抓 top-N→grounded 整理（即算即棄、不落庫，FR-006）。
-                # explore=True 時先多角度 fan-out＋合併去重（spec 011）。
-                result = app.state.smart_search_factory(q, explore_on)
-            except SourceUnavailable as e:                   # 搜尋層：未設金鑰/逾時/服務錯誤
-                _log.error("web 搜尋失敗", extra={"extra": {"reason": str(e)}})
-                err = str(e)
-            except Exception as e:                           # noqa: BLE001 - 整理服務整體異常，友善不噴堆疊
-                _log.error("智慧搜尋失敗", extra={"extra": {"reason": str(e)}})
-                err = "整理服務暫時無法使用，請稍後再試。"
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="search.html",
-            context={"q": q, "result": result, "err": err, "explore": explore_on})
-
-    @app.get("/interests", response_class=HTMLResponse)
-    async def interests(request: Request):
-        repo = app.state.repo_factory(app.state.config)
-        topics = InterestService(repo).list_topics()
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="interests.html", context={"topics": topics})
-
-    @app.post("/interests/add")
-    async def interests_add(topic: str = Form("")):
-        if topic.strip():
-            repo = app.state.repo_factory(app.state.config)
-            InterestService(repo).add(topic.strip())
-            repo.close()
-        return RedirectResponse("/interests", status_code=303)
-
-    @app.post("/interests/remove")
-    async def interests_remove(topic: str = Form("")):
-        if topic.strip():
-            repo = app.state.repo_factory(app.state.config)
-            InterestService(repo).remove(topic.strip())
-            repo.close()
-        return RedirectResponse("/interests", status_code=303)
 
     return app
 
