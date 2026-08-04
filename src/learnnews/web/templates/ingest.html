@@ -8,8 +8,10 @@
 
   <style>
     #paste-rich:empty:before { content: attr(data-ph); color: rgba(0,0,0,.35); }
-    #paste-rich img { max-width: 100%; border-radius: 6px; margin: .3rem 0; }
-    #paste-rich { white-space: pre-wrap; }
+    #paste-rich { overflow: auto; word-break: break-word; }
+    #paste-rich * { max-width: 100% !important; box-sizing: border-box; }   /* 貼入內容一律不出框 */
+    #paste-rich img { height: auto !important; border-radius: 6px; margin: .3rem 0; }
+    #paste-rich table { display: block; overflow-x: auto; }
   </style>
 
   {% if content_result and content_result.status == 'ingested' %}
@@ -46,11 +48,6 @@
       (function () {
         var form = document.getElementById('paste-form');
         var rich = document.getElementById('paste-rich');
-        var rawHtml = '', rawText = '';   // paste 當下的原始剪貼簿 HTML/純文字（忠實）
-        rich.addEventListener('paste', function (e) {
-          var h = (e.clipboardData || window.clipboardData).getData('text/html');
-          if (h) rawHtml = h;
-        });
         function normalizeMath(root) {
           // 標準數學載體→$tex$（在砍屬性前做，因為 slim 會把 encoding/class/data-tex 砍掉）
           function repl(el, tex) { if (tex && el) el.replaceWith(document.createTextNode(' $' + tex.trim() + '$ ')); }
@@ -90,11 +87,25 @@
           });
           return root.innerHTML;
         }
-        form.addEventListener('submit', function () {
+        function cleanHtml(html) {            // 清成乾淨版（數學→$tex$、去屬性/樣式/寬度、去重複圖）
           var tmp = document.createElement('div');
-          tmp.innerHTML = rawHtml || rich.innerHTML;   // 優先原始剪貼簿（數學圖等不被 contenteditable 吃掉）
-          document.getElementById('paste-html').value = slim(tmp);
-          document.getElementById('paste-text').value = rawText || rich.innerText;
+          tmp.innerHTML = html;
+          return slim(tmp);
+        }
+        // 貼上時就 sanitize（像正規富文字編輯器）：清乾淨再插入→顯示即收進版、不出框、可編輯
+        rich.addEventListener('paste', function (e) {
+          var h = (e.clipboardData || window.clipboardData).getData('text/html');
+          if (!h) return;                    // 純文字→讓瀏覽器預設貼
+          e.preventDefault();
+          try {
+            document.execCommand('insertHTML', false, cleanHtml(h));
+          } catch (err) {
+            rich.innerHTML = cleanHtml(h);   // 後備
+          }
+        });
+        form.addEventListener('submit', function () {
+          document.getElementById('paste-html').value = cleanHtml(rich.innerHTML);
+          document.getElementById('paste-text').value = rich.innerText;
         });
 
         // 一鍵：直接讀當前剪貼簿收進（免手動貼；拿得到 text/html＝含數學/圖片）
@@ -115,9 +126,8 @@
               if (window.showToast) showToast('剪貼簿裡沒有文字/網頁內容（可能是圖片）', true);
               clip.disabled = false; clip.textContent = '📋 直接從剪貼簿收進'; return;
             }
-            rawHtml = html; rawText = txt;
-            rich.innerHTML = html || ('<p>' + txt.replace(/</g, '&lt;') + '</p>');  // 給點畫面回饋
-            form.requestSubmit();   // 走 submit handler（slim/normalizeMath），不是 submit()
+            rich.innerHTML = html ? cleanHtml(html) : ('<p>' + txt.replace(/</g, '&lt;') + '</p>');
+            form.requestSubmit();   // 走 submit handler（cleanHtml），不是 submit()
           } catch (e) {
             if (window.showToast) showToast('讀剪貼簿失敗（可能需要授權允許讀取剪貼簿）', true);
             clip.disabled = false; clip.textContent = '📋 直接從剪貼簿收進';
