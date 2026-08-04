@@ -100,9 +100,9 @@ class ContentIngestService:
         return ContentIngestResult(status="ingested", title=title, count=n)
 
     def ingest_text(self, text: str, title: str = "", html: str = "",
-                    clean: bool = False) -> ContentIngestResult:
+                    clean: bool = False, source_url: str = "") -> ContentIngestResult:
         """貼上收進。html 非空＝rich-paste：抽正文 markdown（含圖片、剝 boilerplate）；否則純文字。
-        clean=True＝LLM 深度清理（選用、謹慎不改寫、失敗退回原文）。"""
+        clean=True＝LLM 深度清理（選用）。source_url＝原網址（可選，當來源 url／回出處／去重）。"""
         etitle = ""
         if (html or "").strip():
             from .web import extract_article_markdown
@@ -116,7 +116,7 @@ class ContentIngestService:
             from .clean import clean_markdown
             text = clean_markdown(text, self.chat_backend)
         title = self._resolve_title(title, text, etitle)     # 沒標題→AI 生（失敗退回首行）
-        url = f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
+        url = (source_url or "").strip() or f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(text, title, url)
 
     def ingest_url(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:

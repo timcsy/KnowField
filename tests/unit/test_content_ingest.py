@@ -80,6 +80,13 @@ class TestIngestText(unittest.TestCase):
         self.assertEqual(repo.list_source_groups()[0]["title"], "我給的標題")
         repo.close()
 
+    def test_source_url_recorded(self):
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        svc.ingest_text("貓內容", title="貓", source_url="https://zhuanlan.zhihu.com/p/123")
+        self.assertEqual(repo.list_source_groups()[0]["url"], "https://zhuanlan.zhihu.com/p/123")
+        repo.close()
+
     def test_empty_no_store(self):
         repo = Repository(temp_db())
         res = ContentIngestService(repo, StubEmbedder()).ingest_text("   ")

@@ -105,7 +105,8 @@ def create_app() -> FastAPI:
                                        chat_backend=_chat_backend())
             if kind == "text":
                 return svc.ingest_text(kw["text"], kw.get("title", ""),
-                                       html=kw.get("html", ""), clean=kw.get("clean", False))
+                                       html=kw.get("html", ""), clean=kw.get("clean", False),
+                                       source_url=kw.get("source_url", ""))
             if kind == "url":
                 return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
             if kind == "youtube":
@@ -287,11 +288,13 @@ def create_app() -> FastAPI:
         title = str(form.get("title", "") or "")
         html = str(form.get("html", "") or "")
         clean = str(form.get("clean", "") or "")
+        source_url = str(form.get("source_url", "") or "")
         content_result = error = None
         if (text or "").strip() or (html or "").strip():
             try:
                 content_result = app.state.content_ingest(
-                    "text", text=text, title=title, html=html, clean=(clean == "1"))
+                    "text", text=text, title=title, html=html, clean=(clean == "1"),
+                    source_url=source_url)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
