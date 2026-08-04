@@ -32,8 +32,17 @@ def _first_line_title(text: str) -> str:
     return "貼上的內容"
 
 
-_TITLE = ("為以下內容取一個精簡、具體、反映它在講什麼的標題（不超過 20 字）。"
-          "只輸出標題本身，不要引號、不要「標題：」之類前綴、不要其他字。")
+def _first_heading(md: str) -> str:
+    """內容裡第一個 markdown 標題（# …）＝文章自己的標題，最貼近原標題。無→""。"""
+    for line in (md or "").splitlines():
+        s = line.strip()
+        if s.startswith("#"):
+            return s.lstrip("#").strip()[:80]
+    return ""
+
+
+_TITLE = ("以下是一篇文章的內容。請給出**這篇文章的標題**——內容裡本來就有標題就用它、盡量**貼近原標題**，"
+          "**不要自己摘要或改寫**。不超過 30 字，只輸出標題本身，不要引號或前綴。")
 
 
 def _gen_title(text: str, backend) -> str:
@@ -74,9 +83,12 @@ class ContentIngestService:
         self.chat_backend = chat_backend  # 選用 LLM 清理（spec 031 US4）
 
     def _resolve_title(self, given: str, text: str, extracted: str = "") -> str:
-        """標題優先序：人給 > 來源抽出（<title>/h1）> AI 生 > 首行截斷。"""
-        t = (given or "").strip() or (extracted or "").strip()
-        return t or _gen_title(text, self.chat_backend) or _first_line_title(text)
+        """標題優先序：人給 > 文章自己的 H1（最貼近原標題）> 網頁 <title> > AI 忠實抽 > 首行。"""
+        return ((given or "").strip()
+                or _first_heading(text)
+                or (extracted or "").strip()
+                or _gen_title(text, self.chat_backend)
+                or _first_line_title(text))
 
     def _ingest_markdown(self, md: str, title: str, url: str) -> ContentIngestResult:
         if self.repo.seed_exists(url) is not None:        # 同來源已收→不重複增生

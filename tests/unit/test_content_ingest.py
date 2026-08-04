@@ -42,6 +42,17 @@ class TestIngestText(unittest.TestCase):
         self.assertTrue(any("貓" in (h.body or "") for h in hits))  # 檢索得到含貓的塊
         repo.close()
 
+    def test_title_from_article_heading(self):
+        # 文章自己的 H1＝最貼近原標題，勝過 AI 摘要（且不叫 AI）
+        class Boom:
+            def reply(self, m):
+                raise AssertionError("內容有標題不該叫 AI")
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder(), chat_backend=Boom())
+        svc.ingest_text("# 深入解析Flow Matching技术\n\n這篇文章介紹貓…", title="")
+        self.assertEqual(repo.list_source_groups()[0]["title"], "深入解析Flow Matching技术")
+        repo.close()
+
     def test_ai_title_when_none(self):
         class TitleBackend:
             def reply(self, messages):
