@@ -51,7 +51,8 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "img":                                  # 圖片→行內 markdown（spec 031 rich-paste）
             a = dict(attrs)
             src = a.get("src") or a.get("data-src") or a.get("data-actualsrc") or ""
-            if src and src.startswith(("http", "//", "data:")):
+            # 只收外連圖片 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉（待圖片儲存）
+            if src and src.startswith(("http", "//")):
                 self._flush()
                 if src.startswith("//"):
                     src = "https:" + src

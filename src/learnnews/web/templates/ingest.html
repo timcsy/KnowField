@@ -3,8 +3,14 @@
 {% block content %}
   <div class="flex items-center gap-2 mb-4">
     <h1 class="text-2xl font-bold">🌱 收進知識庫</h1>
-    <span class="text-sm text-base-content/60">手挑一篇經典/解說文冊封成「深度吸引子」</span>
+    <span class="text-sm text-base-content/60">貼上／PDF／網頁——收進的內容聊天時能引用（標「你收藏的」）</span>
   </div>
+
+  <style>
+    #paste-rich:empty:before { content: attr(data-ph); color: rgba(0,0,0,.35); }
+    #paste-rich img { max-width: 100%; border-radius: 6px; margin: .3rem 0; }
+    #paste-rich { white-space: pre-wrap; }
+  </style>
 
   {% if content_result and content_result.status == 'ingested' %}
     <div class="alert alert-success mb-4">
@@ -17,30 +23,33 @@
     <div class="alert alert-warning mb-4"><span>沒有內容可收（貼上/轉檔結果是空的）。</span></div>
   {% endif %}
 
-  {# 嘴 1：貼上內容（rich-paste：帶格式/圖片、剝網站雜訊；純文字也行）#}
+  {# 嘴 1：貼上內容（rich-paste：contenteditable 直接顯示格式/圖片、可手動刪雜訊）#}
   <form action="/ingest/paste" method="post" class="mb-4" id="paste-form">
     <label class="label"><span class="label-text font-semibold">📋 貼上內容（AI 聊天頁／文章／討論串，全選複製貼上）</span></label>
     <input name="title" placeholder="標題（可留空，會自動取首行）" class="input input-bordered input-sm w-full mb-2">
-    <textarea name="text" id="paste-text" rows="6"
-              placeholder="貼上你在別處讀到、想收進的內容。從網頁貼會自動帶格式/圖片、剝掉導覽與雜訊…"
-              class="textarea textarea-bordered w-full mb-2"></textarea>
+    <div id="paste-rich" contenteditable="true"
+         class="textarea textarea-bordered w-full min-h-[12rem] overflow-auto mb-1"
+         data-ph="貼進來的內容會直接顯示（含圖片與格式）——你可以先在這裡手動刪掉不要的雜訊，再收進。"></div>
+    <p class="text-xs text-base-content/50 mb-2">💡 圖片能顯示＝已擷取；有些站的圖片是外連（原站可能擋外連，之後檢視時未必顯示——這是已知限制）。可直接在框裡刪掉雜訊。</p>
     <input type="hidden" name="html" id="paste-html">
+    <input type="hidden" name="text" id="paste-text">
     <div class="flex items-center gap-3 mb-1">
       <button class="btn btn-primary btn-sm">收進這段</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-rich').innerHTML=''">清空</button>
       <label class="label cursor-pointer gap-2 py-0">
         <input type="checkbox" name="clean" value="1" class="checkbox checkbox-xs">
         <span class="label-text text-xs">🧹 收進前用 AI 清雜訊（會呼叫模型；只剝 UI、不改寫）</span>
       </label>
     </div>
     <script>
-      // rich-paste：擷取剪貼簿的 HTML（帶格式/圖片）→ 送後端抽正文；純文字貼上則走原路。
       (function () {
-        var ta = document.getElementById('paste-text'), hid = document.getElementById('paste-html');
-        ta.addEventListener('paste', function (e) {
-          var html = (e.clipboardData || window.clipboardData).getData('text/html');
-          if (html) hid.value = html;
+        var form = document.getElementById('paste-form');
+        var rich = document.getElementById('paste-rich');
+        form.addEventListener('submit', function () {
+          rich.querySelectorAll('script,style').forEach(function (n) { n.remove(); });
+          document.getElementById('paste-html').value = rich.innerHTML;
+          document.getElementById('paste-text').value = rich.innerText;  // 純文字後備
         });
-        ta.addEventListener('input', function () { if (!ta.value.trim()) hid.value = ''; });  // 清空同步
       })();
     </script>
   </form>
