@@ -772,9 +772,9 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 > **把各種來源變成 markdown → 切塊 → embed 進 029 store**，讓 `/chat` 能引用（標「你收藏的」）。
 > 選型與實測依據＝`draft/2026-08-04-進料轉檔選型.md`（Mistral Document AI 繁中實測、切塊、四張嘴）。
 
-- [ ] **待實作（第一刀＝驗證過 + 通用的兩張嘴）**：①**貼上文字/markdown**（通用、零相依、合法繞過登入/付費牆——
-  人的瀏覽器＝存取層）；②**PDF → Mistral Document AI**（掛現有 gateway `/v1/ocr`、已驗吐繁體 markdown）。兩者都
-  →**切塊**（章節編號/中文字元 400+40、公式與表格不切半、粒度配 top_k）→ 每塊 embed 進既有 corpus store。
+- [x] **已完成**（spec 030，294 測綠、零回歸；史 `history/071`）：①**貼上文字/markdown**、②**PDF → Mistral Document AI**
+  （掛現有 gateway `/v1/ocr`、真後端驗過吐繁體 markdown；>30 頁走 `pdftoppm` 逐頁 render 避開上限與笨切爆脹）。兩者都
+  →`chunk_markdown`（章節/中文字元 400+40、公式與表格不切半）→ 每塊存成 digest_entry、embed。新 `src/learnnews/ingest/`。
 
 <!--
   規劃：research 2026-08-04（GeneralAffairs 萃取＋SOTA＋Mistral 實測）。硬約束：憲章 IV 核心零相依（轉檔器藏可插拔
@@ -785,13 +785,13 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
   手機分享（PWA Share Target；分享網址=開放內容、分享選字才繞牆）、Word/Excel/PPT/真·音訊影片處理。
 -->
 
-**成功標準（可驗）：**
-- [ ] 貼上一段文字/markdown → 存成 corpus 條目 → `/chat` 問相關能引用（附 [n]、標「你收藏的」）；離線可測
-- [ ] 一份 PDF（含 >30 頁）→ 轉成 markdown、切塊、embed → `/chat` 能引用；**>30 頁不崩**（切檔）、繁體保留（OCR 不需 OpenCC）
-- [ ] **切塊守則**：公式塊/markdown 表格不被切半；靠章節編號而非標題階層；粒度配 `top_k`
-- [ ] 轉檔/切塊/embed 任一失敗→best-effort、友善、不擋（教訓 3）
-- [ ] 全繁中；**核心零相依**（轉檔器藏介面後、選用依賴或 gateway、離線 stub）；復用既有 corpus/embeddings **無新表**；測試不回歸
-- [ ] **out of scope（本階段）**：URL 抓取、YouTube 逐字稿、瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片原生處理、hybrid/rerank/視覺檢索、檢索調參 UI
+**成功標準（可驗）：** ✅ 全數達成
+- [x] 貼上一段文字/markdown → 存成 corpus 條目 → `/chat` 能引用（真後端驗：貼「養貓筆記」→ 檢索得到、繁體保留）（`test_ingest_web`）
+- [x] 一份 PDF → 轉 markdown、切塊、embed → `/chat` 能引用；**>30 頁不崩**（49 頁保險 PDF 觸發逐頁 render 路，已驗）、繁體保留（OCR 不需 OpenCC）
+- [x] **切塊守則**：公式塊/markdown 表格不被切半、靠章節切點（`test_chunk` 7 條）
+- [x] 轉檔/切塊/embed 任一失敗→best-effort、友善、不噴 500（`test_ingest_web` converter failure）
+- [x] 全繁中；**核心零相依**（`chunk` 純 stdlib、轉檔藏 `DocConverter` 後＋離線 stub）；復用既有 corpus/embeddings **無新表**；277→**294** 不回歸
+- [x] **out of scope 守住**：URL 抓取、YouTube、瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片、hybrid/rerank/視覺檢索、檢索調參 UI
 
 ## 關鍵延伸（主題觸發必讀）
 

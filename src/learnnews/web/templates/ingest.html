@@ -6,12 +6,44 @@
     <span class="text-sm text-base-content/60">手挑一篇經典/解說文冊封成「深度吸引子」</span>
   </div>
 
+  {% if content_result and content_result.status == 'ingested' %}
+    <div class="alert alert-success mb-4">
+      <div>✅ 已收進知識庫：<b>{{ content_result.title }}</b>（切成 {{ content_result.count }} 塊）
+        　·　到 <a href="/chat" class="link link-primary">跟知識聊</a> 就能引用到它了（標「📎 你收藏的」）</div>
+    </div>
+  {% elif content_result and content_result.status == 'exists' %}
+    <div class="alert bg-base-100 mb-4"><span>這份已在庫：<b>{{ content_result.title }}</b>（不重複收）</span></div>
+  {% elif content_result and content_result.status == 'empty' %}
+    <div class="alert alert-warning mb-4"><span>沒有內容可收（貼上/轉檔結果是空的）。</span></div>
+  {% endif %}
+
+  {# 嘴 1：貼上文字/markdown（通用、繞過登入/付費牆——你的瀏覽器＝存取層）#}
+  <form action="/ingest/paste" method="post" class="mb-4">
+    <label class="label"><span class="label-text font-semibold">📋 貼上內容（AI 聊天頁／文章／討論串，全選複製貼上）</span></label>
+    <input name="title" placeholder="標題（可留空，會自動取首行）" class="input input-bordered input-sm w-full mb-2">
+    <textarea name="text" rows="6" placeholder="貼上你在別處讀到、想收進知識庫的文字或 markdown…"
+              class="textarea textarea-bordered w-full mb-2"></textarea>
+    <button class="btn btn-primary btn-sm">收進這段</button>
+  </form>
+
+  {# 嘴 2：PDF（論文/報告）→ Mistral Document AI 轉 markdown #}
+  <form action="/ingest/pdf" method="post" enctype="multipart/form-data" class="mb-4">
+    <label class="label"><span class="label-text font-semibold">📄 收進 PDF（論文／報告）</span></label>
+    <input type="file" name="file" accept="application/pdf" class="file-input file-input-bordered file-input-sm w-full mb-2">
+    <div class="join w-full">
+      <input name="url" placeholder="或貼 PDF 網址（如 arXiv PDF）" class="input input-bordered input-sm join-item w-full">
+      <button class="btn btn-primary btn-sm join-item">收進 PDF</button>
+    </div>
+  </form>
+
+  <div class="divider text-xs text-base-content/40">或收一篇網址（原「收進」）</div>
+
   <form action="/ingest" method="post" class="mb-6">
     <div class="join w-full">
-      <input name="ref" value="{{ ref|default('') }}" autofocus
+      <input name="ref" value="{{ ref|default('') }}"
              placeholder="arXiv ID（如 1706.03762）或文章網址"
              class="input input-bordered join-item w-full">
-      <button class="btn btn-primary join-item">收進</button>
+      <button class="btn btn-ghost join-item">收進</button>
     </div>
     <label class="label cursor-pointer justify-start gap-2 mt-2 w-fit">
       <input type="checkbox" name="explainer" value="1" class="checkbox checkbox-sm">

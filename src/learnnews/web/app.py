@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import (
     HTMLResponse,
     PlainTextResponse,
@@ -89,6 +89,24 @@ def create_app() -> FastAPI:
         app.state.config, app.state.repo_factory, question, today, lang)
     app.state.seed_ingest_factory = lambda ref, explainer: _default_seed_ingest(
         app.state.config, app.state.repo_factory, ref, explainer)
+
+    from ..ingest.convert import MistralDocConverter
+    app.state.doc_converter = MistralDocConverter(app.state.config)  # spec 030；測試可注入
+
+    def _content_ingest(kind, **kw):
+        """貼上/PDF 收進：切塊→存成 corpus（spec 030）。可注入 doc_converter。"""
+        from ..backends.factory import make_embedder
+        from ..ingest.service import ContentIngestService
+        cfg = app.state.config
+        repo = app.state.repo_factory(cfg)
+        try:
+            svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter)
+            return svc.ingest_text(kw["text"], kw.get("title", "")) if kind == "text" \
+                else svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"),
+                                    pdf_url=kw.get("pdf_url", ""), title=kw.get("title", ""))
+        finally:
+            repo.close()
+    app.state.content_ingest = _content_ingest
 
     # 跟你的場聊天（spec 022）：可注入的多輪對話／蒸餾／佐證（測試覆寫）
     def _chat_backend():
@@ -251,6 +269,36 @@ def create_app() -> FastAPI:
                 error = str(e)
         return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
             "ref": ref, "result": result, "error": error})
+
+    @app.post("/ingest/paste", response_class=HTMLResponse)
+    async def ingest_paste(request: Request, text: str = Form(""), title: str = Form("")):
+        """貼上文字/markdown 收進（spec 030 US1）：切塊→存成「你收藏的」語料。"""
+        content_result = error = None
+        if (text or "").strip():
+            try:
+                content_result = app.state.content_ingest("text", text=text, title=title)
+            except (SourceUnavailable, OpenAIError) as e:
+                _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
+                error = str(e)
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
+            "content_result": content_result, "error": error})
+
+    @app.post("/ingest/pdf", response_class=HTMLResponse)
+    async def ingest_pdf(request: Request, url: str = Form(""), title: str = Form(""),
+                         file: UploadFile = File(None)):
+        """PDF 收進（spec 030 US2）：轉檔→切塊→存成語料。>30 頁不崩、失敗 best-effort。"""
+        content_result = error = None
+        pdf_bytes = await file.read() if file is not None else None
+        pdf_url = (url or "").strip()
+        if pdf_bytes or pdf_url:
+            try:
+                content_result = app.state.content_ingest(
+                    "pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title)
+            except (SourceUnavailable, OpenAIError) as e:
+                _log.error("PDF 收進失敗", extra={"extra": {"reason": str(e)}})
+                error = str(e)
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
+            "content_result": content_result, "error": error})
 
     @app.get("/library", response_class=HTMLResponse)
     async def library(request: Request):

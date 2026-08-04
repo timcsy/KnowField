@@ -40,6 +40,7 @@ class Config:
     api_key: str = ""
     chat_model: str = "gpt-4o-mini"
     embed_model: str = "text-embedding-3-small"
+    ocr_model: str = "azure/mistral-document-ai-2512"   # PDF→markdown 文件轉檔（spec 030）
     article_lang: str = "繁體中文"      # 消化散文的輸出語言（預設繁中，可由 --lang 指定）
 
     # RAG 問答（spec 005）
@@ -82,6 +83,7 @@ class Config:
             api_key=api_key,
             chat_model=os.environ.get("LEARNNEWS_CHAT_MODEL", "gpt-4o-mini"),
             embed_model=os.environ.get("LEARNNEWS_EMBED_MODEL", "text-embedding-3-small"),
+            ocr_model=os.environ.get("LEARNNEWS_OCR_MODEL", "azure/mistral-document-ai-2512"),
             article_lang=os.environ.get("LEARNNEWS_LANG", "繁體中文"),
             rag_top_k=int(os.environ.get("LEARNNEWS_RAG_TOPK", "6")),
             # 門檻依 embedder 尺度校準（experience 教訓 4）：真實嵌入 cosine 帶高、離線雜湊帶低。
