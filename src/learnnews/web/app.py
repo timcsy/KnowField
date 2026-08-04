@@ -279,9 +279,14 @@ def create_app() -> FastAPI:
             "ref": ref, "result": result, "error": error})
 
     @app.post("/ingest/paste", response_class=HTMLResponse)
-    async def ingest_paste(request: Request, text: str = Form(""), title: str = Form(""),
-                           html: str = Form(""), clean: str = Form("")):
+    async def ingest_paste(request: Request):
         """貼上收進（spec 030 US1＋spec 031）：html 非空＝rich-paste 抽正文＋圖片；clean=1＝LLM 清理。"""
+        # 手動 parse、拉高欄位上限（rich-paste 的 HTML 可能很大，預設 1MB 會爆）
+        form = await request.form(max_part_size=24 * 1024 * 1024)
+        text = str(form.get("text", "") or "")
+        title = str(form.get("title", "") or "")
+        html = str(form.get("html", "") or "")
+        clean = str(form.get("clean", "") or "")
         content_result = error = None
         if (text or "").strip() or (html or "").strip():
             try:

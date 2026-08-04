@@ -46,8 +46,18 @@
         var form = document.getElementById('paste-form');
         var rich = document.getElementById('paste-rich');
         form.addEventListener('submit', function () {
-          rich.querySelectorAll('script,style').forEach(function (n) { n.remove(); });
-          document.getElementById('paste-html').value = rich.innerHTML;
+          // 瘦身：clone 一份，砍掉非內容節點＋所有屬性（只留 img@src、a@href），避免龐大 HTML 爆表單上限
+          var clone = rich.cloneNode(true);
+          clone.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
+            .forEach(function (n) { n.remove(); });
+          clone.querySelectorAll('*').forEach(function (n) {
+            var src = n.tagName === 'IMG' ? n.getAttribute('src') : null;
+            var href = n.tagName === 'A' ? n.getAttribute('href') : null;
+            while (n.attributes.length) n.removeAttribute(n.attributes[0].name);
+            if (src) n.setAttribute('src', src);
+            if (href) n.setAttribute('href', href);
+          });
+          document.getElementById('paste-html').value = clone.innerHTML;
           document.getElementById('paste-text').value = rich.innerText;  // 純文字後備
         });
       })();
