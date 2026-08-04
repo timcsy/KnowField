@@ -101,9 +101,11 @@ def create_app() -> FastAPI:
         cfg = app.state.config
         repo = app.state.repo_factory(cfg)
         try:
-            svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter)
+            svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter,
+                                       chat_backend=_chat_backend())
             if kind == "text":
-                return svc.ingest_text(kw["text"], kw.get("title", ""))
+                return svc.ingest_text(kw["text"], kw.get("title", ""),
+                                       html=kw.get("html", ""), clean=kw.get("clean", False))
             if kind == "url":
                 return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
             if kind == "youtube":
@@ -277,12 +279,14 @@ def create_app() -> FastAPI:
             "ref": ref, "result": result, "error": error})
 
     @app.post("/ingest/paste", response_class=HTMLResponse)
-    async def ingest_paste(request: Request, text: str = Form(""), title: str = Form("")):
-        """貼上文字/markdown 收進（spec 030 US1）：切塊→存成「你收藏的」語料。"""
+    async def ingest_paste(request: Request, text: str = Form(""), title: str = Form(""),
+                           html: str = Form(""), clean: str = Form("")):
+        """貼上收進（spec 030 US1＋spec 031）：html 非空＝rich-paste 抽正文＋圖片；clean=1＝LLM 清理。"""
         content_result = error = None
-        if (text or "").strip():
+        if (text or "").strip() or (html or "").strip():
             try:
-                content_result = app.state.content_ingest("text", text=text, title=title)
+                content_result = app.state.content_ingest(
+                    "text", text=text, title=title, html=html, clean=(clean == "1"))
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
@@ -334,26 +338,41 @@ def create_app() -> FastAPI:
 
     @app.get("/library", response_class=HTMLResponse)
     async def library(request: Request):
+        """知識庫：按來源（同 url）歸一列（spec 031 US1）。"""
         repo = app.state.repo_factory(app.state.config)
-        seeds = repo.list_seeds()
+        sources = repo.list_source_groups()
         repo.close()
         return _TEMPLATES.TemplateResponse(
-            request=request, name="library.html", context={"seeds": seeds})
+            request=request, name="library.html", context={"sources": sources})
+
+    @app.get("/source", response_class=HTMLResponse)
+    async def source_detail(request: Request, u: str = Query("")):
+        """來源詳情：把該來源的塊拼回、去重疊、render（spec 031 US2）。"""
+        from ..ingest.chunk import stitch_chunks
+        repo = app.state.repo_factory(app.state.config)
+        chunks = repo.get_source_chunks(u)
+        title = repo.source_title(u)
+        repo.close()
+        if not chunks:
+            return RedirectResponse("/library", status_code=303)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="source.html",
+            context={"title": title, "url": u, "markdown": stitch_chunks(chunks)})
 
     @app.post("/library/remove")
-    async def library_remove(entry_id: int = Form(0)):
-        if entry_id:
+    async def library_remove(url: str = Form("")):
+        if (url or "").strip():
             repo = app.state.repo_factory(app.state.config)
-            repo.delete_seed(entry_id)             # 僅種子容器；每日流不動作（FR-005）
+            repo.delete_source(url)                 # 整份來源（所有塊）；每日流不動作
             repo.close()
         return RedirectResponse("/library", status_code=303)
 
     @app.post("/library/reclassify")
-    async def library_reclassify(entry_id: int = Form(0),
+    async def library_reclassify(url: str = Form(""),
                                  source_class: str = Form("ordinary")):
-        if entry_id:
+        if (url or "").strip():
             repo = app.state.repo_factory(app.state.config)
-            repo.set_seed_class(entry_id, source_class)
+            repo.set_source_class_by_url(url, source_class)  # 整份來源標解說文/改一般
             repo.close()
         return RedirectResponse("/library", status_code=303)
 

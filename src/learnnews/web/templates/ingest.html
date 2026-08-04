@@ -17,13 +17,32 @@
     <div class="alert alert-warning mb-4"><span>沒有內容可收（貼上/轉檔結果是空的）。</span></div>
   {% endif %}
 
-  {# 嘴 1：貼上文字/markdown（通用、繞過登入/付費牆——你的瀏覽器＝存取層）#}
-  <form action="/ingest/paste" method="post" class="mb-4">
+  {# 嘴 1：貼上內容（rich-paste：帶格式/圖片、剝網站雜訊；純文字也行）#}
+  <form action="/ingest/paste" method="post" class="mb-4" id="paste-form">
     <label class="label"><span class="label-text font-semibold">📋 貼上內容（AI 聊天頁／文章／討論串，全選複製貼上）</span></label>
     <input name="title" placeholder="標題（可留空，會自動取首行）" class="input input-bordered input-sm w-full mb-2">
-    <textarea name="text" rows="6" placeholder="貼上你在別處讀到、想收進知識庫的文字或 markdown…"
+    <textarea name="text" id="paste-text" rows="6"
+              placeholder="貼上你在別處讀到、想收進的內容。從網頁貼會自動帶格式/圖片、剝掉導覽與雜訊…"
               class="textarea textarea-bordered w-full mb-2"></textarea>
-    <button class="btn btn-primary btn-sm">收進這段</button>
+    <input type="hidden" name="html" id="paste-html">
+    <div class="flex items-center gap-3 mb-1">
+      <button class="btn btn-primary btn-sm">收進這段</button>
+      <label class="label cursor-pointer gap-2 py-0">
+        <input type="checkbox" name="clean" value="1" class="checkbox checkbox-xs">
+        <span class="label-text text-xs">🧹 收進前用 AI 清雜訊（會呼叫模型；只剝 UI、不改寫）</span>
+      </label>
+    </div>
+    <script>
+      // rich-paste：擷取剪貼簿的 HTML（帶格式/圖片）→ 送後端抽正文；純文字貼上則走原路。
+      (function () {
+        var ta = document.getElementById('paste-text'), hid = document.getElementById('paste-html');
+        ta.addEventListener('paste', function (e) {
+          var html = (e.clipboardData || window.clipboardData).getData('text/html');
+          if (html) hid.value = html;
+        });
+        ta.addEventListener('input', function () { if (!ta.value.trim()) hid.value = ''; });  // 清空同步
+      })();
+    </script>
   </form>
 
   {# 嘴 2：PDF（論文/報告）→ Mistral Document AI 轉 markdown #}

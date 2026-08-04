@@ -371,6 +371,59 @@ class Repository:
         self.conn.commit()
         return True
 
+    # --- 收進來源（spec 031：同 url 的塊＝一份來源；管理/檢視用來源、檢索用塊，無新表） ---
+    def list_source_groups(self) -> list[dict]:
+        """種子容器裡的塊按 url 歸成「來源」，一來源一列（新在上）。"""
+        from ..config import SEEDS_DATE
+        rows = self.conn.execute(
+            "SELECT de.url AS url, MIN(de.title) AS title, COUNT(*) AS n,"
+            " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id"
+            " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
+            " WHERE d.date=? GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
+        return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
+                 "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"]}
+                for r in rows]
+
+    def get_source_chunks(self, url: str) -> list[str]:
+        """一來源（url）的塊文，依序（供詳情頁拼回）。"""
+        from ..config import SEEDS_DATE
+        rows = self.conn.execute(
+            "SELECT de.article_body AS body FROM digest_entries de"
+            " JOIN digests d ON de.digest_id=d.id WHERE d.date=? AND de.url=? ORDER BY de.id ASC",
+            (SEEDS_DATE, url)).fetchall()
+        return [r["body"] or "" for r in rows]
+
+    def source_title(self, url: str) -> str:
+        from ..config import SEEDS_DATE
+        r = self.conn.execute(
+            "SELECT de.title FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
+            " WHERE d.date=? AND de.url=? LIMIT 1", (SEEDS_DATE, url)).fetchone()
+        return (r["title"] if r else "") or url
+
+    def delete_source(self, url: str) -> int:
+        """刪一來源的所有塊＋embedding（限種子容器）。回刪除塊數。"""
+        sid = self._seeds_digest_id()
+        if sid is None:
+            return 0
+        ids = [r["id"] for r in self.conn.execute(
+            "SELECT id FROM digest_entries WHERE digest_id=? AND url=?", (sid, url)).fetchall()]
+        for eid in ids:
+            self.conn.execute("DELETE FROM digest_entries WHERE id=?", (eid,))
+            self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (eid,))
+        self.conn.commit()
+        return len(ids)
+
+    def set_source_class_by_url(self, url: str, source_class: str) -> int:
+        """把一來源所有塊標成 source_class（整篇標解說文/改一般）。回更新塊數。"""
+        sid = self._seeds_digest_id()
+        if sid is None:
+            return 0
+        cur = self.conn.execute(
+            "UPDATE digest_entries SET source_class=? WHERE digest_id=? AND url=?",
+            (source_class, sid, url))
+        self.conn.commit()
+        return cur.rowcount
+
     # --- why-node 根因（spec 012） ---
     def add_why_node(self, claim: str, evidence_urls: list, touchstones: list,
                      fog_flag: bool, source_entry_id: int, created_at: str,

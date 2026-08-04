@@ -35,13 +35,13 @@ class TestWebLibrary(unittest.TestCase):
 
     def test_empty_state(self):
         r = TestClient(build_app(temp_db())).get("/library")
-        self.assertIn("還沒有種子", r.text)
+        self.assertIn("還沒有東西", r.text)             # spec 031：改按來源
 
     def test_remove_deletes(self):
         db = temp_db()
-        eid = _add_seed(db, "ToDelete", "https://a/x", "body")
+        _add_seed(db, "ToDelete", "https://a/x", "body")
         client = TestClient(build_app(db))
-        client.post("/library/remove", data={"entry_id": str(eid)})
+        client.post("/library/remove", data={"url": "https://a/x"})   # spec 031：按來源 url
         self.assertNotIn("ToDelete", client.get("/library").text)
 
     def test_remove_daily_flow_is_noop(self):
@@ -49,20 +49,19 @@ class TestWebLibrary(unittest.TestCase):
         repo = Repository(db)
         seed_digest(repo, "2026-07-23",
                     [make_entry(1, "DailyKeep", "https://a/daily", "H", "b")])
-        daily_id = repo.list_corpus_entries(today=True)[0].entry_id
         repo.close()
         TestClient(build_app(db)).post("/library/remove",
-                                       data={"entry_id": str(daily_id)})
-        repo = Repository(db)                       # 每日流仍在
+                                       data={"url": "https://a/daily"})   # 每日流 url
+        repo = Repository(db)                       # 每日流仍在（delete_source 只動種子容器）
         self.assertEqual(len(repo.list_corpus_entries(today=True)), 1)
         repo.close()
 
     def test_reclassify_shows_explainer(self):
         db = temp_db()
-        eid = _add_seed(db, "Seed", "https://a/1", "body", cls="ordinary")
+        _add_seed(db, "Seed", "https://a/1", "body", cls="ordinary")
         client = TestClient(build_app(db))
         client.post("/library/reclassify",
-                    data={"entry_id": str(eid), "source_class": "explainer"})
+                    data={"url": "https://a/1", "source_class": "explainer"})  # 按來源 url
         self.assertIn("解說文", client.get("/library").text)
 
 

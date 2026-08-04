@@ -35,6 +35,14 @@ class TestExtractArticle(unittest.TestCase):
         title, md = extract_article_markdown("<html><body></body></html>")
         self.assertEqual(md.strip(), "")
 
+    def test_images_to_markdown(self):
+        html = ('<article><h1>圖文</h1><p>看這張圖：</p>'
+                '<img src="https://pic.example/cat.jpg" alt="一隻貓">'
+                '<img src="//cdn.example/dog.png"></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("![一隻貓](https://pic.example/cat.jpg)", md)
+        self.assertIn("![](https://cdn.example/dog.png)", md)   # // 補成 https:
+
 
 if __name__ == "__main__":
     unittest.main()

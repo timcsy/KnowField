@@ -2,7 +2,21 @@
 
 import unittest
 
-from learnnews.ingest.chunk import chunk_markdown
+from learnnews.ingest.chunk import chunk_markdown, stitch_chunks
+
+
+class TestStitch(unittest.TestCase):
+    def test_removes_overlap(self):
+        c1 = "第一段講貓的照顧方式" + "重疊區塊XYZ123"
+        c2 = "重疊區塊XYZ123" + "第二段講狗的忠誠"
+        self.assertEqual(stitch_chunks([c1, c2]),
+                         "第一段講貓的照顧方式重疊區塊XYZ123第二段講狗的忠誠")  # 重疊去掉一次
+
+    def test_no_overlap_joins(self):
+        self.assertEqual(stitch_chunks(["第一段", "第二段"]), "第一段\n\n第二段")
+
+    def test_empty(self):
+        self.assertEqual(stitch_chunks([]), "")
 
 
 class TestChunkMarkdown(unittest.TestCase):

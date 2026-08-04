@@ -50,10 +50,11 @@ def store_chunks(repo, embedder, title: str, url: str, chunks: list[str],
 
 
 class ContentIngestService:
-    def __init__(self, repo, embedder, converter=None) -> None:
+    def __init__(self, repo, embedder, converter=None, chat_backend=None) -> None:
         self.repo = repo
         self.embedder = embedder
         self.converter = converter        # DocConverter（PDF→markdown）；貼上不需要
+        self.chat_backend = chat_backend  # 選用 LLM 清理（spec 031 US4）
 
     def _ingest_markdown(self, md: str, title: str, url: str) -> ContentIngestResult:
         if self.repo.seed_exists(url) is not None:        # 同來源已收→不重複增生
@@ -64,10 +65,21 @@ class ContentIngestService:
         n = store_chunks(self.repo, self.embedder, title, url, chunks)
         return ContentIngestResult(status="ingested", title=title, count=n)
 
-    def ingest_text(self, text: str, title: str = "") -> ContentIngestResult:
+    def ingest_text(self, text: str, title: str = "", html: str = "",
+                    clean: bool = False) -> ContentIngestResult:
+        """貼上收進。html 非空＝rich-paste：抽正文 markdown（含圖片、剝 boilerplate）；否則純文字。
+        clean=True＝LLM 深度清理（選用、謹慎不改寫、失敗退回原文）。"""
+        if (html or "").strip():
+            from .web import extract_article_markdown
+            etitle, md = extract_article_markdown(html)
+            if md.strip():
+                text, title = md, ((title or "").strip() or etitle)
         text = text or ""
         if not text.strip():
             return ContentIngestResult(status="empty")
+        if clean:
+            from .clean import clean_markdown
+            text = clean_markdown(text, self.chat_backend)
         title = (title or "").strip() or _first_line_title(text)
         url = f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(text, title, url)

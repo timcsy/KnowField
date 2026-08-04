@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — LearnNews{% endblock %}
+{% block content %}
+  <div class="mb-3">
+    <a href="/library" class="link link-hover text-sm">← 知識庫</a>
+    <h1 class="text-2xl font-bold mt-1">{{ title }}</h1>
+    {% if url.startswith('http') %}
+      <a href="{{ url }}" target="_blank" rel="noopener" class="link link-primary text-xs break-all">{{ url }}</a>
+    {% endif %}
+    <p class="text-xs text-base-content/50 mt-1">收進的原文（供回顧）；`/chat` 引用時會標「📎 你收藏的」。</p>
+  </div>
+
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <div id="src-md" class="answer-md leading-relaxed text-[15px]" style="display:none">{{ markdown }}</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var el = document.getElementById('src-md');
+      var raw = el.textContent;
+      el.innerHTML = window.marked ? marked.parse(raw) : raw.replace(/\n/g, '<br>');
+      el.querySelectorAll('img').forEach(function (im) {
+        im.className = 'max-w-full rounded my-2';
+        im.loading = 'lazy';
+        im.addEventListener('error', function () {   // 圖 hotlink 失效→顯示替代文字，不留破圖
+          var a = document.createElement('a'); a.href = im.src; a.target = '_blank';
+          a.className = 'link text-xs opacity-60'; a.textContent = '🖼 圖片（原站，點開）';
+          im.replaceWith(a);
+        });
+      });
+      el.style.display = '';
+      if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+    })();
+  </script>
+{% endblock %}

@@ -795,7 +795,8 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] **第四張嘴 YouTube（增量，2026-08-04；UI 已休眠）**：`/ingest/youtube` 抓字幕→切塊。**實測 timedtext 被 gate（回空）**→
   使用者定案 YouTube 偶爾又非現在、**先擱**：**UI 按鈕拿掉**（`/ingest` 只留貼上/PDF/網頁三張可靠嘴＋一行「YouTube→開逐字稿面板複製→貼上」提示），
   `ingest/youtube.py`＋route＋測試**留著休眠**；日後有需求＝接軟相依（`youtube-transcript-api` import-guard 三層降級）＋加回按鈕即可（`history/071`）。
-- [x] **out of scope 守住**：瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片、hybrid/rerank/視覺檢索、檢索調參 UI
+- [x] **來源管理層（spec 031，2026-08-04；史 `history/072`）**：真實使用照出 4 漏（一篇 28 塊難管理/看不到原文/網站雜訊/要圖片）→ 知識庫**按來源歸一列**、**詳情頁拼回看原文**、**rich-paste**（擷取貼上 HTML→抽正文＋行內圖片＋剝 nav/footer）、**LLM 選用清理**（不改寫）。零新表（url 分組＋行內圖片 URL）。311→323。
+- [x] **out of scope 守住**：瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片、hybrid/rerank/視覺檢索、檢索調參 UI、圖片下載存檔（v1 hotlink）
 
 ## 關鍵延伸（主題觸發必讀）
 

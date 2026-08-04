@@ -48,6 +48,15 @@ class _ArticleMarkdown(HTMLParser):
             return
         if self._skip:
             return
+        if tag == "img":                                  # 圖片→行內 markdown（spec 031 rich-paste）
+            a = dict(attrs)
+            src = a.get("src") or a.get("data-src") or a.get("data-actualsrc") or ""
+            if src and src.startswith(("http", "//", "data:")):
+                self._flush()
+                if src.startswith("//"):
+                    src = "https:" + src
+                self.blocks.append(f"![{(a.get('alt') or '').strip()}]({src})")
+            return
         if tag == "br":
             self._cur.append(" ")
         elif tag in _BLOCK:

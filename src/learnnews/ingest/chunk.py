@@ -80,6 +80,23 @@ def _segment(md: str) -> list[dict]:
     return segs
 
 
+def stitch_chunks(chunks: list[str], max_overlap: int = 120) -> str:
+    """把一來源的塊依序拼回、去除塊間重疊（spec 031 詳情頁看原文）。純函式。"""
+    parts = [c for c in chunks if c and c.strip()]
+    if not parts:
+        return ""
+    out = parts[0]
+    for ch in parts[1:]:
+        k = min(len(out), len(ch), max_overlap)
+        ov = 0
+        for j in range(k, 0, -1):
+            if out[-j:] == ch[:j]:
+                ov = j
+                break
+        out = out + ch[ov:] if ov else out + "\n\n" + ch
+    return out
+
+
 def chunk_markdown(md: str, target: int = 400, overlap: int = 40) -> list[str]:
     """把 markdown 切成 chunk 清單。target＝目標字元數、overlap＝prose 跨塊重疊字元數。"""
     md = (md or "").strip()
