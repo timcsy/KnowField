@@ -33,8 +33,9 @@
     <p class="text-xs text-base-content/50 mb-2">💡 圖片能顯示＝已擷取；有些站的圖片是外連（原站可能擋外連，之後檢視時未必顯示——這是已知限制）。可直接在框裡刪掉雜訊。</p>
     <input type="hidden" name="html" id="paste-html">
     <input type="hidden" name="text" id="paste-text">
-    <div class="flex items-center gap-3 mb-1">
+    <div class="flex items-center gap-3 mb-1 flex-wrap">
       <button class="btn btn-primary btn-sm">收進這段</button>
+      <button type="button" id="clip-btn" class="btn btn-outline btn-sm">📋 直接從剪貼簿收進</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-rich').innerHTML=''">清空</button>
       <label class="label cursor-pointer gap-2 py-0">
         <input type="checkbox" name="clean" value="1" class="checkbox checkbox-xs">
@@ -45,7 +46,7 @@
       (function () {
         var form = document.getElementById('paste-form');
         var rich = document.getElementById('paste-rich');
-        var rawHtml = '';   // paste 當下的原始剪貼簿 HTML（忠實、未被 contenteditable 加工）
+        var rawHtml = '', rawText = '';   // paste 當下的原始剪貼簿 HTML/純文字（忠實）
         rich.addEventListener('paste', function (e) {
           var h = (e.clipboardData || window.clipboardData).getData('text/html');
           if (h) rawHtml = h;
@@ -93,7 +94,34 @@
           var tmp = document.createElement('div');
           tmp.innerHTML = rawHtml || rich.innerHTML;   // 優先原始剪貼簿（數學圖等不被 contenteditable 吃掉）
           document.getElementById('paste-html').value = slim(tmp);
-          document.getElementById('paste-text').value = rich.innerText;
+          document.getElementById('paste-text').value = rawText || rich.innerText;
+        });
+
+        // 一鍵：直接讀當前剪貼簿收進（免手動貼；拿得到 text/html＝含數學/圖片）
+        var clip = document.getElementById('clip-btn');
+        clip.addEventListener('click', async function () {
+          if (!navigator.clipboard || !navigator.clipboard.read) {
+            if (window.showToast) showToast('這個瀏覽器不支援直接讀剪貼簿，請手動貼上', true); return;
+          }
+          clip.disabled = true; clip.textContent = '讀取中…';
+          try {
+            var items = await navigator.clipboard.read();
+            var html = '', txt = '';
+            for (var it of items) {
+              if (it.types.indexOf('text/html') >= 0) html = await (await it.getType('text/html')).text();
+              if (it.types.indexOf('text/plain') >= 0) txt = await (await it.getType('text/plain')).text();
+            }
+            if (!html && !txt) {
+              if (window.showToast) showToast('剪貼簿裡沒有文字/網頁內容（可能是圖片）', true);
+              clip.disabled = false; clip.textContent = '📋 直接從剪貼簿收進'; return;
+            }
+            rawHtml = html; rawText = txt;
+            rich.innerHTML = html || ('<p>' + txt.replace(/</g, '&lt;') + '</p>');  // 給點畫面回饋
+            form.requestSubmit();   // 走 submit handler（slim/normalizeMath），不是 submit()
+          } catch (e) {
+            if (window.showToast) showToast('讀剪貼簿失敗（可能需要授權允許讀取剪貼簿）', true);
+            clip.disabled = false; clip.textContent = '📋 直接從剪貼簿收進';
+          }
         });
       })();
     </script>
