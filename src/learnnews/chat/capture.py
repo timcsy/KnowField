@@ -9,6 +9,14 @@ import hashlib
 from dataclasses import dataclass, field
 
 
+def norm_claim(claim: str) -> str:
+    """正規化主張供去重比對：折疊內部空白、去頭尾、casefold（大小寫/全半形不敏感）。
+
+    純函式。用於「同一次整理內去重」與「精選時擋掉已在核心理解的重複」（避免收進同一條兩則）。
+    """
+    return " ".join((claim or "").split()).strip().casefold()
+
+
 def conversation_fingerprint(messages: list) -> str:
     """訊息序列的穩定指紋：取每則 role＋content（忽略 sources 等易變欄）雜湊。
 

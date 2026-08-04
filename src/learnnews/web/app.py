@@ -184,7 +184,12 @@ def create_app() -> FastAPI:
 
     def _default_distill(history):
         from ..chat.field_chat import FieldChat
-        return FieldChat(_chat_backend()).distill(history, [])
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            roots = repo.list_why_nodes("anointed")   # 傳既有核心理解→標「已收過」（去重）
+        finally:
+            repo.close()
+        return FieldChat(_chat_backend()).distill(history, roots)
     app.state.distill_factory = _default_distill
 
     def _default_title(messages):
@@ -436,14 +441,22 @@ def create_app() -> FastAPI:
 
     @app.post("/chat/distill", response_class=HTMLResponse)
     async def chat_distill(request: Request, history: str = Form("[]"),
-                           temp_id: str = Form("")):
+                           temp_id: str = Form(""), as_: str = Form("", alias="as")):
         hist = _parse_history(history)
         cands = err = None
         try:
-            cands = app.state.distill_factory(hist)      # 一到多條（可能不同層次）
+            cands = app.state.distill_factory(hist)      # 一到多條（可能不同層次、標 already）
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("蒸餾候選失敗", extra={"extra": {"reason": str(e)}})
             err = str(e)
+        if as_ == "json":       # AJAX：原地渲染候選、不重載整頁（不跳離對話）
+            from fastapi.responses import JSONResponse
+            if err is not None:
+                return JSONResponse({"error": err}, status_code=502)
+            return JSONResponse({"candidates": [
+                {"claim": c.claim, "kind": c.kind, "ladder": c.ladder,
+                 "evidence_urls": c.evidence_urls, "already": c.already}
+                for c in (cands or [])]})
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
@@ -454,19 +467,32 @@ def create_app() -> FastAPI:
     async def chat_anoint(request: Request, claim: str = Form(""),
                           ladder: str = Form(""), evidence_urls: str = Form(""),
                           save_convo: str = Form(""), history: str = Form("[]"),
-                          temp_id: str = Form("")):
-        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。save_convo=1 連同存這段對話成由來（spec 023）。"""
+                          temp_id: str = Form(""), as_: str = Form("", alias="as")):
+        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。save_convo=1 連同存這段對話成由來（spec 023）。
+
+        冪等：主張正規化後已在核心理解→不重複新增（連由來到既有根因），避免收進同一條兩則。
+        """
+        from ..chat.capture import norm_claim
         claim = (claim or "").strip()
         msg = None
+        status = "empty"
         if claim:
             steps = [s.strip() for s in ladder.splitlines() if s.strip()]
             urls = [u.strip() for u in evidence_urls.replace("，", ",").replace("\n", ",").split(",")
                     if u.strip().startswith("http")]
             repo = app.state.repo_factory(app.state.config)
-            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
-            repo.anoint_why_node(wid)
-            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『根因』頁檢視或刪除）"
-            if save_convo == "1":               # 連同這段對話存成由來（連到剛冊封的根因）
+            existing = {norm_claim(r.claim): r.id for r in repo.list_why_nodes("anointed")}
+            key = norm_claim(claim)
+            if key in existing:                 # 已收過→不重複新增（原則 6 反囤積）
+                wid = existing[key]
+                status = "exists"
+                msg = f"這條你已經收過了：「{claim[:40]}」（沒有重複新增）"
+            else:
+                wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
+                repo.anoint_why_node(wid)
+                status = "created"
+                msg = f"已存進你的知識庫：「{claim[:40]}」（可到『核心理解』頁檢視或刪除）"
+            if save_convo == "1":               # 連同這段對話存成由來（連到根因，既有或新建都連）
                 messages = _parse_history(history)
                 if messages:
                     tid = _temp_id(temp_id)
@@ -474,8 +500,12 @@ def create_app() -> FastAPI:
                         repo.promote_conversation(tid, _convo_title(messages), wid)
                     else:
                         repo.save_conversation(_convo_title(messages), messages, wid)
-                    msg += "，並存下這段對話當它的由來"
+                    if status == "created":
+                        msg += "，並存下這段對話當它的由來"
             repo.close()
+        if as_ == "json":       # AJAX：原地標記、不重載（不清空對話、不跳主頁）
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"status": status, "claim": claim, "msg": msg})
         return _TEMPLATES.TemplateResponse(
             request=request, name="chat.html",
             context={"messages": [], "history_json": "[]", "anoint_msg": msg,

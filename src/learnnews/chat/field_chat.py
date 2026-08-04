@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from ..backends.openai_api import OpenAIChatBackend  # noqa: F401 - 供 web/測試自本模組匯入
+from .capture import norm_claim
 
 # --- 反逢迎的膜：system prompt（保留行為，輸出用自然口語、不用內部術語）---
 _MEMBRANE = """你是使用者的思考夥伴——幫他把新東西接到他既有的理解上，而且「不順著他說好聽話」。
@@ -73,6 +74,7 @@ class CandidateDraft:
     ladder: list[str] = field(default_factory=list)
     evidence_urls: list[str] = field(default_factory=list)
     kind: str = ""          # 層次：能推導/證明 ｜ 觀察到的規律 ｜ 類比/發想
+    already: bool = False    # 這條的主張已在核心理解裡（精選時標「已收過」、不重複收）
 
 
 def build_field_system_prompt(roots) -> str:
@@ -98,8 +100,13 @@ def _parse_candidates(text: str) -> list[CandidateDraft]:
     for raw in (text or "").splitlines():
         line = raw.strip()
         if line.startswith("主張："):
-            cur = CandidateDraft(claim=line[len("主張："):].strip())
-            cands.append(cur)
+            claim = line[len("主張："):].strip()
+            cur = CandidateDraft(claim=claim)
+            # 同一次整理內去重：同正規化主張只留先出現的一條（避免收進同一條兩則）
+            if any(norm_claim(c.claim) == norm_claim(claim) for c in cands):
+                cur = CandidateDraft(claim=claim)   # 仍設 cur 吸收後續行，但不入清單
+            else:
+                cands.append(cur)
             in_ladder = False
         elif cur is None:
             continue
@@ -263,8 +270,14 @@ class FieldChat:
         return normalize_chapters(raw, n)
 
     def distill(self, history: list[dict], roots) -> list[CandidateDraft]:
-        """蒸餾出一到多條值得留的重點（可能不同層次）。"""
+        """蒸餾出一到多條值得留的重點（可能不同層次）。已在核心理解（roots）的標 already。"""
         convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in history)
         messages = [{"role": "system", "content": _DISTILL},
                     {"role": "user", "content": convo}]
-        return _parse_candidates(self.backend.reply(messages))
+        cands = _parse_candidates(self.backend.reply(messages))
+        # 標「已收過」：主張正規化後已在既有 roots 裡→精選時擋掉、不重複收（原則 6 反囤積）
+        anointed = {norm_claim(getattr(r, "claim", "")) for r in (roots or [])}
+        for c in cands:
+            if norm_claim(c.claim) in anointed:
+                c.already = True
+        return cands

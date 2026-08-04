@@ -98,6 +98,26 @@ class TestPromote(unittest.TestCase):
         c.post(f"/conversations/{tid}/promote", follow_redirects=True)
         self.assertFalse(Repository(db).get_conversation(tid).temporary)
 
+    def test_anoint_all_share_one_conversation(self):       # 全部精選：多條候選連同存→共用一份由來
+        db = temp_db()
+        app = build_app(db)
+        app.state.title_factory = lambda m: "共用由來"
+        c = TestClient(app)
+        tid = c.post("/chat/autosave", data={"history": json.dumps(_H2),
+                                             "temp_id": ""}).json()["temp_id"]
+        for claim in ("根因A", "根因B", "根因C"):             # 逐條精選（＝前端「全部精選」批次做的事）
+            c.post("/chat/anoint", data={"claim": claim, "ladder": "", "evidence_urls": "",
+                                         "save_convo": "1", "history": json.dumps(_H2),
+                                         "temp_id": str(tid)}, follow_redirects=True)
+        repo = Repository(db)
+        self.assertEqual(len(repo.list_conversations()), 1)         # 只一份對話（去重＋同筆升永久）
+        anointed = repo.list_why_nodes("anointed")
+        self.assertEqual(len(anointed), 3)                          # 三條都精選
+        cids = {repo.why_node_provenance().get(n.id) for n in anointed}
+        self.assertEqual(len(cids), 1)                              # 三條都連到同一份由來
+        self.assertEqual(next(iter(cids)), int(tid))
+        repo.close()
+
     def test_anoint_promotes_temp_and_links(self):          # T010 冊封連同存→升永久＋連根因
         db = temp_db()
         app = build_app(db)

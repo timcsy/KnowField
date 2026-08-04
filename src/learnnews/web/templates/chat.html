@@ -83,10 +83,11 @@
 
   {# 動作列：永遠在 DOM，串流建立的對話也顯示；無訊息時隱藏（依 client history 由 JS 切換）#}
   <div id="chat-actions" class="flex gap-2 flex-wrap {% if not messages %}hidden{% endif %}">
-    <form id="distill-form" action="/chat/distill" method="post" onsubmit="markCaptured(); return busy(this, '整理中…')">
+    {# JS 開：submit 被攔成 AJAX（原地渲染候選、不重載）；JS 關：整頁 POST fallback #}
+    <form id="distill-form" action="/chat/distill" method="post">
       <input type="hidden" name="history" value='{{ history_json }}'>
       <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
-      <button class="btn btn-outline btn-sm">把這段整理成一條重點</button>
+      <button class="btn btn-outline btn-sm">🧵 整理成重點</button>
     </form>
     <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
       <input type="hidden" name="history" value='{{ history_json }}'>
@@ -114,64 +115,203 @@
     <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
   </div>
 
+  {# 整理出的候選：JS 開時由 renderCandidates 原地填這裡（不重載、不跳離對話）#}
+  <div id="candidate-panel" class="my-4 hidden"></div>
+
+  {# 無 JS fallback：整頁 POST /chat/distill 時伺服器端渲染（已收過的標灰、不重複精選）#}
   {% if candidates %}
-    <div class="my-4">
-      <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要精選的（可以改，你決定）</h2>
-      <div class="space-y-3">
+    <noscript>
+      <div class="my-4">
+        <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要精選的</h2>
         {% for c in candidates %}
-          <div class="card bg-base-100 shadow-sm border border-primary/20"><div class="card-body p-4 gap-2">
-            {% if c.kind %}
-              <span class="badge badge-sm
-                {%- if '證明' in c.kind or '推導' in c.kind %} badge-success
-                {%- elif '規律' in c.kind %} badge-info
-                {%- else %} badge-ghost{% endif %} w-fit">{{ c.kind }}</span>
-            {% endif %}
-            <form action="/chat/anoint" method="post" class="space-y-2" onsubmit="return anointOne(this)">
+          {% if c.already %}
+            <div class="text-xs opacity-50 py-1">✓ 已在核心理解：{{ c.claim }}</div>
+          {% else %}
+            <form action="/chat/anoint" method="post" class="card bg-base-100 border border-primary/20 p-3 mb-2 space-y-2">
+              {% if c.kind %}<span class="badge badge-sm w-fit">{{ c.kind }}</span>{% endif %}
               <input name="claim" value="{{ c.claim }}" class="input input-bordered input-sm w-full">
-              <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full"
-                        placeholder="為什麼會這樣，一行一層">{{ c.ladder | join('\n') }}</textarea>
-              <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}"
-                     class="input input-bordered input-sm w-full" placeholder="來源網址（可空）">
+              <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full">{{ c.ladder | join('\n') }}</textarea>
+              <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}" class="input input-bordered input-sm w-full" placeholder="來源網址（可空）">
               <input type="hidden" name="history" value='{{ history_json }}'>
               <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
               <label class="label cursor-pointer justify-start gap-2 py-0">
                 <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
-                <span class="label-text text-xs">連同這段對話存成「由來」（日後查得到當初怎麼想的）</span>
+                <span class="label-text text-xs">連同這段對話存成「由來」</span>
               </label>
               <button class="btn btn-primary btn-sm">精選這條</button>
             </form>
-          </div></div>
+          {% endif %}
         {% endfor %}
       </div>
-    </div>
-    <script>
-      // 存這條＝AJAX 存、**不跳頁**（多條候選可逐條存，剩下的還在）。spec 025 去重讓多條連同一份對話。
-      async function anointOne(form) {
-        var btn = form.querySelector('button');
-        if (btn) { btn.disabled = true; btn.textContent = '存中…'; }
+    </noscript>
+  {% endif %}
+
+  <script>
+    // 整理→精選：全程原地 AJAX（不重載、不跳離對話）。候選由 /chat/distill?as=json 取回、client 渲染。
+    (function () {
+      var canAjax = window.fetch && window.FormData;
+      var panel = document.getElementById('candidate-panel');
+      function liveHistory() { return (document.querySelector('input[name=history]') || {}).value || '[]'; }
+      function liveTempId() { return (document.querySelector('input[name=temp_id]') || {}).value || ''; }
+      function badgeClass(k) { return /證明|推導/.test(k) ? 'badge-success' : (/規律/.test(k) ? 'badge-info' : 'badge-ghost'); }
+
+      function markDone(card, text) {
+        card.dataset.done = '1'; card.innerHTML = '';
+        var ok = document.createElement('div');
+        ok.className = 'text-success text-sm py-1'; ok.textContent = text;
+        card.appendChild(ok); checkCollapse();
+      }
+      function checkCollapse() {
+        var cards = panel.querySelectorAll('.cand-card'), remaining = 0, done = 0;
+        cards.forEach(function (c) { c.dataset.done ? done++ : remaining++; });
+        if (cards.length && remaining === 0) collapse(done);
+      }
+      function collapse(done) {
+        panel.innerHTML = '';
+        var box = document.createElement('div'); box.className = 'alert alert-success gap-2';
+        var s = document.createElement('span');
+        s.textContent = '✅ 這段整理完了，精選了 ' + done + ' 條（到「核心理解」看）。';
+        box.appendChild(s);
+        var close = document.createElement('button');
+        close.className = 'btn btn-ghost btn-xs'; close.textContent = '收起';
+        close.onclick = function () { panel.classList.add('hidden'); panel.innerHTML = ''; };
+        box.appendChild(close); panel.appendChild(box);
+      }
+
+      async function anointCard(card, saveConvo) {
+        var btn = card.querySelector('.anoint-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '收進中…'; }
+        var claim = card.querySelector('.cand-claim').value;
+        var b = new URLSearchParams();
+        b.set('claim', claim);
+        b.set('ladder', (card.querySelector('.cand-ladder') || {}).value || '');
+        b.set('evidence_urls', (card.querySelector('.cand-urls') || {}).value || '');
+        b.set('save_convo', saveConvo ? '1' : '');
+        b.set('history', liveHistory()); b.set('temp_id', liveTempId()); b.set('as', 'json');
         try {
-          var resp = await fetch('/chat/anoint', { method: 'POST', body: new FormData(form) });
-          if (!resp.ok) throw new Error(resp.status);
-          var claim = (form.querySelector('[name=claim]') || {}).value || '';
-          var card = form.closest('.card');
-          if (card) {
-            var body = card.querySelector('.card-body');
-            body.textContent = '';
-            var ok = document.createElement('div');
-            ok.className = 'text-success text-sm py-1';
-            ok.textContent = '✅ 已精選：' + claim.slice(0, 40) + '（可到「核心理解」頁看）';
-            body.appendChild(ok);
-          }
+          var resp = await fetch('/chat/anoint', { method: 'POST', body: b });
+          var d = await resp.json();
+          markDone(card, d.status === 'exists'
+            ? '➖ 已收過（沒重複收）：' + claim.slice(0, 40)
+            : '✅ 已精選：' + claim.slice(0, 40));
           if (window.markCaptured) window.markCaptured();
-          if (window.showToast) window.showToast('已精選');
+          return true;
         } catch (e) {
           if (btn) { btn.disabled = false; btn.textContent = '精選這條'; }
           if (window.showToast) window.showToast('精選失敗，請再試一次', true);
+          return false;
         }
-        return false;   // 阻止表單導頁
       }
-    </script>
-  {% endif %}
+
+      async function anointAll(allBtn) {
+        allBtn.disabled = true;
+        var saveCb = document.getElementById('cand-save-convo');
+        var cards = Array.prototype.slice.call(panel.querySelectorAll('.cand-card'))
+          .filter(function (c) { return !c.dataset.done; });
+        for (var i = 0; i < cards.length; i++) {
+          allBtn.textContent = '精選中… ' + (i + 1) + '/' + cards.length;
+          await anointCard(cards[i], saveCb && saveCb.checked);   // 序列：避免同段對話並發存賽跑成重複
+        }
+        if (window.showToast) window.showToast('已全部精選');
+      }
+
+      function freshCard(c, saveCb) {
+        var card = document.createElement('div');
+        card.className = 'cand-card card bg-base-100 shadow-sm border border-primary/20';
+        var body = document.createElement('div'); body.className = 'card-body p-3 gap-2'; card.appendChild(body);
+        var top = document.createElement('div'); top.className = 'flex items-center gap-2';
+        var claim = document.createElement('input');
+        claim.className = 'cand-claim input input-ghost input-sm w-full font-medium px-1'; claim.value = c.claim;
+        top.appendChild(claim);
+        if (c.kind) {
+          var badge = document.createElement('span');
+          badge.className = 'badge badge-sm ' + badgeClass(c.kind) + ' shrink-0'; badge.textContent = c.kind;
+          top.appendChild(badge);
+        }
+        body.appendChild(top);
+        var det = document.createElement('details'); det.className = 'text-sm';
+        var sum = document.createElement('summary');
+        sum.className = 'cursor-pointer text-xs text-base-content/50 select-none'; sum.textContent = '展開編輯（為什麼、來源）';
+        det.appendChild(sum);
+        var ladder = document.createElement('textarea');
+        ladder.className = 'cand-ladder textarea textarea-bordered textarea-sm w-full mt-1'; ladder.rows = 2;
+        ladder.placeholder = '為什麼會這樣，一行一層'; ladder.value = (c.ladder || []).join('\n'); det.appendChild(ladder);
+        var urls = document.createElement('input');
+        urls.className = 'cand-urls input input-bordered input-sm w-full mt-1';
+        urls.placeholder = '來源網址（可空）'; urls.value = (c.evidence_urls || []).join(', '); det.appendChild(urls);
+        body.appendChild(det);
+        var btn = document.createElement('button');
+        btn.className = 'anoint-btn btn btn-primary btn-sm w-fit'; btn.textContent = '精選這條';
+        btn.onclick = function () { anointCard(card, saveCb.checked); };
+        body.appendChild(btn);
+        return card;
+      }
+
+      window.renderCandidates = function (cands) {
+        panel.innerHTML = ''; panel.classList.remove('hidden');
+        var fresh = cands.filter(function (c) { return !c.already; });
+        var already = cands.filter(function (c) { return c.already; });
+        var head = document.createElement('div');
+        head.className = 'flex items-center justify-between gap-2 mb-2';
+        head.innerHTML = '<h2 class="font-semibold text-sm">整理出這幾條——挑要精選的（可改，你決定）</h2>';
+        if (fresh.length > 1) {
+          var allBtn = document.createElement('button');
+          allBtn.className = 'btn btn-primary btn-sm btn-outline';
+          allBtn.textContent = '全部精選（' + fresh.length + ' 條）';
+          allBtn.onclick = function () { anointAll(allBtn); };
+          head.appendChild(allBtn);
+        }
+        panel.appendChild(head);
+        if (!fresh.length && !already.length) {
+          var none = document.createElement('div');
+          none.className = 'text-sm opacity-60'; none.textContent = '這段沒整理出值得長期留的重點。';
+          panel.appendChild(none); return;
+        }
+        var saveCb = null;
+        if (fresh.length) {
+          var saveWrap = document.createElement('label');
+          saveWrap.className = 'label cursor-pointer justify-start gap-2 py-1 mb-1';
+          saveCb = document.createElement('input');
+          saveCb.type = 'checkbox'; saveCb.className = 'checkbox checkbox-xs'; saveCb.id = 'cand-save-convo';
+          saveWrap.appendChild(saveCb);
+          var t = document.createElement('span'); t.className = 'label-text text-xs';
+          t.textContent = '連同這段對話存成「由來」（精選的幾條共用一份，日後查得到當初怎麼想的）';
+          saveWrap.appendChild(t); panel.appendChild(saveWrap);
+        }
+        var list = document.createElement('div'); list.className = 'space-y-2';
+        fresh.forEach(function (c) { list.appendChild(freshCard(c, saveCb)); });
+        panel.appendChild(list);
+        already.forEach(function (c) {
+          var row = document.createElement('div'); row.className = 'text-xs opacity-50 py-0.5';
+          row.textContent = '✓ 已在核心理解：' + c.claim; panel.appendChild(row);
+        });
+      };
+
+      var distillForm = document.getElementById('distill-form');
+      if (canAjax && distillForm) {
+        distillForm.addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (window.markCaptured) window.markCaptured();
+          var btn = distillForm.querySelector('button'); if (btn) btn.disabled = true;
+          if (window.busyShow) busyShow('整理中…（抓出值得長期留的重點）');
+          var b = new URLSearchParams();
+          b.set('history', liveHistory()); b.set('temp_id', liveTempId()); b.set('as', 'json');
+          fetch('/chat/distill', { method: 'POST', body: b })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (window.busyHide) busyHide(); if (btn) btn.disabled = false;
+              if (d.error) { if (window.showToast) showToast('整理失敗：' + d.error, true); return; }
+              window.renderCandidates(d.candidates || []);
+              panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            })
+            .catch(function () {
+              if (window.busyHide) busyHide(); if (btn) btn.disabled = false;
+              if (window.showToast) showToast('整理失敗，請再試一次', true);
+            });
+        });
+      }
+    })();
+  </script>
 
   <script>
     function busyShow(msg) {
