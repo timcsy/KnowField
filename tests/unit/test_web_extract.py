@@ -43,6 +43,17 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("![一隻貓](https://pic.example/cat.jpg)", md)
         self.assertIn("![](https://cdn.example/dog.png)", md)   # // 補成 https:
 
+    def test_equation_images_to_latex(self):
+        # 知乎式公式圖：tex 在 URL 的 ?tex= 或 alt；行內數學留句中、獨立成 $$區塊$$
+        html = ('<article><p>向量場 <img src="//www.zhihu.com/equation?tex=u_t%28x%29" '
+                'alt="u_t(x)" eeimg="1"> 是待學的。</p>'
+                '<img src="//www.zhihu.com/equation?tex=%5Cmin_%5Ctheta%20L" alt="\\min_\\theta L"></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("$u_t(x)$", md)                 # 行內公式還原、句子不斷
+        self.assertIn("向量場", md)
+        self.assertIn("$$", md)                        # 獨立公式成區塊
+        self.assertIn("\\min_\\theta L", md)
+
     def test_figure_and_lazy_image(self):
         # 解說圖常包在 <figure> 裡、且是懶載入（真網址在 data-original，src 是佔位符）
         html = ('<article><h2>解說</h2>'

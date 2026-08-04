@@ -8,7 +8,22 @@ stdlib HTMLParser、零相依、離線可測。抽 <title> ＋標題(h1-6)/段�
 
 from __future__ import annotations
 
+import re
+import urllib.parse
 from html.parser import HTMLParser
+
+
+def _img_tex(src: str, a: dict) -> str:
+    """公式圖片→LaTeX：知乎等把數學存成 `equation?tex=...` 圖或 data-tex/alt。抽不到→""。"""
+    dt = (a.get("data-tex") or "").strip()
+    if dt:
+        return dt
+    m = re.search(r'[?&]tex=([^&"\']+)', src or "")
+    if m:
+        return urllib.parse.unquote(m.group(1)).strip()
+    if "equation" in (src or "") and (a.get("alt") or "").strip():
+        return a["alt"].strip()            # 知乎公式圖常把 tex 放 alt
+    return ""
 
 _SKIP = {"script", "style", "nav", "header", "footer", "aside",
          "form", "button", "svg", "noscript"}   # 不跳過 figure：解說圖常包在 <figure> 裡
@@ -50,10 +65,17 @@ class _ArticleMarkdown(HTMLParser):
             return
         if tag == "img":                                  # 圖片→行內 markdown（spec 031 rich-paste）
             a = dict(attrs)
-            # 懶載入圖片：真網址常在 data-* 而 src 只是佔位符 → 優先 data-*
             src = (a.get("data-actualsrc") or a.get("data-original") or a.get("data-src")
                    or a.get("src") or "")
-            # 只收外連圖片 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉（待圖片儲存）
+            tex = _img_tex(src, a)                         # 公式圖→LaTeX
+            if tex:
+                if self._mode is not None:                # 段落內→行內數學（句子不斷）
+                    self._cur.append(f" ${tex}$ ")
+                else:                                      # 獨立→區塊公式
+                    self._flush()
+                    self.blocks.append(f"$$\n{tex}\n$$")
+                return
+            # 一般圖片：只收外連 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉
             if src and src.startswith(("http", "//")):
                 self._flush()
                 if src.startswith("//"):

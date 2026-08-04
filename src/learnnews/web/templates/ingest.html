@@ -51,13 +51,17 @@
           clone.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
             .forEach(function (n) { n.remove(); });
           clone.querySelectorAll('*').forEach(function (n) {
-            // 懶載入圖片：真網址常在 data-* → 砍屬性前先補回 src，別弄丟解說圖
-            var src = n.tagName === 'IMG' ? (n.getAttribute('data-actualsrc') ||
-              n.getAttribute('data-original') || n.getAttribute('data-src') || n.getAttribute('src')) : null;
-            var href = n.tagName === 'A' ? n.getAttribute('href') : null;
+            var keep = {};
+            if (n.tagName === 'IMG') {
+              // 懶載入圖真網址常在 data-*；公式圖的 tex 在 alt/data-tex → 都先保住再砍屬性
+              keep.src = n.getAttribute('data-actualsrc') || n.getAttribute('data-original') ||
+                n.getAttribute('data-src') || n.getAttribute('src');
+              keep.alt = n.getAttribute('alt');
+              keep['data-tex'] = n.getAttribute('data-tex');
+            }
+            if (n.tagName === 'A') keep.href = n.getAttribute('href');
             while (n.attributes.length) n.removeAttribute(n.attributes[0].name);
-            if (src) n.setAttribute('src', src);
-            if (href) n.setAttribute('href', href);
+            Object.keys(keep).forEach(function (k) { if (keep[k]) n.setAttribute(k, keep[k]); });
           });
           document.getElementById('paste-html').value = clone.innerHTML;
           document.getElementById('paste-text').value = rich.innerText;  // 純文字後備
