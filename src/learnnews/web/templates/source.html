@@ -20,7 +20,16 @@
     (function () {
       var el = document.getElementById('src-md');
       var raw = el.textContent;
-      el.innerHTML = window.marked ? marked.parse(raw) : raw.replace(/\n/g, '<br>');
+      // 先把數學抽成佔位符→marked 不會弄爛 LaTeX（_ 變斜體、\ 被吃）→再還原給 MathJax（同 chat.html）
+      var math = [];
+      var t = raw.replace(/\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+        function (m) { math.push(m); return '@@M' + (math.length - 1) + '@@'; });
+      var html = window.marked ? marked.parse(t) : t.replace(/\n/g, '<br>');
+      html = html.replace(/@@M(\d+)@@/g, function (_, i) {
+        var tex = math[+i];
+        return tex.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      });
+      el.innerHTML = html;
       el.querySelectorAll('img').forEach(function (im) {
         im.className = 'max-w-full rounded my-2';
         im.loading = 'lazy';
