@@ -765,6 +765,34 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 全繁中；核心零相依（檢索複用既有 embeddings、**無新表**）；測試 265→**271** 不回歸
 - [x] **out of scope 守住**：檢索調參 UI、跨文件多跳推理、PDF/影音進料（另階段）、收進自動變核心理解、CLI
 
+## 階段 25：個人內容進料——「多張嘴、一條 pipeline」（貼上＋PDF 優先）
+
+> 進料層任務 2（`draft/2026-08-03-進料層重定位.md` 設計任務 2）promote 而來。**reframe（研究後）**：不是「六種
+> 檔案格式」，是「**進料管道**」——絕大多數知識來源（AI Chat／論文／YouTube／社群／Blog）都塌回**文字**。核心＝
+> **把各種來源變成 markdown → 切塊 → embed 進 029 store**，讓 `/chat` 能引用（標「你收藏的」）。
+> 選型與實測依據＝`draft/2026-08-04-進料轉檔選型.md`（Mistral Document AI 繁中實測、切塊、四張嘴）。
+
+- [ ] **待實作（第一刀＝驗證過 + 通用的兩張嘴）**：①**貼上文字/markdown**（通用、零相依、合法繞過登入/付費牆——
+  人的瀏覽器＝存取層）；②**PDF → Mistral Document AI**（掛現有 gateway `/v1/ocr`、已驗吐繁體 markdown）。兩者都
+  →**切塊**（章節編號/中文字元 400+40、公式與表格不切半、粒度配 top_k）→ 每塊 embed 進既有 corpus store。
+
+<!--
+  規劃：research 2026-08-04（GeneralAffairs 萃取＋SOTA＋Mistral 實測）。硬約束：憲章 IV 核心零相依（轉檔器藏可插拔
+  介面後、選用依賴/gateway、離線 stub＝教訓 1）；教訓 3 轉檔失敗 best-effort；教訓 8 復用既有 corpus/embeddings、
+  不新增表；原則 6 收進＝證言不進地基。切塊是真工程（「查不到」root cause 多在切塊，見 concepts/有吸引子的場 高維段）。
+  30 頁上限→切檔要用會共用資源的工具（非 poppler 笨切）或 render-image 路。
+  後續增量（各自 spike、非本階段）：URL 抓正文（trafilatura）、YouTube 逐字稿、瀏覽器擴充（省力層、餵同一 pipeline）、
+  手機分享（PWA Share Target；分享網址=開放內容、分享選字才繞牆）、Word/Excel/PPT/真·音訊影片處理。
+-->
+
+**成功標準（可驗）：**
+- [ ] 貼上一段文字/markdown → 存成 corpus 條目 → `/chat` 問相關能引用（附 [n]、標「你收藏的」）；離線可測
+- [ ] 一份 PDF（含 >30 頁）→ 轉成 markdown、切塊、embed → `/chat` 能引用；**>30 頁不崩**（切檔）、繁體保留（OCR 不需 OpenCC）
+- [ ] **切塊守則**：公式塊/markdown 表格不被切半；靠章節編號而非標題階層；粒度配 `top_k`
+- [ ] 轉檔/切塊/embed 任一失敗→best-effort、友善、不擋（教訓 3）
+- [ ] 全繁中；**核心零相依**（轉檔器藏介面後、選用依賴或 gateway、離線 stub）；復用既有 corpus/embeddings **無新表**；測試不回歸
+- [ ] **out of scope（本階段）**：URL 抓取、YouTube 逐字稿、瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片原生處理、hybrid/rerank/視覺檢索、檢索調參 UI
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
