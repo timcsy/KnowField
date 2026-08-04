@@ -8,6 +8,17 @@
       <a href="{{ url }}" target="_blank" rel="noopener" class="link link-primary text-xs break-all">{{ url }}</a>
     {% endif %}
     <p class="text-xs text-base-content/50 mt-1">收進的原文（供回顧）；`/chat` 引用時會標「📎 你收藏的」。</p>
+    <form action="/source/meta" method="post" class="flex flex-wrap items-center gap-2 mt-2 text-sm">
+      <input type="hidden" name="u" value="{{ url }}">
+      <span>📌</span>
+      <input name="note" value="{{ note }}" placeholder="收進原因／脈絡（為何存它）"
+             class="input input-bordered input-xs w-72 max-w-full">
+      <span>🗓</span>
+      <input name="ingested_at" value="{{ ingested_at }}" placeholder="日期（可大概）"
+             class="input input-bordered input-xs w-36">
+      <button class="btn btn-ghost btn-xs">存</button>
+      <span class="text-xs text-base-content/40">（只是給你回顧的脈絡，不進聊天）</span>
+    </form>
   </div>
 
   <div class="card bg-base-100 shadow-sm">

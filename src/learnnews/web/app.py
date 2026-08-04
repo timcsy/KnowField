@@ -103,16 +103,18 @@ def create_app() -> FastAPI:
         try:
             svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter,
                                        chat_backend=_chat_backend())
+            note, at = kw.get("note", ""), kw.get("ingested_at", "")
             if kind == "text":
                 return svc.ingest_text(kw["text"], kw.get("title", ""),
                                        html=kw.get("html", ""), clean=kw.get("clean", False),
-                                       source_url=kw.get("source_url", ""))
+                                       source_url=kw.get("source_url", ""), note=note, ingested_at=at)
             if kind == "url":
-                return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
+                return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch,
+                                      note=note, ingested_at=at)
             if kind == "youtube":
                 return svc.ingest_youtube(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
-            return svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"),
-                                  pdf_url=kw.get("pdf_url", ""), title=kw.get("title", ""))
+            return svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"), pdf_url=kw.get("pdf_url", ""),
+                                  title=kw.get("title", ""), note=note, ingested_at=at)
         finally:
             repo.close()
     app.state.content_ingest = _content_ingest
@@ -289,12 +291,14 @@ def create_app() -> FastAPI:
         html = str(form.get("html", "") or "")
         clean = str(form.get("clean", "") or "")
         source_url = str(form.get("source_url", "") or "")
+        note = str(form.get("note", "") or "")
+        at = str(form.get("ingested_at", "") or "").strip() or _now_iso()[:10]
         content_result = error = None
         if (text or "").strip() or (html or "").strip():
             try:
                 content_result = app.state.content_ingest(
                     "text", text=text, title=title, html=html, clean=(clean == "1"),
-                    source_url=source_url)
+                    source_url=source_url, note=note, ingested_at=at)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
@@ -302,12 +306,15 @@ def create_app() -> FastAPI:
             "content_result": content_result, "error": error})
 
     @app.post("/ingest/url", response_class=HTMLResponse)
-    async def ingest_url(request: Request, url: str = Form(""), title: str = Form("")):
+    async def ingest_url(request: Request, url: str = Form(""), title: str = Form(""),
+                         note: str = Form(""), ingested_at: str = Form("")):
         """收整篇網頁（spec 030 增量）：抓正文→markdown→切塊→存。best-effort。"""
         content_result = error = None
+        at = (ingested_at or "").strip() or _now_iso()[:10]
         if (url or "").strip():
             try:
-                content_result = app.state.content_ingest("url", url=url, title=title)
+                content_result = app.state.content_ingest("url", url=url, title=title,
+                                                          note=note, ingested_at=at)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("網頁收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
@@ -329,15 +336,18 @@ def create_app() -> FastAPI:
 
     @app.post("/ingest/pdf", response_class=HTMLResponse)
     async def ingest_pdf(request: Request, url: str = Form(""), title: str = Form(""),
-                         file: UploadFile = File(None)):
+                         file: UploadFile = File(None), note: str = Form(""),
+                         ingested_at: str = Form("")):
         """PDF 收進（spec 030 US2）：轉檔→切塊→存成語料。>30 頁不崩、失敗 best-effort。"""
         content_result = error = None
         pdf_bytes = await file.read() if file is not None else None
         pdf_url = (url or "").strip()
+        at = (ingested_at or "").strip() or _now_iso()[:10]
         if pdf_bytes or pdf_url:
             try:
                 content_result = app.state.content_ingest(
-                    "pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title)
+                    "pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title,
+                    note=note, ingested_at=at)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("PDF 收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
@@ -360,12 +370,25 @@ def create_app() -> FastAPI:
         repo = app.state.repo_factory(app.state.config)
         chunks = repo.get_source_chunks(u)
         title = repo.source_title(u)
+        meta = repo.source_meta(u)
         repo.close()
         if not chunks:
             return RedirectResponse("/library", status_code=303)
         return _TEMPLATES.TemplateResponse(
             request=request, name="source.html",
-            context={"title": title, "url": u, "markdown": stitch_chunks(chunks)})
+            context={"title": title, "url": u, "markdown": stitch_chunks(chunks),
+                     "note": meta["note"], "ingested_at": meta["ingested_at"]})
+
+    @app.post("/source/meta")
+    async def source_meta_edit(u: str = Form(""), note: str = Form(""),
+                               ingested_at: str = Form("")):
+        """編輯來源的收進原因＋日期（脈絡註記，不進 embedding/chat）。"""
+        if (u or "").strip():
+            repo = app.state.repo_factory(app.state.config)
+            repo.set_source_meta(u, note, ingested_at)
+            repo.close()
+        from urllib.parse import quote
+        return RedirectResponse(f"/source?u={quote(u)}", status_code=303)
 
     @app.post("/library/remove")
     async def library_remove(url: str = Form("")):

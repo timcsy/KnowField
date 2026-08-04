@@ -63,7 +63,9 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     figure_url TEXT DEFAULT '',
     figure_kind TEXT DEFAULT '',
     source_class TEXT DEFAULT 'ordinary',  -- 'ordinary' | 'explainer'（種子 spec 006）
-    source_id TEXT DEFAULT ''              -- 條目來源 id（spec 017 分區用；join sources.type）
+    source_id TEXT DEFAULT '',             -- 條目來源 id（spec 017 分區用；join sources.type）
+    note TEXT DEFAULT '',                  -- 收進原因/脈絡（spec 031+，不進 embedding）
+    ingested_at TEXT DEFAULT ''            -- 收進日期（spec 031+，可編輯自由文字）
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
@@ -126,6 +128,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE digest_entries ADD COLUMN source_class TEXT DEFAULT 'ordinary'")
     if "source_id" not in cols:      # spec 017：分區用（條目來源 id）
         conn.execute("ALTER TABLE digest_entries ADD COLUMN source_id TEXT DEFAULT ''")
+    if "note" not in cols:           # spec 031+：收進原因（脈絡註記，不進 embedding）
+        conn.execute("ALTER TABLE digest_entries ADD COLUMN note TEXT DEFAULT ''")
+    if "ingested_at" not in cols:    # spec 031+：收進日期（可編輯自由文字，可大概）
+        conn.execute("ALTER TABLE digest_entries ADD COLUMN ingested_at TEXT DEFAULT ''")
     # spec 012：既有 db 補 why_nodes 表（CREATE IF NOT EXISTS，不動既有表）
     conn.execute("""
         CREATE TABLE IF NOT EXISTS why_nodes (

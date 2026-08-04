@@ -87,6 +87,20 @@ class TestIngestText(unittest.TestCase):
         self.assertEqual(repo.list_source_groups()[0]["url"], "https://zhuanlan.zhihu.com/p/123")
         repo.close()
 
+    def test_reason_and_date_recorded_and_editable(self):
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        svc.ingest_text("貓內容", title="貓", note="為了養貓專案", ingested_at="2026-07")
+        g = repo.list_source_groups()[0]
+        self.assertEqual(g["note"], "為了養貓專案")
+        self.assertEqual(g["ingested_at"], "2026-07")        # 大概日期（自由文字）
+        repo.set_source_meta(g["url"], "改了原因", "2026-08-04")
+        self.assertEqual(repo.source_meta(g["url"]),
+                         {"note": "改了原因", "ingested_at": "2026-08-04"})  # 可編輯
+        # 原因/日期不進 embedding 的正文
+        self.assertNotIn("為了養貓專案", " ".join(e.body or "" for e in repo.list_corpus_entries()))
+        repo.close()
+
     def test_empty_no_store(self):
         repo = Repository(temp_db())
         res = ContentIngestService(repo, StubEmbedder()).ingest_text("   ")

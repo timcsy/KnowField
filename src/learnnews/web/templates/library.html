@@ -23,10 +23,12 @@
                 {% endif %}
               </div>
               <div class="text-xs text-base-content/60 mt-0.5 break-all">
+                {% if s.ingested_at %}<span class="opacity-70">🗓 {{ s.ingested_at }}</span>　{% endif %}
                 {% if s.url.startswith('http') %}
                   <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.url }}</a>
                 {% else %}<span class="opacity-60">{{ s.url }}</span>{% endif %}
               </div>
+              {% if s.note %}<div class="text-xs text-base-content/70 mt-0.5">📌 {{ s.note }}</div>{% endif %}
             </div>
             <div class="flex items-center gap-1 shrink-0">
               <a href="/source?u={{ s.url | urlencode }}" class="btn btn-ghost btn-xs">檢視</a>

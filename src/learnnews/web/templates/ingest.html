@@ -30,6 +30,10 @@
     <label class="label"><span class="label-text font-semibold">📋 貼上內容（AI 聊天頁／文章／討論串，全選複製貼上）</span></label>
     <input name="title" placeholder="標題（可留空，會自動用文章原標題）" class="input input-bordered input-sm w-full mb-2">
     <input name="source_url" placeholder="原網址（可選，方便日後回到出處）" class="input input-bordered input-sm w-full mb-2">
+    <div class="flex gap-2 mb-2">
+      <input name="note" placeholder="收進原因／脈絡（可選，日後想起為何存它）" class="input input-bordered input-sm w-full">
+      <input name="ingested_at" placeholder="日期（可留空=今天、可大概）" class="input input-bordered input-sm w-40 shrink-0">
+    </div>
     <div id="paste-rich" contenteditable="true"
          class="textarea textarea-bordered w-full min-h-[12rem] overflow-auto mb-1"
          data-ph="貼進來的內容會直接顯示（含圖片與格式）——你可以先在這裡手動刪掉不要的雜訊，再收進。"></div>
@@ -142,6 +146,10 @@
   <form action="/ingest/pdf" method="post" enctype="multipart/form-data" class="mb-4">
     <label class="label"><span class="label-text font-semibold">📄 收進 PDF（論文／報告）</span></label>
     <input type="file" name="file" accept="application/pdf" class="file-input file-input-bordered file-input-sm w-full mb-2">
+    <div class="flex gap-2 mb-2">
+      <input name="note" placeholder="收進原因（可選）" class="input input-bordered input-sm w-full">
+      <input name="ingested_at" placeholder="日期（可留空=今天）" class="input input-bordered input-sm w-40 shrink-0">
+    </div>
     <div class="join w-full">
       <input name="url" placeholder="或貼 PDF 網址（如 arXiv PDF）" class="input input-bordered input-sm join-item w-full">
       <button class="btn btn-primary btn-sm join-item">收進 PDF</button>
@@ -151,6 +159,10 @@
   {# 嘴 3：收整篇開放網頁（Blog/文章）→ 抽正文成 markdown #}
   <form action="/ingest/url" method="post" class="mb-4">
     <label class="label"><span class="label-text font-semibold">🌐 收整篇網頁（開放的 Blog／文章）</span></label>
+    <div class="flex gap-2 mb-2">
+      <input name="note" placeholder="收進原因（可選）" class="input input-bordered input-sm w-full">
+      <input name="ingested_at" placeholder="日期（可留空=今天）" class="input input-bordered input-sm w-40 shrink-0">
+    </div>
     <div class="join w-full">
       <input name="url" placeholder="文章網址（登入/付費牆的請改用上面「貼上」）"
              class="input input-bordered input-sm join-item w-full">

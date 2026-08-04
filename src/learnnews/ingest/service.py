@@ -59,15 +59,15 @@ def _gen_title(text: str, backend) -> str:
 
 
 def store_chunks(repo, embedder, title: str, url: str, chunks: list[str],
-                 source_class: str = "ordinary") -> int:
-    """逐塊存成 digest_entry（一來源→多筆）＋批次 embed。回塊數。"""
+                 source_class: str = "ordinary", note: str = "", ingested_at: str = "") -> int:
+    """逐塊存成 digest_entry（一來源→多筆）＋批次 embed。note/ingested_at＝收進原因/日期。回塊數。"""
     ces: list[CorpusEntry] = []
     n = len(chunks)
     for i, ch in enumerate(chunks, 1):
         headline = f"{title}（{i}/{n}）" if n > 1 else title
         item = Item(source_id="content", external_id=f"{url}#{i}", title=title, url=url)
         article = Article(item_id=0, body=ch, source_url=url, headline=headline)
-        eid = repo.ingest_seed(item, article, source_class)
+        eid = repo.ingest_seed(item, article, source_class, note=note, ingested_at=ingested_at)
         ces.append(CorpusEntry(entry_id=eid, title=title, url=url, headline=headline,
                                body=ch, source_class=source_class))
     if ces:
@@ -90,17 +90,20 @@ class ContentIngestService:
                 or _gen_title(text, self.chat_backend)
                 or _first_line_title(text))
 
-    def _ingest_markdown(self, md: str, title: str, url: str) -> ContentIngestResult:
+    def _ingest_markdown(self, md: str, title: str, url: str,
+                         note: str = "", ingested_at: str = "") -> ContentIngestResult:
         if self.repo.seed_exists(url) is not None:        # 同來源已收→不重複增生
             return ContentIngestResult(status="exists", title=title)
         chunks = chunk_markdown(md or "")
         if not chunks:
             return ContentIngestResult(status="empty")
-        n = store_chunks(self.repo, self.embedder, title, url, chunks)
+        n = store_chunks(self.repo, self.embedder, title, url, chunks,
+                         note=(note or "").strip(), ingested_at=(ingested_at or "").strip())
         return ContentIngestResult(status="ingested", title=title, count=n)
 
     def ingest_text(self, text: str, title: str = "", html: str = "",
-                    clean: bool = False, source_url: str = "") -> ContentIngestResult:
+                    clean: bool = False, source_url: str = "",
+                    note: str = "", ingested_at: str = "") -> ContentIngestResult:
         """貼上收進。html 非空＝rich-paste：抽正文 markdown（含圖片、剝 boilerplate）；否則純文字。
         clean=True＝LLM 深度清理（選用）。source_url＝原網址（可選，當來源 url／回出處／去重）。"""
         etitle = ""
@@ -117,9 +120,10 @@ class ContentIngestService:
             text = clean_markdown(text, self.chat_backend)
         title = self._resolve_title(title, text, etitle)     # 沒標題→AI 生（失敗退回首行）
         url = (source_url or "").strip() or f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
-        return self._ingest_markdown(text, title, url)
+        return self._ingest_markdown(text, title, url, note=note, ingested_at=ingested_at)
 
-    def ingest_url(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
+    def ingest_url(self, url: str, title: str = "", http_get=None,
+                   note: str = "", ingested_at: str = "") -> ContentIngestResult:
         """收整篇網頁（開放文章/Blog）：抓 HTML→抽正文 markdown→切塊→存。best-effort。"""
         from ..seed.fetch import default_http_get
         from .web import extract_article_markdown
@@ -131,7 +135,7 @@ class ContentIngestService:
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, extracted_title)
-        return self._ingest_markdown(md, title, url)
+        return self._ingest_markdown(md, title, url, note=note, ingested_at=ingested_at)
 
     def ingest_youtube(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
         """收 YouTube 逐字稿：抓字幕→切塊→存。抓不到字幕→SourceUnavailable（改用貼上）。"""
@@ -144,7 +148,7 @@ class ContentIngestService:
         return self._ingest_markdown(transcript, title, (url or "").strip())
 
     def ingest_pdf(self, pdf_bytes: bytes | None = None, pdf_url: str = "",
-                   title: str = "") -> ContentIngestResult:
+                   title: str = "", note: str = "", ingested_at: str = "") -> ContentIngestResult:
         if self.converter is None:
             raise SourceUnavailable("未設定 PDF 轉檔器")
         md = self.converter.to_markdown(pdf_bytes=pdf_bytes, pdf_url=pdf_url or None)
@@ -152,4 +156,4 @@ class ContentIngestService:
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, "")       # PDF 沒標題→AI 生（勝過用檔名/URL）
         url = pdf_url or f"pdf:{hashlib.sha1((title or 'pdf').encode('utf-8')).hexdigest()[:16]}"
-        return self._ingest_markdown(md, title, url)
+        return self._ingest_markdown(md, title, url, note=note, ingested_at=ingested_at)

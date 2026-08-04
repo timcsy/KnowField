@@ -312,8 +312,9 @@ class Repository:
                 return r["title"]
         return None
 
-    def ingest_seed(self, item, article, source_class: str = "ordinary") -> int:
-        """插入一筆種子 entry 到種子容器，回 entry_id（FR-001）。"""
+    def ingest_seed(self, item, article, source_class: str = "ordinary",
+                    note: str = "", ingested_at: str = "") -> int:
+        """插入一筆種子 entry 到種子容器，回 entry_id（FR-001）。note＝收進原因、ingested_at＝收進日期。"""
         digest_id = self.get_or_create_seeds_digest()
         fig_url = article.figure.url if article.figure else ""
         fig_kind = article.figure.kind if article.figure else ""
@@ -322,10 +323,11 @@ class Repository:
             (digest_id,)).fetchone()["r"]
         cur = self.conn.execute(
             "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
-            " article_body, article_headline, figure_url, figure_kind, source_class)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " article_body, article_headline, figure_url, figure_kind, source_class,"
+            " note, ingested_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (digest_id, rank, item.title, item.url, "", article.body,
-             article.headline, fig_url, fig_kind, source_class))
+             article.headline, fig_url, fig_kind, source_class, note, ingested_at))
         self.conn.commit()
         return cur.lastrowid or 0
 
@@ -377,12 +379,34 @@ class Repository:
         from ..config import SEEDS_DATE
         rows = self.conn.execute(
             "SELECT de.url AS url, MIN(de.title) AS title, COUNT(*) AS n,"
-            " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id"
+            " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
+            " MIN(de.note) AS note, MIN(de.ingested_at) AS ingested_at"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
             " WHERE d.date=? GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
         return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
-                 "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"]}
+                 "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"],
+                 "note": r["note"] or "", "ingested_at": r["ingested_at"] or ""}
                 for r in rows]
+
+    def set_source_meta(self, url: str, note: str, ingested_at: str) -> int:
+        """編輯一來源的收進原因＋日期（套用到該來源所有塊；限種子容器）。回更新塊數。"""
+        sid = self._seeds_digest_id()
+        if sid is None:
+            return 0
+        cur = self.conn.execute(
+            "UPDATE digest_entries SET note=?, ingested_at=? WHERE digest_id=? AND url=?",
+            (note, ingested_at, sid, url))
+        self.conn.commit()
+        return cur.rowcount
+
+    def source_meta(self, url: str) -> dict:
+        """一來源的 note＋ingested_at（供詳情頁顯示/編輯）。"""
+        from ..config import SEEDS_DATE
+        r = self.conn.execute(
+            "SELECT de.note, de.ingested_at FROM digest_entries de"
+            " JOIN digests d ON de.digest_id=d.id WHERE d.date=? AND de.url=? LIMIT 1",
+            (SEEDS_DATE, url)).fetchone()
+        return {"note": (r["note"] if r else "") or "", "ingested_at": (r["ingested_at"] if r else "") or ""}
 
     def get_source_chunks(self, url: str) -> list[str]:
         """一來源（url）的塊文，依序（供詳情頁拼回）。"""
