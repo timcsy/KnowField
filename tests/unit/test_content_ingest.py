@@ -42,6 +42,33 @@ class TestIngestText(unittest.TestCase):
         self.assertTrue(any("貓" in (h.body or "") for h in hits))  # 檢索得到含貓的塊
         repo.close()
 
+    def test_ai_title_when_none(self):
+        class TitleBackend:
+            def reply(self, messages):
+                return "貓咪照顧完全指南"
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder(), chat_backend=TitleBackend())
+        svc.ingest_text("貓要吃貓糧與用貓砂，這是新手飼主的基本常識。", title="")  # 沒給標題
+        self.assertEqual(repo.list_source_groups()[0]["title"], "貓咪照顧完全指南")  # AI 生
+        repo.close()
+
+    def test_ai_title_fallback_first_line(self):
+        repo = Repository(temp_db())  # 無 chat_backend → 退回首行
+        svc = ContentIngestService(repo, StubEmbedder())
+        svc.ingest_text("首行當標題的貓內容\n第二段...", title="")
+        self.assertEqual(repo.list_source_groups()[0]["title"], "首行當標題的貓內容")
+        repo.close()
+
+    def test_given_title_not_overridden(self):
+        class Boom:
+            def reply(self, m):
+                raise AssertionError("有標題不該叫 AI")
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder(), chat_backend=Boom())
+        svc.ingest_text("貓內容", title="我給的標題")
+        self.assertEqual(repo.list_source_groups()[0]["title"], "我給的標題")
+        repo.close()
+
     def test_empty_no_store(self):
         repo = Repository(temp_db())
         res = ContentIngestService(repo, StubEmbedder()).ingest_text("   ")

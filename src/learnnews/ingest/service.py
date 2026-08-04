@@ -32,6 +32,23 @@ def _first_line_title(text: str) -> str:
     return "貼上的內容"
 
 
+_TITLE = ("為以下內容取一個精簡、具體、反映它在講什麼的標題（不超過 20 字）。"
+          "只輸出標題本身，不要引號、不要「標題：」之類前綴、不要其他字。")
+
+
+def _gen_title(text: str, backend) -> str:
+    """沒給標題時請 LLM 生一個。backend 為 None／失敗→""（退回首行，教訓 3）。"""
+    if backend is None or not (text or "").strip():
+        return ""
+    try:
+        out = backend.reply([{"role": "system", "content": _TITLE},
+                             {"role": "user", "content": text[:1500]}])
+    except Exception:  # noqa: BLE001 - 生標題失敗不擋收進
+        return ""
+    t = (out or "").strip().splitlines()[0].strip().strip('"「」 ') if out else ""
+    return t[:40]
+
+
 def store_chunks(repo, embedder, title: str, url: str, chunks: list[str],
                  source_class: str = "ordinary") -> int:
     """逐塊存成 digest_entry（一來源→多筆）＋批次 embed。回塊數。"""
@@ -56,6 +73,11 @@ class ContentIngestService:
         self.converter = converter        # DocConverter（PDF→markdown）；貼上不需要
         self.chat_backend = chat_backend  # 選用 LLM 清理（spec 031 US4）
 
+    def _resolve_title(self, given: str, text: str, extracted: str = "") -> str:
+        """標題優先序：人給 > 來源抽出（<title>/h1）> AI 生 > 首行截斷。"""
+        t = (given or "").strip() or (extracted or "").strip()
+        return t or _gen_title(text, self.chat_backend) or _first_line_title(text)
+
     def _ingest_markdown(self, md: str, title: str, url: str) -> ContentIngestResult:
         if self.repo.seed_exists(url) is not None:        # 同來源已收→不重複增生
             return ContentIngestResult(status="exists", title=title)
@@ -69,18 +91,19 @@ class ContentIngestService:
                     clean: bool = False) -> ContentIngestResult:
         """貼上收進。html 非空＝rich-paste：抽正文 markdown（含圖片、剝 boilerplate）；否則純文字。
         clean=True＝LLM 深度清理（選用、謹慎不改寫、失敗退回原文）。"""
+        etitle = ""
         if (html or "").strip():
             from .web import extract_article_markdown
             etitle, md = extract_article_markdown(html)
             if md.strip():
-                text, title = md, ((title or "").strip() or etitle)
+                text = md
         text = text or ""
         if not text.strip():
             return ContentIngestResult(status="empty")
         if clean:
             from .clean import clean_markdown
             text = clean_markdown(text, self.chat_backend)
-        title = (title or "").strip() or _first_line_title(text)
+        title = self._resolve_title(title, text, etitle)     # 沒標題→AI 生（失敗退回首行）
         url = f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(text, title, url)
 
@@ -95,7 +118,7 @@ class ContentIngestService:
         extracted_title, md = extract_article_markdown(html)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
-        title = (title or "").strip() or extracted_title or url
+        title = self._resolve_title(title, md, extracted_title)
         return self._ingest_markdown(md, title, url)
 
     def ingest_youtube(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
@@ -115,6 +138,6 @@ class ContentIngestService:
         md = self.converter.to_markdown(pdf_bytes=pdf_bytes, pdf_url=pdf_url or None)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
-        title = (title or "").strip() or (pdf_url or "PDF 文件")
+        title = self._resolve_title(title, md, "")       # PDF 沒標題→AI 生（勝過用檔名/URL）
         url = pdf_url or f"pdf:{hashlib.sha1((title or 'pdf').encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(md, title, url)
