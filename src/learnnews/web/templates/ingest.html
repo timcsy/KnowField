@@ -26,7 +26,7 @@
   {# 嘴 1：貼上內容（rich-paste：contenteditable 直接顯示格式/圖片、可手動刪雜訊）#}
   <form action="/ingest/paste" method="post" class="mb-4" id="paste-form">
     <label class="label"><span class="label-text font-semibold">📋 貼上內容（AI 聊天頁／文章／討論串，全選複製貼上）</span></label>
-    <input name="title" placeholder="標題（可留空，會自動取首行）" class="input input-bordered input-sm w-full mb-2">
+    <input name="title" placeholder="標題（可留空，會自動用文章原標題）" class="input input-bordered input-sm w-full mb-2">
     <div id="paste-rich" contenteditable="true"
          class="textarea textarea-bordered w-full min-h-[12rem] overflow-auto mb-1"
          data-ph="貼進來的內容會直接顯示（含圖片與格式）——你可以先在這裡手動刪掉不要的雜訊，再收進。"></div>

@@ -83,10 +83,10 @@ class ContentIngestService:
         self.chat_backend = chat_backend  # 選用 LLM 清理（spec 031 US4）
 
     def _resolve_title(self, given: str, text: str, extracted: str = "") -> str:
-        """標題優先序：人給 > 文章自己的 H1（最貼近原標題）> 網頁 <title> > AI 忠實抽 > 首行。"""
+        """標題優先序：人給 > 文章原標題（h1/<title>）> 內文第一個標題 > AI 忠實抽 > 首行。"""
         return ((given or "").strip()
+                or (extracted or "").strip()      # extract 已優先文章 h1（真標題），退回 <title>
                 or _first_heading(text)
-                or (extracted or "").strip()
                 or _gen_title(text, self.chat_backend)
                 or _first_line_title(text))
 

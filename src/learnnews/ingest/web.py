@@ -34,9 +34,11 @@ _BLOCK = _HEAD | {"p", "li", "blockquote"}
 class _ArticleMarkdown(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.title = ""
+        self.title = ""            # <title> 標籤
+        self.doc_h1 = ""           # 第一個 <h1>＝文章標題（全網慣例；常在 <header> 內，仍要擷取）
         self.blocks: list[str] = []
         self._in_title = False
+        self._in_h1 = False
         self._skip = 0
         self._math_skip = 0        # >0＝在數學元素（span[data-tex]/aria-hidden 渲染）內，跳過
         self._in_math = 0          # <math>…</math> MathML 內：跳渲染、只留 annotation
@@ -72,6 +74,8 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "title":
             self._in_title = True
             return
+        if tag == "h1" and not self.doc_h1 and not self._in_h1:
+            self._in_h1 = True                    # 擷取第一個 h1 當標題（即使在被略過的 header 裡）
         a = dict(attrs)
         # --- 標準數學載體（泛化：按載體抽 LaTeX，不按站）---
         if tag == "script" and "math/tex" in (a.get("type") or ""):   # MathJax v2
@@ -132,6 +136,8 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "title":
             self._in_title = False
             return
+        if tag == "h1" and self._in_h1:
+            self._in_h1 = False                   # h1 收尾（doc_h1 已擷取）；不 return，內文 h1 照常 flush
         if self._cap and ((self._cap == "anno" and tag == "annotation")
                           or (self._cap == "script" and tag == "script")):
             self._cap = None
@@ -156,7 +162,10 @@ class _ArticleMarkdown(HTMLParser):
     def handle_data(self, data):
         if self._in_title:
             self.title += data
-        elif self._cap:                    # 正在擷取載體裡的 tex
+            return
+        if self._in_h1:                    # h1 文字→標題（即使在被略過的 header 裡）；不 return，內文 h1 照常
+            self.doc_h1 += data
+        if self._cap:                      # 正在擷取載體裡的 tex
             self._tex_buf += data
         elif not self._skip and not self._math_skip and not self._in_math and self._mode:
             self._cur.append(data)
@@ -170,6 +179,7 @@ def extract_article_markdown(html: str) -> tuple[str, str]:
     except Exception:  # noqa: BLE001 - 壞 HTML 不該炸收進
         pass
     p._flush()
-    title = " ".join(p.title.split()).strip()
+    # 標題優先文章 h1（乾淨、無站名後綴），退回 <title> 標籤
+    title = " ".join((p.doc_h1 or p.title).split()).strip()
     md = "\n\n".join(p.blocks).strip()
     return title, md

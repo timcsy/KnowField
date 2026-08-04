@@ -19,7 +19,7 @@ _HTML = """<html><head><title>我的文章 - 部落格</title></head><body>
 class TestExtractArticle(unittest.TestCase):
     def test_markdown_structure(self):
         title, md = extract_article_markdown(_HTML)
-        self.assertIn("我的文章", title)
+        self.assertEqual(title, "大標題")     # 文章 h1＝標題（勝過帶站名後綴的 <title>）
         self.assertIn("# 大標題", md)
         self.assertIn("## 小節一", md)
         self.assertIn("- 要點一很重要要記得", md)
@@ -84,6 +84,15 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("向量場", md)
         self.assertIn("是待學的", md)
         self.assertNotIn("RENDER", md)          # 內部渲染節點被跳過
+
+    def test_title_from_h1_even_in_header(self):
+        # 文章真標題常在 <header> 裡（會被 _SKIP 略過內文）→ 仍要當標題，且勝過第一個章節
+        html = ('<article><header class="Post-Header"><h1>文章真正的標題</h1>'
+                '<div>作者 · 100 贊同</div></header>'
+                '<h2>一、第一節</h2><p>內文…</p></article>')
+        title, md = extract_article_markdown(html)
+        self.assertEqual(title, "文章真正的標題")     # 真標題（來自 header 裡的 h1）
+        self.assertNotIn("100 贊同", md)               # header 其餘仍略過
 
     def test_consecutive_duplicate_images_deduped(self):
         # 知乎懶載：模糊預覽圖＋真圖＝同一張連續兩個 <img> → 去重
