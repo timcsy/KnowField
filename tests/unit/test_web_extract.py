@@ -54,6 +54,26 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("$$", md)                        # 獨立公式成區塊
         self.assertIn("\\min_\\theta L", md)
 
+    def test_katex_annotation_math(self):
+        # KaTeX/MathML 標準載體：<annotation encoding="application/x-tex">TEX</annotation>
+        html = ('<p>設 <span class="katex"><span class="katex-mathml"><math><semantics>'
+                '<mrow>RENDER</mrow><annotation encoding="application/x-tex">x^2+y^2</annotation>'
+                '</semantics></math></span><span class="katex-html" aria-hidden="true">VISUAL</span>'
+                '</span> 成立。</p>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("$x^2+y^2$", md)
+        self.assertIn("設", md)
+        self.assertIn("成立", md)
+        self.assertNotIn("RENDER", md)      # mathml 渲染跳過
+        self.assertNotIn("VISUAL", md)      # katex-html 視覺渲染跳過
+
+    def test_mathjax_script_math(self):
+        # MathJax v2 標準載體：<script type="math/tex">TEX</script>
+        html = '<p>公式 <script type="math/tex">\\sum_i a_i</script> 如上。</p>'
+        _, md = extract_article_markdown(html)
+        self.assertIn("$\\sum_i a_i$", md)
+        self.assertIn("公式", md)
+
     def test_span_datatex_inline_math(self):
         # 知乎行內數學＝<span data-tex>，內部是渲染 SVG → 取 tex、跳過渲染物、句子不斷
         html = ('<article><p>向量場 '

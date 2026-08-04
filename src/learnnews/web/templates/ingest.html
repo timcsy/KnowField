@@ -50,7 +50,26 @@
           var h = (e.clipboardData || window.clipboardData).getData('text/html');
           if (h) rawHtml = h;
         });
+        function normalizeMath(root) {
+          // 標準數學載體→$tex$（在砍屬性前做，因為 slim 會把 encoding/class/data-tex 砍掉）
+          function repl(el, tex) { if (tex && el) el.replaceWith(document.createTextNode(' $' + tex.trim() + '$ ')); }
+          // KaTeX/MathML：<annotation encoding="application/x-tex">
+          root.querySelectorAll('annotation[encoding="application/x-tex"]').forEach(function (an) {
+            repl(an.closest('.katex') || an.closest('math') || an.parentNode, an.textContent);
+          });
+          // MathJax v2：<script type="math/tex">
+          root.querySelectorAll('script[type*="math/tex"]').forEach(function (s) {
+            var prev = s.previousElementSibling;
+            if (prev && /MathJax/.test(prev.className || '')) prev.remove();
+            repl(s, s.textContent);
+          });
+          // 知乎等：data-tex / data-formula
+          root.querySelectorAll('[data-tex],[data-formula]').forEach(function (el) {
+            repl(el, el.getAttribute('data-tex') || el.getAttribute('data-formula'));
+          });
+        }
         function slim(root) {
+          normalizeMath(root);
           root.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
             .forEach(function (n) { n.remove(); });
           root.querySelectorAll('*').forEach(function (n) {

@@ -29,6 +29,14 @@
 - 教訓 8 無新表：邏輯分組（url）＋行內圖片 URL 承載，避開新表。
 - 原則 6/保真：清理走 LLM 也要「不改寫」，捕捉工具最忌幻覺改原文。
 
+## 尾聲：rich-paste 的真實使用打磨串（2026-08-04）＋泛化
+真貼知乎照出一連串：textarea 放不了圖→改 contenteditable；表單欄位爆 1MB→前端瘦身＋後端拉高；解說圖不見→
+不跳過 `<figure>`＋懶載取 `data-original`；**數學缺字**→知乎行內數學是 `<span data-tex>`（非圖片）→按 data-tex 還原；
+詳情頁數學成橫線→`source.html` 補上「保護 LaTeX 不被 marked 弄爛」（同 chat.html）。
+**泛化（使用者問「可以泛化嗎」）**：數學（和圖片、雜訊）在複製時**藏在少數標準載體裡**——`data-tex`／
+`annotation[encoding=x-tex]`（KaTeX/MathML）／`math/tex` script（MathJax）／公式圖 alt/?tex=。按載體抽取、不按站，
+長尾交 LLM 清理＋手動編輯。見 experience 新增教訓「每個 X 都不一樣→先找 X 藏在少數標準載體裡」。
+
 ## 收束
 進料層四張嘴 → 一 pipeline → 現在「一份來源」有了管理/檢視/清理/圖片。draft `2026-08-04-進料轉檔選型.md` 四張嘴＋此管理層皆落地；
 剩 #4-進階（圖片下載存檔、瀏覽器擴充帶圖）與 ⑤真影音，未做、記 draft。

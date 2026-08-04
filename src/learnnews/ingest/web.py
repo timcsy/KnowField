@@ -38,7 +38,10 @@ class _ArticleMarkdown(HTMLParser):
         self.blocks: list[str] = []
         self._in_title = False
         self._skip = 0
-        self._math_skip = 0        # >0＝在數學元素（span[data-tex]）內部，跳過其渲染 SVG
+        self._math_skip = 0        # >0＝在數學元素（span[data-tex]/aria-hidden 渲染）內，跳過
+        self._in_math = 0          # <math>…</math> MathML 內：跳渲染、只留 annotation
+        self._cap = None           # 正在擷取 tex 的載體："anno"（annotation）｜"script"（math/tex）
+        self._tex_buf = ""
         self._mode: str | None = None
         self._cur: list[str] = []
 
@@ -69,8 +72,27 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "title":
             self._in_title = True
             return
-        if self._math_skip:                               # 已在數學元素內→跳過其渲染（SVG/span）
+        a = dict(attrs)
+        # --- 標準數學載體（泛化：按載體抽 LaTeX，不按站）---
+        if tag == "script" and "math/tex" in (a.get("type") or ""):   # MathJax v2
+            self._cap = "script"
+            self._tex_buf = ""
+            return
+        if tag == "annotation" and "x-tex" in (a.get("encoding") or ""):  # KaTeX/MathML 標準
+            self._cap = "anno"
+            self._tex_buf = ""
+            return
+        if self._math_skip:                               # 已在要跳過的數學渲染內
             self._math_skip += 1
+            return
+        if tag == "math":                                 # MathML：跳渲染、只留 annotation
+            self._in_math += 1
+            return
+        if self._in_math:
+            return
+        cls = a.get("class") or ""                        # 數學的視覺渲染→跳過（tex 另從載體取）
+        if a.get("aria-hidden") == "true" or "katex-html" in cls or "MathJax" in cls:
+            self._math_skip = 1
             return
         if tag in _SKIP:
             self._skip += 1
@@ -108,7 +130,17 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "title":
             self._in_title = False
             return
-        if self._math_skip:                # 數學元素關閉→退出跳過
+        if self._cap and ((self._cap == "anno" and tag == "annotation")
+                          or (self._cap == "script" and tag == "script")):
+            self._cap = None
+            self._emit_tex(self._tex_buf.strip())        # 載體收尾→吐 LaTeX
+            return
+        if tag == "math" and self._in_math:
+            self._in_math -= 1
+            return
+        if self._in_math:
+            return
+        if self._math_skip:                # 數學渲染關閉→退出跳過
             self._math_skip -= 1
             return
         if tag in _SKIP and self._skip:
@@ -122,7 +154,9 @@ class _ArticleMarkdown(HTMLParser):
     def handle_data(self, data):
         if self._in_title:
             self.title += data
-        elif not self._skip and not self._math_skip and self._mode:
+        elif self._cap:                    # 正在擷取載體裡的 tex
+            self._tex_buf += data
+        elif not self._skip and not self._math_skip and not self._in_math and self._mode:
             self._cur.append(data)
 
 
