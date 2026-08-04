@@ -46,15 +46,10 @@
     </div>
   </form>
 
-  {# 嘴 4：YouTube 逐字稿（＝文字問題，非影片）#}
-  <form action="/ingest/youtube" method="post" class="mb-4">
-    <label class="label"><span class="label-text font-semibold">▶️ 收 YouTube 逐字稿</span></label>
-    <div class="join w-full">
-      <input name="url" placeholder="YouTube 影片連結（抓字幕；沒字幕的請開逐字稿面板複製、改用貼上）"
-             class="input input-bordered input-sm join-item w-full">
-      <button class="btn btn-primary btn-sm join-item">收逐字稿</button>
-    </div>
-  </form>
+  {# YouTube：逐字稿面板全選複製 → 用上面「貼上」；程式化 /ingest/youtube 休眠（timedtext 被 gate、待軟相依，見 history/071）#}
+  <div class="text-xs text-base-content/40 mb-4">
+    ▶️ <b>YouTube</b>：開影片的「顯示轉錄稿」面板 → 全選複製 → 用上面「📋 貼上」收進。
+  </div>
 
   <div class="divider text-xs text-base-content/40">或 arXiv/快速收一篇（摘要級）</div>
 
