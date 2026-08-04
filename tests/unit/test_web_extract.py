@@ -54,6 +54,17 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("$$", md)                        # 獨立公式成區塊
         self.assertIn("\\min_\\theta L", md)
 
+    def test_span_datatex_inline_math(self):
+        # 知乎行內數學＝<span data-tex>，內部是渲染 SVG → 取 tex、跳過渲染物、句子不斷
+        html = ('<article><p>向量場 '
+                '<span class="ztext-math" data-tex="u_t(x)"><svg><path d="M0"/></svg>RENDER</span>'
+                ' 是待學的。</p></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("$u_t(x)$", md)
+        self.assertIn("向量場", md)
+        self.assertIn("是待學的", md)
+        self.assertNotIn("RENDER", md)          # 內部渲染節點被跳過
+
     def test_figure_and_lazy_image(self):
         # 解說圖常包在 <figure> 裡、且是懶載入（真網址在 data-original，src 是佔位符）
         html = ('<article><h2>解說</h2>'

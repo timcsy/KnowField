@@ -38,8 +38,19 @@ class _ArticleMarkdown(HTMLParser):
         self.blocks: list[str] = []
         self._in_title = False
         self._skip = 0
+        self._math_skip = 0        # >0＝在數學元素（span[data-tex]）內部，跳過其渲染 SVG
         self._mode: str | None = None
         self._cur: list[str] = []
+
+    def _emit_tex(self, tex: str):
+        tex = (tex or "").strip()
+        if not tex:
+            return
+        if self._mode is not None:            # 段落內→行內數學（句子不斷）
+            self._cur.append(f" ${tex}$ ")
+        else:                                 # 獨立→區塊公式
+            self._flush()
+            self.blocks.append(f"$$\n{tex}\n$$")
 
     def _flush(self):
         text = " ".join("".join(self._cur).split())
@@ -58,6 +69,9 @@ class _ArticleMarkdown(HTMLParser):
         if tag == "title":
             self._in_title = True
             return
+        if self._math_skip:                               # 已在數學元素內→跳過其渲染（SVG/span）
+            self._math_skip += 1
+            return
         if tag in _SKIP:
             self._skip += 1
             return
@@ -69,11 +83,7 @@ class _ArticleMarkdown(HTMLParser):
                    or a.get("src") or "")
             tex = _img_tex(src, a)                         # 公式圖→LaTeX
             if tex:
-                if self._mode is not None:                # 段落內→行內數學（句子不斷）
-                    self._cur.append(f" ${tex}$ ")
-                else:                                      # 獨立→區塊公式
-                    self._flush()
-                    self.blocks.append(f"$$\n{tex}\n$$")
+                self._emit_tex(tex)
                 return
             # 一般圖片：只收外連 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉
             if src and src.startswith(("http", "//")):
@@ -81,6 +91,12 @@ class _ArticleMarkdown(HTMLParser):
                 if src.startswith("//"):
                     src = "https:" + src
                 self.blocks.append(f"![{(a.get('alt') or '').strip()}]({src})")
+            return
+        a = dict(attrs)
+        dtex = (a.get("data-tex") or a.get("data-formula") or "").strip()
+        if dtex:                                           # span[data-tex] 等行內數學（知乎）
+            self._emit_tex(dtex)
+            self._math_skip = 1                            # 跳過它內部的渲染節點
             return
         if tag == "br":
             self._cur.append(" ")
@@ -91,6 +107,9 @@ class _ArticleMarkdown(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
+            return
+        if self._math_skip:                # 數學元素關閉→退出跳過
+            self._math_skip -= 1
             return
         if tag in _SKIP and self._skip:
             self._skip -= 1
@@ -103,7 +122,7 @@ class _ArticleMarkdown(HTMLParser):
     def handle_data(self, data):
         if self._in_title:
             self.title += data
-        elif not self._skip and self._mode:
+        elif not self._skip and not self._math_skip and self._mode:
             self._cur.append(data)
 
 

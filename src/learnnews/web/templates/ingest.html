@@ -45,26 +45,36 @@
       (function () {
         var form = document.getElementById('paste-form');
         var rich = document.getElementById('paste-rich');
-        form.addEventListener('submit', function () {
-          // 瘦身：clone 一份，砍掉非內容節點＋所有屬性（只留 img@src、a@href），避免龐大 HTML 爆表單上限
-          var clone = rich.cloneNode(true);
-          clone.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
+        var rawHtml = '';   // paste 當下的原始剪貼簿 HTML（忠實、未被 contenteditable 加工）
+        rich.addEventListener('paste', function (e) {
+          var h = (e.clipboardData || window.clipboardData).getData('text/html');
+          if (h) rawHtml = h;
+        });
+        function slim(root) {
+          root.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
             .forEach(function (n) { n.remove(); });
-          clone.querySelectorAll('*').forEach(function (n) {
+          root.querySelectorAll('*').forEach(function (n) {
             var keep = {};
             if (n.tagName === 'IMG') {
-              // 懶載入圖真網址常在 data-*；公式圖的 tex 在 alt/data-tex → 都先保住再砍屬性
               keep.src = n.getAttribute('data-actualsrc') || n.getAttribute('data-original') ||
                 n.getAttribute('data-src') || n.getAttribute('src');
               keep.alt = n.getAttribute('alt');
               keep['data-tex'] = n.getAttribute('data-tex');
+              keep['data-formula'] = n.getAttribute('data-formula');
             }
             if (n.tagName === 'A') keep.href = n.getAttribute('href');
+            var dtex = n.getAttribute && n.getAttribute('data-tex');   // 非圖的公式（如 span[data-tex]）
             while (n.attributes.length) n.removeAttribute(n.attributes[0].name);
+            if (dtex && n.tagName !== 'IMG') n.setAttribute('data-tex', dtex);
             Object.keys(keep).forEach(function (k) { if (keep[k]) n.setAttribute(k, keep[k]); });
           });
-          document.getElementById('paste-html').value = clone.innerHTML;
-          document.getElementById('paste-text').value = rich.innerText;  // 純文字後備
+          return root.innerHTML;
+        }
+        form.addEventListener('submit', function () {
+          var tmp = document.createElement('div');
+          tmp.innerHTML = rawHtml || rich.innerHTML;   // 優先原始剪貼簿（數學圖等不被 contenteditable 吃掉）
+          document.getElementById('paste-html').value = slim(tmp);
+          document.getElementById('paste-text').value = rich.innerText;
         });
       })();
     </script>
