@@ -86,6 +86,16 @@ class ContentIngestService:
         title = (title or "").strip() or extracted_title or url
         return self._ingest_markdown(md, title, url)
 
+    def ingest_youtube(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
+        """收 YouTube 逐字稿：抓字幕→切塊→存。抓不到字幕→SourceUnavailable（改用貼上）。"""
+        from ..seed.fetch import default_http_get
+        from .youtube import fetch_transcript
+        vtitle, transcript = fetch_transcript((url or "").strip(), http_get or default_http_get)
+        if not transcript.strip():
+            return ContentIngestResult(status="empty")
+        title = (title or "").strip() or vtitle or url
+        return self._ingest_markdown(transcript, title, (url or "").strip())
+
     def ingest_pdf(self, pdf_bytes: bytes | None = None, pdf_url: str = "",
                    title: str = "") -> ContentIngestResult:
         if self.converter is None:

@@ -85,6 +85,31 @@ class TestIngestUrl(unittest.TestCase):
         repo.close()
 
 
+class TestIngestYoutube(unittest.TestCase):
+    _WATCH = ('"title":"養貓指南"'
+              '"captionTracks":[{"baseUrl":"https://yt/api/timedtext?v=abc"}]')
+    _CAP = '<transcript><text start="0" dur="2">貓要吃貓糧與用貓砂很重要</text></transcript>'
+
+    def _http(self, u):
+        return self._CAP if "timedtext" in u else self._WATCH
+
+    def test_youtube_transcript_stored(self):
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        res = svc.ingest_youtube("https://youtu.be/abcdefghij1", http_get=self._http)
+        self.assertEqual(res.status, "ingested")
+        self.assertTrue(any("貓" in (e.body or "") for e in repo.list_corpus_entries()))
+        repo.close()
+
+    def test_no_captions_raises(self):
+        from learnnews.sources.base import SourceUnavailable
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        with self.assertRaises(SourceUnavailable):
+            svc.ingest_youtube("https://youtu.be/abcdefghij1", http_get=lambda u: "沒字幕")
+        repo.close()
+
+
 class TestIngestPdf(unittest.TestCase):
     def test_pdf_via_stub_converter(self):
         repo = Repository(temp_db())

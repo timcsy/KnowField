@@ -792,7 +792,8 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 轉檔/切塊/embed 任一失敗→best-effort、友善、不噴 500（`test_ingest_web` converter failure）
 - [x] 全繁中；**核心零相依**（`chunk` 純 stdlib、轉檔藏 `DocConverter` 後＋離線 stub）；復用既有 corpus/embeddings **無新表**；277→**294** 不回歸
 - [x] **第三張嘴（增量，2026-08-04）**：URL 抓正文——`/ingest/url` 抓 HTML→`extract_article_markdown`（stdlib）→同一條切塊 pipeline；便利級 best-effort（高品質走貼上）。真後端驗：arxiv abs→21 塊。
-- [x] **out of scope 守住**：YouTube、瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片、hybrid/rerank/視覺檢索、檢索調參 UI
+- [x] **第四張嘴（增量，2026-08-04）**：YouTube 逐字稿——`/ingest/youtube` 抓字幕→切塊（＝文字問題、跳過影片重工）。**實測 YouTube timedtext 已被 gate（回空）**→優雅降級成「改用貼上」，**印證『貼上才是可靠後備』**。程式碼/解析全單元測試、live 抓取脆。
+- [x] **out of scope 守住**：瀏覽器擴充、手機分享、Word/Excel/PPT/音訊/影片、hybrid/rerank/視覺檢索、檢索調參 UI
 
 ## 關鍵延伸（主題觸發必讀）
 

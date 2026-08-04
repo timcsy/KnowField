@@ -106,6 +106,8 @@ def create_app() -> FastAPI:
                 return svc.ingest_text(kw["text"], kw.get("title", ""))
             if kind == "url":
                 return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
+            if kind == "youtube":
+                return svc.ingest_youtube(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
             return svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"),
                                   pdf_url=kw.get("pdf_url", ""), title=kw.get("title", ""))
         finally:
@@ -296,6 +298,19 @@ def create_app() -> FastAPI:
                 content_result = app.state.content_ingest("url", url=url, title=title)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("網頁收進失敗", extra={"extra": {"reason": str(e)}})
+                error = str(e)
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
+            "content_result": content_result, "error": error})
+
+    @app.post("/ingest/youtube", response_class=HTMLResponse)
+    async def ingest_youtube(request: Request, url: str = Form(""), title: str = Form("")):
+        """收 YouTube 逐字稿（spec 030 增量）：抓字幕→切塊→存。抓不到→友善（改用貼上）。"""
+        content_result = error = None
+        if (url or "").strip():
+            try:
+                content_result = app.state.content_ingest("youtube", url=url, title=title)
+            except (SourceUnavailable, OpenAIError) as e:
+                _log.error("YouTube 收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
         return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
             "content_result": content_result, "error": error})

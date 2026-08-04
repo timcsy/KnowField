@@ -90,6 +90,30 @@ class TestUrlIngest(unittest.TestCase):
         self.assertEqual(len(Repository(db).list_corpus_entries()), 0)
 
 
+class TestYoutubeIngest(unittest.TestCase):
+    _WATCH = ('"title":"養貓指南""captionTracks":[{"baseUrl":"https://yt/api/timedtext?v=abc"}]')
+    _CAP = '<transcript><text start="0" dur="2">貓要吃貓糧與用貓砂</text></transcript>'
+
+    def test_youtube_ingest(self):
+        db = temp_db()
+        app = build_app(db)
+        app.state.web_fetch = lambda u: (self._CAP if "timedtext" in u else self._WATCH)
+        r = TestClient(app).post("/ingest/youtube", data={"url": "https://youtu.be/abcdefghij1"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertGreater(len(Repository(db).list_corpus_entries()), 0)
+
+    def test_youtube_no_caption_friendly(self):
+        db = temp_db()
+        app = build_app(db)
+        app.state.web_fetch = lambda u: "沒字幕頁"
+        r = TestClient(app).post("/ingest/youtube", data={"url": "https://youtu.be/abcdefghij1"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)                 # 不噴 500
+        self.assertIn("字幕", r.text)                        # 友善提示改用貼上
+        self.assertEqual(len(Repository(db).list_corpus_entries()), 0)
+
+
 class TestPurityGuard(unittest.TestCase):
     def test_ingested_not_in_field_prompt(self):
         db = temp_db()
