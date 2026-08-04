@@ -36,12 +36,22 @@
     </div>
   </form>
 
-  <div class="divider text-xs text-base-content/40">或收一篇網址（原「收進」）</div>
+  {# 嘴 3：收整篇開放網頁（Blog/文章）→ 抽正文成 markdown #}
+  <form action="/ingest/url" method="post" class="mb-4">
+    <label class="label"><span class="label-text font-semibold">🌐 收整篇網頁（開放的 Blog／文章）</span></label>
+    <div class="join w-full">
+      <input name="url" placeholder="文章網址（登入/付費牆的請改用上面「貼上」）"
+             class="input input-bordered input-sm join-item w-full">
+      <button class="btn btn-primary btn-sm join-item">收整篇</button>
+    </div>
+  </form>
+
+  <div class="divider text-xs text-base-content/40">或 arXiv/快速收一篇（摘要級）</div>
 
   <form action="/ingest" method="post" class="mb-6">
     <div class="join w-full">
       <input name="ref" value="{{ ref|default('') }}"
-             placeholder="arXiv ID（如 1706.03762）或文章網址"
+             placeholder="arXiv ID（如 1706.03762）"
              class="input input-bordered join-item w-full">
       <button class="btn btn-ghost join-item">收進</button>
     </div>

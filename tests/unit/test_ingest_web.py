@@ -62,6 +62,34 @@ class TestPdfIngest(unittest.TestCase):
         self.assertEqual(len(Repository(db).list_corpus_entries()), 0)  # 半殘不寫
 
 
+class TestUrlIngest(unittest.TestCase):
+    _HTML = ("<html><head><title>貓文</title></head><body><article><h1>養貓</h1><p>"
+             + "貓要吃貓糧與用貓砂很重要。" * 30 + "</p></article></body></html>")
+
+    def test_url_ingest(self):
+        db = temp_db()
+        app = build_app(db)
+        app.state.web_fetch = lambda u: self._HTML
+        r = TestClient(app).post("/ingest/url", data={"url": "https://blog/x"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertGreater(len(Repository(db).list_corpus_entries()), 0)
+
+    def test_url_fetch_failure_friendly(self):
+        from learnnews.sources.base import SourceUnavailable
+
+        def boom(u):
+            raise SourceUnavailable("抓不到")
+        db = temp_db()
+        app = build_app(db)
+        app.state.web_fetch = boom
+        r = TestClient(app).post("/ingest/url", data={"url": "https://blog/x"},
+                                 follow_redirects=True)
+        self.assertEqual(r.status_code, 200)                 # 不噴 500
+        self.assertIn("失敗", r.text)
+        self.assertEqual(len(Repository(db).list_corpus_entries()), 0)
+
+
 class TestPurityGuard(unittest.TestCase):
     def test_ingested_not_in_field_prompt(self):
         db = temp_db()

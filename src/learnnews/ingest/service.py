@@ -72,6 +72,20 @@ class ContentIngestService:
         url = f"paste:{hashlib.sha1(text.encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(text, title, url)
 
+    def ingest_url(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
+        """收整篇網頁（開放文章/Blog）：抓 HTML→抽正文 markdown→切塊→存。best-effort。"""
+        from ..seed.fetch import default_http_get
+        from .web import extract_article_markdown
+        url = (url or "").strip()
+        if not url:
+            return ContentIngestResult(status="empty")
+        html = (http_get or default_http_get)(url)          # 抓不到→SourceUnavailable（邊界攔）
+        extracted_title, md = extract_article_markdown(html)
+        if not (md or "").strip():
+            return ContentIngestResult(status="empty")
+        title = (title or "").strip() or extracted_title or url
+        return self._ingest_markdown(md, title, url)
+
     def ingest_pdf(self, pdf_bytes: bytes | None = None, pdf_url: str = "",
                    title: str = "") -> ContentIngestResult:
         if self.converter is None:

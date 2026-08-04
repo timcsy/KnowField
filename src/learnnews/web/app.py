@@ -92,18 +92,22 @@ def create_app() -> FastAPI:
 
     from ..ingest.convert import MistralDocConverter
     app.state.doc_converter = MistralDocConverter(app.state.config)  # spec 030；測試可注入
+    app.state.web_fetch = None                                       # 網頁抓取（測試可注入；None=預設）
 
     def _content_ingest(kind, **kw):
-        """貼上/PDF 收進：切塊→存成 corpus（spec 030）。可注入 doc_converter。"""
+        """貼上/PDF/URL 收進：切塊→存成 corpus（spec 030）。轉檔器/抓取器可注入。"""
         from ..backends.factory import make_embedder
         from ..ingest.service import ContentIngestService
         cfg = app.state.config
         repo = app.state.repo_factory(cfg)
         try:
             svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter)
-            return svc.ingest_text(kw["text"], kw.get("title", "")) if kind == "text" \
-                else svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"),
-                                    pdf_url=kw.get("pdf_url", ""), title=kw.get("title", ""))
+            if kind == "text":
+                return svc.ingest_text(kw["text"], kw.get("title", ""))
+            if kind == "url":
+                return svc.ingest_url(kw["url"], kw.get("title", ""), http_get=app.state.web_fetch)
+            return svc.ingest_pdf(pdf_bytes=kw.get("pdf_bytes"),
+                                  pdf_url=kw.get("pdf_url", ""), title=kw.get("title", ""))
         finally:
             repo.close()
     app.state.content_ingest = _content_ingest
@@ -279,6 +283,19 @@ def create_app() -> FastAPI:
                 content_result = app.state.content_ingest("text", text=text, title=title)
             except (SourceUnavailable, OpenAIError) as e:
                 _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
+                error = str(e)
+        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
+            "content_result": content_result, "error": error})
+
+    @app.post("/ingest/url", response_class=HTMLResponse)
+    async def ingest_url(request: Request, url: str = Form(""), title: str = Form("")):
+        """收整篇網頁（spec 030 增量）：抓正文→markdown→切塊→存。best-effort。"""
+        content_result = error = None
+        if (url or "").strip():
+            try:
+                content_result = app.state.content_ingest("url", url=url, title=title)
+            except (SourceUnavailable, OpenAIError) as e:
+                _log.error("網頁收進失敗", extra={"extra": {"reason": str(e)}})
                 error = str(e)
         return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
             "content_result": content_result, "error": error})

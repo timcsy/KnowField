@@ -60,6 +60,31 @@ class TestIngestText(unittest.TestCase):
         repo.close()
 
 
+class TestIngestUrl(unittest.TestCase):
+    _HTML = ("<html><head><title>貓文</title></head><body><article>"
+             "<h1>養貓指南</h1><p>" + "貓要吃貓糧與用貓砂。" * 40 + "</p></article></body></html>")
+
+    def test_url_extracts_and_stores(self):
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        res = svc.ingest_url("https://blog/x", http_get=lambda u: self._HTML)
+        self.assertEqual(res.status, "ingested")
+        self.assertTrue(any("貓" in (e.body or "") for e in repo.list_corpus_entries()))
+        repo.close()
+
+    def test_url_fetch_failure_raises(self):
+        from learnnews.sources.base import SourceUnavailable
+
+        def boom(u):
+            raise SourceUnavailable("抓不到")
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        with self.assertRaises(SourceUnavailable):
+            svc.ingest_url("https://blog/x", http_get=boom)
+        self.assertEqual(len(repo.list_corpus_entries()), 0)
+        repo.close()
+
+
 class TestIngestPdf(unittest.TestCase):
     def test_pdf_via_stub_converter(self):
         repo = Repository(temp_db())
