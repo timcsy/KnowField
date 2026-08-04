@@ -85,6 +85,16 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("是待學的", md)
         self.assertNotIn("RENDER", md)          # 內部渲染節點被跳過
 
+    def test_consecutive_duplicate_images_deduped(self):
+        # 知乎懶載：模糊預覽圖＋真圖＝同一張連續兩個 <img> → 去重
+        html = ('<article><p>看圖：</p>'
+                '<img src="https://pic.example/cat.jpg" alt="預覽">'
+                '<img src="https://pic.example/cat.jpg" alt="貓">'
+                '<img src="https://pic.example/dog.jpg"></article>')
+        _, md = extract_article_markdown(html)
+        self.assertEqual(md.count("pic.example/cat.jpg"), 1)   # 連續同圖只留一個
+        self.assertIn("pic.example/dog.jpg", md)
+
     def test_figure_and_lazy_image(self):
         # 解說圖常包在 <figure> 裡、且是懶載入（真網址在 data-original，src 是佔位符）
         html = ('<article><h2>解說</h2>'

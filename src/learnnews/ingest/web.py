@@ -109,9 +109,11 @@ class _ArticleMarkdown(HTMLParser):
                 return
             # 一般圖片：只收外連 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉
             if src and src.startswith(("http", "//")):
-                self._flush()
                 if src.startswith("//"):
                     src = "https:" + src
+                self._flush()
+                if self.blocks and self.blocks[-1].endswith(f"]({src})"):
+                    return                        # 連續同圖去重（知乎 預覽圖+真圖）
                 self.blocks.append(f"![{(a.get('alt') or '').strip()}]({src})")
             return
         a = dict(attrs)
