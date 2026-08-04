@@ -51,7 +51,9 @@
           clone.querySelectorAll('script,style,svg,noscript,button,input,textarea,iframe,form,link,meta')
             .forEach(function (n) { n.remove(); });
           clone.querySelectorAll('*').forEach(function (n) {
-            var src = n.tagName === 'IMG' ? n.getAttribute('src') : null;
+            // 懶載入圖片：真網址常在 data-* → 砍屬性前先補回 src，別弄丟解說圖
+            var src = n.tagName === 'IMG' ? (n.getAttribute('data-actualsrc') ||
+              n.getAttribute('data-original') || n.getAttribute('data-src') || n.getAttribute('src')) : null;
             var href = n.tagName === 'A' ? n.getAttribute('href') : null;
             while (n.attributes.length) n.removeAttribute(n.attributes[0].name);
             if (src) n.setAttribute('src', src);

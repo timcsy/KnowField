@@ -43,6 +43,15 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("![一隻貓](https://pic.example/cat.jpg)", md)
         self.assertIn("![](https://cdn.example/dog.png)", md)   # // 補成 https:
 
+    def test_figure_and_lazy_image(self):
+        # 解說圖常包在 <figure> 裡、且是懶載入（真網址在 data-original，src 是佔位符）
+        html = ('<article><h2>解說</h2>'
+                '<figure><img src="data:image/gif;base64,PLACEHOLDER" '
+                'data-original="https://pic.example/diagram.png" alt="示意圖">'
+                '<figcaption>圖一</figcaption></figure></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("![示意圖](https://pic.example/diagram.png)", md)  # 圖沒被 figure 吞、取到真網址
+
 
 if __name__ == "__main__":
     unittest.main()

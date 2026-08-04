@@ -11,7 +11,7 @@ from __future__ import annotations
 from html.parser import HTMLParser
 
 _SKIP = {"script", "style", "nav", "header", "footer", "aside",
-         "form", "button", "svg", "noscript", "figure"}
+         "form", "button", "svg", "noscript"}   # 不跳過 figure：解說圖常包在 <figure> 裡
 _HEAD = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _BLOCK = _HEAD | {"p", "li", "blockquote"}
 
@@ -50,7 +50,9 @@ class _ArticleMarkdown(HTMLParser):
             return
         if tag == "img":                                  # 圖片→行內 markdown（spec 031 rich-paste）
             a = dict(attrs)
-            src = a.get("src") or a.get("data-src") or a.get("data-actualsrc") or ""
+            # 懶載入圖片：真網址常在 data-* 而 src 只是佔位符 → 優先 data-*
+            src = (a.get("data-actualsrc") or a.get("data-original") or a.get("data-src")
+                   or a.get("src") or "")
             # 只收外連圖片 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉（待圖片儲存）
             if src and src.startswith(("http", "//")):
                 self._flush()
