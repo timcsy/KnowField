@@ -86,6 +86,9 @@
               {% if provenance and w.id in provenance %}
                 <a href="/conversations/{{ provenance[w.id] }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（當初怎麼想到的對話）</a>
               {% endif %}
+              {% if source_provenance and w.id in source_provenance %}
+                <a href="/source?u={{ source_provenance[w.id] | urlencode }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（你收進的來源）</a>
+              {% endif %}
               <div class="mt-1 flex gap-1 flex-wrap">
                 <button type="button" class="btn btn-ghost btn-xs"
                         onclick="copyExport('/roots/{{ w.id }}/export?as=md')"

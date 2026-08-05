@@ -124,6 +124,11 @@ def create_app() -> FastAPI:
         from ..backends.factory import make_chat_backend
         return getattr(app.state, "chat_backend_for_test", None) or make_chat_backend(app.state.config)
 
+    def _extractor():
+        """根因萃取後端（spec 032 整理成核心理解，復用階段 10）；可注入離線 stub（教訓 1）。"""
+        from ..backends.factory import make_root_cause_extractor
+        return getattr(app.state, "extractor_for_test", None) or make_root_cause_extractor(app.state.config)
+
     def _chat_search(message):
         """每輪撒網找佐證（一邊聊一邊找）；失敗→空、不拖垮對話（教訓 3）。"""
         search = getattr(app.state, "chat_search_for_test", None)
@@ -364,7 +369,7 @@ def create_app() -> FastAPI:
             request=request, name="library.html", context={"sources": sources})
 
     @app.get("/source", response_class=HTMLResponse)
-    async def source_detail(request: Request, u: str = Query("")):
+    async def source_detail(request: Request, u: str = Query(""), err: str = Query("")):
         """來源詳情：把該來源的塊拼回、去重疊、render（spec 031 US2）。"""
         from ..ingest.chunk import stitch_chunks
         repo = app.state.repo_factory(app.state.config)
@@ -377,7 +382,34 @@ def create_app() -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request=request, name="source.html",
             context={"title": title, "url": u, "markdown": stitch_chunks(chunks),
-                     "note": meta["note"], "ingested_at": meta["ingested_at"]})
+                     "note": meta["note"], "ingested_at": meta["ingested_at"], "err": err})
+
+    @app.post("/source/distill")
+    async def source_distill(u: str = Form("")):
+        """整理成核心理解（spec 032）：對一份收進來源抽候選根因 → 存候選 → 導 /roots 由人檢視冊封。
+        只產候選、不冊封、不進地基（原則 6）；萃取失敗 best-effort 導回 /source（教訓 3）。"""
+        from urllib.parse import quote
+
+        from ..ingest.activate import distill_source
+        url = (u or "").strip()
+        if not url:
+            return RedirectResponse("/library", status_code=303)
+        try:
+            repo = app.state.repo_factory(app.state.config)
+            try:
+                cand = distill_source(repo, _extractor(), url, _now_iso())
+            finally:
+                repo.close()
+        except SourceUnavailable as e:
+            return RedirectResponse(f"/source?u={quote(url)}&err={quote(str(e))}",
+                                    status_code=303)
+        if cand is None:
+            return RedirectResponse(
+                f"/source?u={quote(url)}&err={quote('這份來源沒有足夠內容可整理出核心理解')}",
+                status_code=303)
+        return RedirectResponse(
+            f"/roots?msg={quote('已整理出候選核心理解，請檢視後收進你認同的')}",
+            status_code=303)
 
     @app.post("/source/meta")
     async def source_meta_edit(u: str = Form(""), note: str = Form(""),
@@ -413,11 +445,12 @@ def create_app() -> FastAPI:
         candidates = repo.list_why_nodes("candidate")
         anointed = repo.list_why_nodes("anointed")
         provenance = repo.why_node_provenance()     # {why_node_id: conversation_id}（spec 023 由來連結）
+        source_provenance = repo.why_node_source_provenance()  # {wid: source_url}（spec 032 源→根因由來）
         repo.close()
         return _TEMPLATES.TemplateResponse(
             request=request, name="roots.html",
             context={"candidates": candidates, "anointed": anointed, "msg": msg,
-                     "provenance": provenance})
+                     "provenance": provenance, "source_provenance": source_provenance})
 
     @app.post("/whynode/anoint")
     async def whynode_anoint(id: int = Form(0), claim: str = Form("")):

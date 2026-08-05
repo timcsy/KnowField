@@ -650,6 +650,18 @@ class Repository:
             out[r["wid"]] = r["cid"]
         return out
 
+    def why_node_source_provenance(self) -> dict:
+        """{why_node_id: source_url}——已冊封根因中，evidence_url 命中現有收進來源者
+        （spec 032 源→根因由來，讀端衍生、零新欄）。來源被刪→其 url 不在來源清單→自動不列（優雅）。"""
+        source_urls = {g["url"] for g in self.list_source_groups()}
+        out: dict = {}
+        for w in self.list_why_nodes("anointed"):
+            for u in (w.evidence_urls or []):
+                if u in source_urls:
+                    out[w.id] = u
+                    break
+        return out
+
     def set_seed_class(self, entry_id: int, cls: str) -> bool:
         """重分類種子（限種子容器）。cls∈{explainer,ordinary}；否則/非種子 → 回 False。"""
         if cls not in ("explainer", "ordinary"):

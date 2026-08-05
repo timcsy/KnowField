@@ -19,6 +19,12 @@
       <button class="btn btn-ghost btn-xs">存</button>
       <span class="text-xs text-base-content/40">（只是給你回顧的脈絡，不進聊天）</span>
     </form>
+    <form action="/source/distill" method="post" class="mt-2 flex flex-wrap items-center gap-2">
+      <input type="hidden" name="u" value="{{ url }}">
+      <button class="btn btn-primary btn-sm">🧠 整理成核心理解</button>
+      <span class="text-xs text-base-content/50">AI 從這份來源抽出候選，你到「核心理解」頁挑認同的收進——不會自動變你的地基。</span>
+    </form>
+    {% if err %}<div class="alert alert-warning mt-2 py-2 text-sm">{{ err }}</div>{% endif %}
   </div>
 
   <div class="card bg-base-100 shadow-sm">

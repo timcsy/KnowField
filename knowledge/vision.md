@@ -814,13 +814,17 @@ LearnNews 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
   教訓「內部詞彙別洩漏」：對外只說「整理成核心理解」。復用 field_chat.distill（改吃來源塊）＋whynode_anoint＋/source。
 -->
 
-**成功標準（可驗）：**
-- [ ] `/source` 詳情頁能對該來源塊一鍵「整理成核心理解」→ 產出**候選** why-node（復用 `field_chat.distill`，改吃來源塊而非對話 history）
-- [ ] 候選**只候選**、轉正是人 anoint（守衛測：收進不自動變核心理解，延續 `TestPurityGuard`／原則 6）；候選標「AI 推斷、掛證據」、過試金石
-- [ ] anoint 後 `/roots` 該根因能**連回該來源當「由來」**（復用既有由來連結，根因↔來源；不新增表＝教訓 8）
-- [ ] 對外用語只「整理成核心理解」，不露 distill/anoint/why-node（教訓「內部詞彙別洩漏」）
-- [ ] 全繁中；核心零相依；復用既有 `why_nodes`/corpus **無新表**；測試不回歸（現 336）
-- [ ] **out of scope**：#3 引用頻率信號（缺追蹤＋馬太陷阱，另刀）、#4 沉降排序、#5 核心理解拓撲/收斂、密度自動分級、一鍵無摩擦升級
+- [x] **已完成**（spec 032，345 測綠、零回歸；史 `history/073`）：`/source` 一鍵「整理成核心理解」→ 復用 **`rootcause.extract`**
+  （非規劃時寫的 `field_chat.distill`——它本為「材料→根因候選＋試金石」設計，更貼；接上休眠的 `make_root_cause_extractor`）
+  抽候選 → 人到 `/roots` 冊封 → 原文成由來。**源→根因由來＝復用 `evidence_urls`、連 nullable 欄都省（教訓 8 更徹底）**。
+
+**成功標準（可驗）：** ✅ 全數達成
+- [x] `/source` 詳情頁能對該來源塊一鍵「整理成核心理解」→ 產出**候選** why-node（`ingest/activate.distill_source`）
+- [x] 候選**只候選**、轉正是人 anoint（守衛測 `test_purity_guard_candidate_only_not_in_base`：收進不自動變核心理解／原則 6）；候選帶試金石＋ladder
+- [x] anoint 後 `/roots` 該根因能**連回該來源當「由來」**（`why_node_source_provenance`，讀端衍生、**零新欄**＝教訓 8）
+- [x] 對外用語只「整理成核心理解」，不露 distill/anoint/why-node（教訓「內部詞彙別洩漏」）
+- [x] 全繁中；核心零相依（萃取藏介面後＋離線 stub）；復用既有 `why_nodes`/corpus **無新表**；335→**345** 不回歸
+- [x] **out of scope 守住**：#3 引用頻率信號（缺追蹤＋馬太陷阱，另刀）、#4 沉降排序、#5 核心理解拓撲/收斂、密度自動分級、一鍵無摩擦升級
 
 ## 關鍵延伸（主題觸發必讀）
 
