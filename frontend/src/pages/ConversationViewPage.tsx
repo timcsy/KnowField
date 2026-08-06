@@ -29,14 +29,14 @@ export default function ConversationViewPage() {
   if (notFound)
     return (
       <p className="text-sm text-muted-foreground">
-        找不到這段對話。<Link to="/conversations" className="text-primary hover:underline">← 對話存檔</Link>
+        找不到這段對話。<Link to="/" className="text-primary hover:underline">← 對話</Link>
       </p>
     )
   if (!conv) return <p className="text-sm text-muted-foreground">載入中…</p>
   return (
     <div className="space-y-4 pb-8">
       <div>
-        <Link to="/conversations" className="text-sm text-muted-foreground hover:underline">← 對話存檔</Link>
+        <Link to="/" className="text-sm text-muted-foreground hover:underline">← 對話</Link>
         <h1 className="mt-1 text-2xl font-bold">{conv.title || "（未命名對話）"}</h1>
         <p className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
           <span>唯讀的參考（不進地基）。</span>

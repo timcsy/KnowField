@@ -37,14 +37,14 @@ export default function SourcePage() {
   if (!src.found)
     return (
       <p className="text-sm text-muted-foreground">
-        找不到這份來源。<Link to="/library" className="text-primary hover:underline">← 知識庫</Link>
+        找不到這份來源。<Link to="/sources" className="text-primary hover:underline">← 來源</Link>
       </p>
     )
 
   return (
     <div className="space-y-4 pb-8">
       <div>
-        <Link to="/library" className="text-sm text-muted-foreground hover:underline">← 知識庫</Link>
+        <Link to="/sources" className="text-sm text-muted-foreground hover:underline">← 來源</Link>
         <h1 className="mt-1 text-2xl font-bold">{src.title}</h1>
         {src.url.startsWith("http") && (
           <a href={src.url} target="_blank" rel="noopener" className="break-all text-xs text-primary hover:underline">{src.url}</a>
