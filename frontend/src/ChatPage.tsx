@@ -29,6 +29,7 @@ export default function ChatPage() {
   const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
   const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
+  const [nudgeDismissed, setNudgeDismissed] = useState(false)        // 分章提醒關掉了
   const openRef = useRef<HTMLDetailsElement>(null)   // 該預設展開的章（出處章 or 最後章）
   const bottomRef = useRef<HTMLDivElement>(null)
   const [sp, setSp] = useSearchParams()
@@ -42,7 +43,7 @@ export default function ChatPage() {
     if (!c.found) return
     setMessages(c.messages)
     baseCount.current = c.messages.length
-    setFocusFrom(from)
+    setFocusFrom(from); setNudgeDismissed(false)
     tempId.current = c.temporary ? c.id : null
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
@@ -51,6 +52,7 @@ export default function ChatPage() {
   }
   function newChat() {
     setMessages([]); tempId.current = null; setChapters(null); baseCount.current = 0; setFocusFrom(0)
+    setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
   }
 
@@ -78,6 +80,12 @@ export default function ChatPage() {
       if (focusFrom) openRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
   }, [chapters, focusFrom])
+
+  // 廣播本對話的章節目錄給左側側欄
+  useEffect(() => {
+    const ch = chapters && chapters.length > 1 ? chapters : null
+    window.dispatchEvent(new CustomEvent("kf-active-chapters", { detail: { id: tempId.current, chapters: ch } }))
+  }, [chapters])
 
   async function send() {
     const msg = input.trim()
@@ -165,6 +173,18 @@ export default function ChatPage() {
     try { await navigator.clipboard.writeText(text); toast("已複製這則") }
     catch { toast("這個瀏覽器不允許自動複製") }
   }
+  // 整理成章節（把續聊的新訊息也切進章節）——分章提醒觸發
+  async function reslice() {
+    if (!tempId.current) { toast("先聊一句讓它存下、才能整理章節"); return }
+    setBusy(true)
+    const r = await pages.segment(tempId.current, true)
+    setBusy(false)
+    setNudgeDismissed(true)
+    if (r.found && r.chapters.length > 1) {
+      setChapters(r.chapters); baseCount.current = messages.length; setFocusFrom(0)
+      toast(`整理成 ${r.chapters.length} 章了`)
+    }
+  }
 
   const empty = messages.length === 0 && streaming === null && stage === null
   const freshCands = (candidates || []).filter((c) => !c.already)
@@ -201,6 +221,9 @@ export default function ChatPage() {
       : chapters.length - 1
     if (openIdx < 0) openIdx = chapters.length - 1
   }
+  const lastEnd = hasChapters && chapters ? chapters[chapters.length - 1].end : 0
+  const uncharted = messages.length - lastEnd   // 還沒切進章節的訊息數（續聊累積）
+  const showNudge = uncharted >= 8 && !nudgeDismissed && !busy && streaming === null
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col px-4 py-3 md:px-8">
@@ -292,6 +315,14 @@ export default function ChatPage() {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {showNudge && (
+        <div className="mb-2 flex shrink-0 items-center gap-2 rounded-lg border bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <span>聊了一大段（{uncharted} 則還沒整理）——整理成章節、方便回頭找？</span>
+          <button onClick={reslice} disabled={busy} className="ml-auto font-medium text-primary hover:underline">🔖 整理成章節</button>
+          <button onClick={() => setNudgeDismissed(true)} title="先不要" className="hover:text-foreground">✕</button>
+        </div>
+      )}
 
       <div className="shrink-0 pt-2">
         <div className="flex items-end gap-2 rounded-2xl bg-muted px-3 py-2 focus-within:ring-1 focus-within:ring-ring">

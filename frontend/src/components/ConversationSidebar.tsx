@@ -19,6 +19,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const [perm, setPerm] = useState<ConvRow[]>([])
   const [temp, setTemp] = useState<ConvRow[]>([])
   const [msg, setMsg] = useState<string | null>(null)
+  const [active, setActive] = useState<{ id: number | null; chapters: { title: string; start: number; end: number }[] | null }>({ id: null, chapters: null })
 
   const load = () => pages.conversations().then((r) => { setPerm(r.permanent); setTemp(r.temporary) }).catch(() => {})
   useEffect(() => {
@@ -26,6 +27,12 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
     const h = () => load()
     window.addEventListener("kf-conversations-changed", h)
     return () => window.removeEventListener("kf-conversations-changed", h)
+  }, [])
+  // 聽 ChatPage 廣播的「本對話章節目錄」
+  useEffect(() => {
+    const h = (e: Event) => setActive((e as CustomEvent).detail)
+    window.addEventListener("kf-active-chapters", h)
+    return () => window.removeEventListener("kf-active-chapters", h)
   }, [])
 
   const isActive = (to: string) =>
@@ -35,6 +42,9 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
 
   const goNew = () => { navigate("/?new=" + Date.now()); onNavigate?.() }
   const goResume = (id: number) => { navigate("/?resume=" + id); onNavigate?.() }
+  const goChapter = (start: number, end: number) => {
+    if (active.id) { navigate(`/?resume=${active.id}&from=${start}&to=${end}`); onNavigate?.() }
+  }
 
   async function dedupe() {
     const p = await pages.dedupePreview()
@@ -60,6 +70,21 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
           </Link>
         ))}
       </nav>
+
+      {/* 本對話章節目錄（只在對話頁、有多章時）：點章節跳到聊天頁那章 */}
+      {pathname === "/" && active.chapters && active.chapters.length > 1 && (
+        <div className="border-t px-1 pt-2">
+          <div className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">本對話章節</div>
+          <div className="space-y-0.5">
+            {active.chapters.map((ch, i) => (
+              <button key={i} onClick={() => goChapter(ch.start, ch.end)}
+                      className="block w-full truncate rounded px-1.5 py-1 text-left text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+                🔖 {ch.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-1 flex items-center justify-between border-t px-2 pt-2">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">對話紀錄</span>
