@@ -36,4 +36,4 @@
 ## 未竟／關聯
 - 這推翻 `draft/部署與介面路線` 的「htmx>React」段（該段已標 superseded→本 history）。
 - 上線 auth／多租戶見 `draft/共享的膜與跨base聯邦` 的 A/B/C 分階（JSON API 是共同基礎）。
-- 本階段值得正式立 vision roadmap＋spec（下一步走 speckit）。
+- **已立 vision 階段 27**（2026-08-06 promote，phase 0 骨架完成、階段一起跑）；逐階 promote 成 spec。

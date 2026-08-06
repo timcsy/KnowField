@@ -826,6 +826,31 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 全繁中；核心零相依（萃取藏介面後＋離線 stub）；復用既有 `why_nodes`/corpus **無新表**；335→**345** 不回歸
 - [x] **out of scope 守住**：#3 引用頻率信號（缺追蹤＋馬太陷阱，另刀）、#4 沉降排序、#5 核心理解拓撲/收斂、密度自動分級、一鍵無摩擦升級
 
+## 階段 27：前端 re-platform 到 React ＋ shadcn/ui（＋PWA 分享、上線基座）
+
+> 決策轉向見 `history/075`（推翻 `draft/2026-07-23-部署與介面路線` 的「htmx>React」）。**why**：業界 AI 產品外觀＝shadcn/ui、
+> 要上線多租戶、要 PWA「手機分享網頁進 App」（Android）。**憲章 IV 複雜度理由已記 history/075；核心 Python 仍零相依，
+> 複雜度只在前端層。** 靈魂（膜/反逢迎）在後端 `field_chat`（`_MEMBRANE`/`build_field_system_prompt`）——**re-platform 不動它，
+> React 只換臉呼叫同一套 API。** 做法＝**strangler、逐頁遷、舊 Jinja 被取代前照跑**（不 big-bang）。
+
+- [x] **phase 0 骨架（2026-08-06 完成）**：`frontend/` Vite+React19+TS+Tailwind v4+shadcn（button/card）；`@` 別名＋`/api` proxy；`tsc+vite build` 綠。
+
+<!--
+  規劃：knowie-next（2026-08-06）。棧：React+Vite+TS+Tailwind v4+shadcn；FastAPI 轉 JSON API（/api/*）、正式吐 dist；
+  開發 Vite proxy /api→:8000。硬約束：原則 6/5（膜＋人閘門不能翻譯掉、精選要真人閘門）、原則 3（引用/你收藏的 結構性保證）、
+  教訓（溯源靠結構、慢操作給即時進度＝串流沿用 SSE、提案-批准≠打到需求）。out：一次全遷（要 strangler）。
+-->
+
+**里程碑（分階，逐一 promote 成 spec）：**
+- [ ] **階段一：`/chat` 打樣 ＋ `/api` 基座**——後端抽 JSON `/api/chat/*`＋`/api/roots`（共用既有 service 不重寫邏輯）；React `/chat`（側欄殼＋串流＋引用＋整理/精選人閘門）；FastAPI 吐 dist。**Acceptance**：React /chat 行為與舊版一致（串流/引用[n]/你收藏的/人閘門精選/autosave）、膜與純度守衛不變、舊 Jinja /chat 照跑。
+- [ ] 階段二：逐頁遷 roots → library → source → ingest → conversations（每頁一 PR，舊頁照跑）。
+- [ ] 階段三：web 測（驗 HTML）→ 改 API 測；核心邏輯測不動。
+- [ ] 階段四：PWA＋`vite-plugin-pwa` manifest `share_target`＋後端 `/api/ingest/share`（Android 手機分享進 App）。
+- [ ] 階段五：全遷完 → 舊 Jinja 模板＋DaisyUI 退場（redeem-and-retire）。
+- [ ] **out of scope（本階段整體）**：auth/多租戶（見 `draft/共享的膜` A/B）、Next.js（否決）、iOS 分享（平台限制、使用者 Android）。
+
+> 設計依據：`draft/2026-07-23-部署與介面路線.md`（UI/部署路線，含被推翻段）、`history/075`。上線 auth 接 `draft/共享的膜與跨base聯邦` A/B。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
