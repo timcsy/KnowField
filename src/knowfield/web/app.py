@@ -970,6 +970,40 @@ def create_app() -> FastAPI:
         repo.close()
         return _JSON({"ok": True})
 
+    @app.post("/api/conversations/{cid}/retitle")
+    async def api_conversation_retitle(cid: int):
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        title = conv.title if conv else ""
+        if conv is not None:
+            try:
+                t = (app.state.title_factory(conv.messages) or "").strip()
+            except Exception as e:  # noqa: BLE001
+                _log.error("重生標題失敗", extra={"extra": {"reason": str(e)}})
+                t = ""
+            if t:
+                repo.rename_conversation(cid, t)
+                title = t
+        repo.close()
+        return _JSON({"ok": True, "title": title})
+
+    @app.get("/api/conversations/{cid}/segment")
+    async def api_conversation_segment(cid: int):
+        """整理成章節（spec 027 US2，on-demand、不落庫）。失敗→整段一章、不崩。"""
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        repo.close()
+        if conv is None:
+            return _JSON({"found": False}, status_code=404)
+        try:
+            chapters = app.state.segment_factory(conv.messages)
+        except Exception as e:  # noqa: BLE001
+            _log.error("章節切分失敗", extra={"extra": {"reason": str(e)}})
+            chapters = [{"title": "全部", "start": 1, "end": len(conv.messages)}]
+        return _JSON({"found": True, "chapters": [
+            {"title": ch.get("title", ""), "start": ch.get("start", 0), "end": ch.get("end", 0)}
+            for ch in chapters]})
+
     @app.get("/api/conversations-dedupe/preview")
     async def api_dedupe_preview():
         repo = app.state.repo_factory(app.state.config)

@@ -22,10 +22,22 @@ export function renderHtml(text: string, prefix = "src"): string {
 export function Markdown({ text, prefix = "src" }: { text: string; prefix?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    const el = ref.current
+    if (!el) return
     const mj = (window as unknown as {
       MathJax?: { typesetPromise?(els: Element[]): Promise<void> }
     }).MathJax
-    if (ref.current && mj?.typesetPromise) mj.typesetPromise([ref.current]).catch(() => {})
+    if (mj?.typesetPromise) mj.typesetPromise([el]).catch(() => {})
+    // 圖 hotlink 失效→替代連結（不留破圖）
+    el.querySelectorAll("img").forEach((im) => {
+      im.addEventListener("error", () => {
+        const a = document.createElement("a")
+        a.href = im.src; a.target = "_blank"; a.rel = "noopener"
+        a.className = "text-xs text-muted-foreground underline"
+        a.textContent = "🖼 圖片（原站，點開）"
+        im.replaceWith(a)
+      }, { once: true })
+    })
   }, [text])
   return (
     <div

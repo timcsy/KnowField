@@ -119,6 +119,10 @@ export const pages = {
     found: boolean; id: number; title: string; messages: Message[]; temporary: boolean
   }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
   renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
+  retitleConv: (id: number): Promise<{ ok: boolean; title: string }> =>
+    post(`/api/conversations/${id}/retitle`, {}),
+  segment: (id: number): Promise<{ found: boolean; chapters: { title: string; start: number; end: number }[] }> =>
+    fetch(`/api/conversations/${id}/segment`).then(json),
   promoteConv: (id: number) => post(`/api/conversations/${id}/promote`, {}),
   dedupePreview: (): Promise<{ n_groups: number; n_extra: number; n_roots: number }> =>
     fetch("/api/conversations-dedupe/preview").then(json),
