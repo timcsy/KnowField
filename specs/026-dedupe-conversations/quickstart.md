@@ -2,7 +2,7 @@
 
 ## 前置
 - 在 `026-dedupe-conversations`；`uv run pytest -q` 現 414 綠。
-- 無結構變更（只刪多餘列＋UPDATE 連結）。`learnnews.db` 已備份（`learnnews.db.bak-*`）。
+- 無結構變更（只刪多餘列＋UPDATE 連結）。`knowfield.db` 已備份（`knowfield.db.bak-*`）。
 
 ## 跑測試（TDD）
 ```bash
@@ -10,9 +10,9 @@ uv run pytest tests/unit/test_capture_core.py tests/unit/test_dedupe_web.py -q
 uv run pytest -q     # 全套不回歸（414 →）
 ```
 
-## 手動驗證（web，真實 learnnews.db）
+## 手動驗證（web，真實 knowfield.db）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:create_app --factory --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:create_app --factory --port 8000
 ```
 1. `/conversations` → 按「🧹 清理重複對話」→ 預覽頁應顯示：發現 N 組（含那 15 份 Flow Matching 那組）、共 M 份多餘、K 條根因將重指。**此時資料未變**（可先回 `/conversations` 確認份數不變）。
 2. 按「確認清理」→ 回 `/conversations`，看清單**大幅變短**（15 份→1 份等）；成功 flash「已清理：併掉 M 份、重指 K 條根因」。

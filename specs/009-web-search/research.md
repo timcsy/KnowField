@@ -35,5 +35,5 @@
   假 `http_get`（spec 006 樣式）。
 
 ## R6：config
-- `search_api_url: str = ""`、`search_api_key: str = ""`（env `LEARNNEWS_SEARCH_API_URL`／
-  `LEARNNEWS_SEARCH_KEY`）。未設 → StubWebSearch。
+- `search_api_url: str = ""`、`search_api_key: str = ""`（env `KNOWFIELD_SEARCH_API_URL`／
+  `KNOWFIELD_SEARCH_KEY`）。未設 → StubWebSearch。

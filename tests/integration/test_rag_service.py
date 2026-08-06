@@ -2,10 +2,10 @@
 
 import unittest
 
-from learnnews.rag.answerer import StubAnswerer
-from learnnews.rag.service import RagService
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.store.repository import Repository
+from knowfield.rag.answerer import StubAnswerer
+from knowfield.rag.service import RagService
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.store.repository import Repository
 from tests.rag_helpers import make_entry, seed_digest
 
 

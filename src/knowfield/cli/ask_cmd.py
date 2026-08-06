@@ -1,4 +1,4 @@
-"""`learnnews ask` 指令（spec 005）：對已落庫知識庫做可溯源 RAG 問答。
+"""`knowfield ask` 指令（spec 005）：對已落庫知識庫做可溯源 RAG 問答。
 
 核心 `RagService` 與 CLI 解耦；此處只負責組後端、印答案＋來源、攔後端失敗（教訓 3）。
 """
@@ -13,7 +13,7 @@ from ..rag.service import RagService
 from ..rag.types import Scope
 from ..store.repository import Repository
 
-_log = get_logger("learnnews.cli")
+_log = get_logger("knowfield.cli")
 
 
 def handle(args) -> int:
@@ -36,7 +36,7 @@ def handle(args) -> int:
     except OpenAIError as e:
         _log.error("後端失敗", extra={"extra": {"reason": str(e)}})
         print(f"❌ 真實後端（OpenAI 格式 API）失敗：{e}\n"
-              f"　可稍後重試，或設 LEARNNEWS_BACKEND=offline 用離線後端。")
+              f"　可稍後重試，或設 KNOWFIELD_BACKEND=offline 用離線後端。")
         repo.close()
         return 1
 

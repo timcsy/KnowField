@@ -15,8 +15,8 @@ min_count: int = 2) -> list[str]`
 - 取最近 K 份**真實匯整**（`date != SEEDS_DATE`）的 `digest_entries.title`。
 
 ## Config
-- `trend_top_n: int = 8`（`LEARNNEWS_TREND_TOPN`）。
-- `trend_recent_digests: int = 3`（`LEARNNEWS_TREND_RECENT`）。
+- `trend_top_n: int = 8`（`KNOWFIELD_TREND_TOPN`）。
+- `trend_recent_digests: int = 3`（`KNOWFIELD_TREND_RECENT`）。
 
 ## 首頁 context 新增
 - `chips: list[str]`——熱詞清單（空則模板不渲染區塊）。

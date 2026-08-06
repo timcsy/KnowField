@@ -8,14 +8,14 @@ TDD 強制：每階段先寫紅測（Red）→ 實作轉綠（Green）。全複�
 
 ## Phase 1：Setup
 
-- [X] T001 在 `src/learnnews/config.py` 加 `source_recommend_queries: list[str]`（預設 roundup query 常數，如「最佳 AI 部落格 2026」「best AI research blogs」「top AI newsletters roundup」）與 `source_recommend_limit: int = 8`；`from_env` 加對應環境變數覆寫（可選）。
+- [X] T001 在 `src/knowfield/config.py` 加 `source_recommend_queries: list[str]`（預設 roundup query 常數，如「最佳 AI 部落格 2026」「best AI research blogs」「top AI newsletters roundup」）與 `source_recommend_limit: int = 8`；`from_env` 加對應環境變數覆寫（可選）。
 
 ## Phase 2：Foundational（純函式核心，阻塞路由）
 
 - [X] T002 [P] 在 `tests/unit/test_source_recommend.py` 寫 `recommend_sources` 紅測：注入假 `web_search`（回多筆結果、跨網域重複）＋假 `http_get`（部分站有活 feed、部分探到死 feed、部分無 feed）＋假 `embedder`＋種子 repo → 斷言：①死/幻覺 feed **不在**結果（FR-002）；②無 feed 候選 `has_feed=False` 保留（FR-010）；③`list_hits` 正確計跨結果重複。
 - [X] T003 [P] 在 `tests/unit/test_source_recommend.py` 寫**排序**紅測：候選 A（場驅動高）、B（有活 feed）、C（僅跨清單重複）→ 斷言排序 A>B>C；另一案**無 attractor**（空場）→ 退回 `has_feed ＞ list_hits`、仍出清單（FR-005）。
 - [X] T004 [P] 在 `tests/unit/test_source_recommend.py` 寫**已訂閱標示**紅測：候選 feed 已在 `list_sources` → `already_subscribed=True`（FR-007）。
-- [X] T005 建 `src/learnnews/sources/recommend.py`：`@dataclass CandidateSource`＋`recommend_sources(web_search, embedder, repo, *, http_get=default_http_get, queries=None, limit=8)`。撒網→抽網域（netloc 去 www、計 `list_hits`）→ `discover_feed`＋`validate_feed`（死/幻覺丟棄、無 feed 標示、單站 try/except `SourceUnavailable` 跳過）→ 場驅動分數（`list_field_attractors`＋`ensure_embeddings`＋`cosine` 最大值）→ `already_subscribed`（`_source_id` 命中 `list_sources`）→ 排序 `(field_score, has_feed, list_hits)` 取前 `limit`。跑 T002/T003/T004 轉綠。
+- [X] T005 建 `src/knowfield/sources/recommend.py`：`@dataclass CandidateSource`＋`recommend_sources(web_search, embedder, repo, *, http_get=default_http_get, queries=None, limit=8)`。撒網→抽網域（netloc 去 www、計 `list_hits`）→ `discover_feed`＋`validate_feed`（死/幻覺丟棄、無 feed 標示、單站 try/except `SourceUnavailable` 跳過）→ 場驅動分數（`list_field_attractors`＋`ensure_embeddings`＋`cosine` 最大值）→ `already_subscribed`（`_source_id` 命中 `list_sources`）→ 排序 `(field_score, has_feed, list_hits)` 取前 `limit`。跑 T002/T003/T004 轉綠。
 
 **檢查點**：純函式產出正確排序、驗證濾除、標示齊全；離線零外部呼叫。
 
@@ -25,8 +25,8 @@ TDD 強制：每階段先寫紅測（Red）→ 實作轉綠（Green）。全複�
 
 - [X] T006 [P] 在 `tests/contract/test_source_recommend_web.py` 寫路由紅測：注入假 `app.state.recommend_factory` 回若干 `CandidateSource` → `POST /sources/recommend` 回 200＋`sources.html` 含各候選網域＋理由＋（有 feed 者）訂閱表單指向 `/sources/add`。
 - [X] T007 [P] 寫**opt-in 守衛**紅測：GET `/sources` 與跑一次匯整（`/digest/refresh` 或既有 refresh 測法）時 `recommend_factory` **零呼叫**（spy 計數，FR-006）。
-- [X] T008 [US1] 在 `src/learnnews/web/app.py` 加 `app.state.recommend_factory`（預設用 `make_web_search`＋`make_embedder`＋repo 建 `recommend_sources`，`finally` 關 repo）＋ `POST /sources/recommend`（呼叫 factory→渲染 sources.html 加 `recommendations`；空→友善提示）。跑 T006 轉綠。
-- [X] T009 [US1] 在 `src/learnnews/web/templates/sources.html`：「追蹤」表單下加「🔎 幫我找新來源」表單（POST `/sources/recommend`）＋推薦區塊（`{% if recommendations %}`：網域＋feed 狀態＋理由＋場驅動標記；有 feed→「訂閱」表單 POST `/sources/add` `url=feed_url`；已訂閱→「已在名冊」；無 feed→「無 RSS，靠 web 活水/收進補」）。
+- [X] T008 [US1] 在 `src/knowfield/web/app.py` 加 `app.state.recommend_factory`（預設用 `make_web_search`＋`make_embedder`＋repo 建 `recommend_sources`，`finally` 關 repo）＋ `POST /sources/recommend`（呼叫 factory→渲染 sources.html 加 `recommendations`；空→友善提示）。跑 T006 轉綠。
+- [X] T009 [US1] 在 `src/knowfield/web/templates/sources.html`：「追蹤」表單下加「🔎 幫我找新來源」表單（POST `/sources/recommend`）＋推薦區塊（`{% if recommendations %}`：網域＋feed 狀態＋理由＋場驅動標記；有 feed→「訂閱」表單 POST `/sources/add` `url=feed_url`；已訂閱→「已在名冊」；無 feed→「無 RSS，靠 web 活水/收進補」）。
 
 **檢查點（US1/2/3 可獨立驗）**：/sources 一鍵得場驅動排序候選、訂閱複用 add、名冊不被自動改。
 

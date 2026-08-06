@@ -5,20 +5,20 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from learnnews.cli import ingest_cmd
-from learnnews.store.repository import Repository
+from knowfield.cli import ingest_cmd
+from knowfield.store.repository import Repository
 from tests.rag_helpers import capture, temp_db
 from tests.seed_helpers import http_fail
 
 
 class TestIngestBoundaries(unittest.TestCase):
     def setUp(self):
-        os.environ["LEARNNEWS_BACKEND"] = "offline"
+        os.environ["KNOWFIELD_BACKEND"] = "offline"
         self.db = temp_db()
 
     def test_fetch_failure_friendly_and_no_half_seed(self):
         args = SimpleNamespace(db=self.db, ref="1706.03762", explainer=False, lang=None)
-        with mock.patch("learnnews.seed.fetch.default_http_get", http_fail):
+        with mock.patch("knowfield.seed.fetch.default_http_get", http_fail):
             rc, out = capture(ingest_cmd.handle, args)
         self.assertEqual(rc, 1)
         self.assertIn("失敗", out)              # 友善繁中

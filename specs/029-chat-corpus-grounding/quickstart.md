@@ -10,9 +10,9 @@ uv run pytest tests/unit/test_corpus_retrieve.py tests/unit/test_chat_corpus_web
 uv run pytest -q     # 全套不回歸（265 →）
 ```
 
-## 手動驗證（web，真實 learnnews.db）
+## 手動驗證（web，真實 knowfield.db）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:create_app --factory --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:create_app --factory --port 8000
 ```
 1. **收進幾篇**：到「收進」貼幾個相關 url（或已收過）。
 2. **聊天引用**：到「跟知識聊」問相關問題 → 答案的來源清單應含**你收進的那幾篇**（標「📎 你收藏的」、附 [n]），

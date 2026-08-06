@@ -4,32 +4,32 @@
 
 ## 1. 收一篇 arXiv 經典進 KB
 ```bash
-uv run learnnews ingest 1706.03762 --explainer     # Attention Is All You Need，標為解說文
-uv run learnnews ingest https://arxiv.org/abs/2407.12345   # 用 URL 也可
+uv run knowfield ingest 1706.03762 --explainer     # Attention Is All You Need，標為解說文
+uv run knowfield ingest https://arxiv.org/abs/2407.12345   # 用 URL 也可
 ```
 預期：印「✅ 已收進知識庫：<標題>（解說文）」＋原文連結。
 
 ## 2. 收一篇解說文（一般 URL）
 ```bash
-uv run learnnews ingest https://某研究者部落格/attention-explained --explainer
+uv run knowfield ingest https://某研究者部落格/attention-explained --explainer
 ```
 
 ## 3. 問到它（沿用增量 1，CLI＋web）
 ```bash
-uv run learnnews ask "transformer 為什麼用 attention"
+uv run knowfield ask "transformer 為什麼用 attention"
 # 或瀏覽器 /ask
 ```
 預期：答案檢索到剛收的種子、列為來源、附原文連結。
 
 ## 4. 去重
 ```bash
-uv run learnnews ingest 1706.03762          # 再收一次同篇
+uv run knowfield ingest 1706.03762          # 再收一次同篇
 ```
 預期：印「已在庫：<標題>」，KB 不新增第二份。
 
 ## 5. 誠實邊界
 ```bash
-uv run learnnews ingest https://不存在的網址.example/x
+uv run knowfield ingest https://不存在的網址.example/x
 ```
 預期：友善繁中錯誤訊息、退出碼 1、**KB 未寫入半殘種子**。
 

@@ -13,7 +13,7 @@
 ## Phase 2：Foundational（阻擋所有 US）
 
 - [x] T002 `config.py`：加 `trend_top_n`（8）、`trend_recent_digests`（3），`from_env` 讀
-  `LEARNNEWS_TREND_TOPN`／`LEARNNEWS_TREND_RECENT`。
+  `KNOWFIELD_TREND_TOPN`／`KNOWFIELD_TREND_RECENT`。
 
 ## Phase 3：US1 首頁看「在紅什麼」（P1，萃取核心）
 
@@ -26,7 +26,7 @@
   停用詞（的/model/AI）與 `count<min_count` 被濾；全被濾 → `[]`。
 
 ### 實作
-- [x] T005 [US1] 新增 `src/learnnews/trend/keywords.py`：`trend_keywords(titles, top_n=8,
+- [x] T005 [US1] 新增 `src/knowfield/trend/keywords.py`：`trend_keywords(titles, top_n=8,
   stopwords=None, min_count=2)`——英文詞（`[A-Za-z0-9][A-Za-z0-9+\-.]*`、len≥2、小寫）＋中文相鄰
   bigram；跨標題計數；過濾內建 `STOPWORDS`∪傳入；count≥min_count；降序取 top_n（stable）。內建
   `STOPWORDS`（英文常見＋中文常見＋領域泛詞）。

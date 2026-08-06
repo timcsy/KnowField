@@ -34,7 +34,7 @@
 **零改動。** 復用 `why_nodes`（candidate/anointed、evidence_urls、ladder、touchstones、fog_flag）。無新表、無新欄。
 
 ### 介面/元件
-- **新** `src/learnnews/ingest/activate.py`：`distill_source(repo, extractor, url) -> Candidate | None`——取 `get_source_chunks(url)`＋`source_title(url)` 組材料 → `extractor.extract(title, body)` → 若 `no_material` 或空 claim 回 None（不硬編）；否則 `add_why_node(claim, evidence_urls=[url], touchstones, fog_flag, 0, now, ladder)` 存候選、回 Candidate。純函式風格、extractor 注入、離線可測。萃取失敗 → 讓 `SourceUnavailable` 冒出（route 攔）。
+- **新** `src/knowfield/ingest/activate.py`：`distill_source(repo, extractor, url) -> Candidate | None`——取 `get_source_chunks(url)`＋`source_title(url)` 組材料 → `extractor.extract(title, body)` → 若 `no_material` 或空 claim 回 None（不硬編）；否則 `add_why_node(claim, evidence_urls=[url], touchstones, fog_flag, 0, now, ladder)` 存候選、回 Candidate。純函式風格、extractor 注入、離線可測。萃取失敗 → 讓 `SourceUnavailable` 冒出（route 攔）。
 - **新** `repo.why_node_source_provenance() -> {wid: url}`：anointed roots 中 evidence_urls 命中現有 `list_source_groups()` url 者。
 - **新 route** `POST /source/distill`（`u=url`）：呼叫 service → 成功導 `/roots?msg=…`（「整理出 N 條候選核心理解，請檢視」）；`SourceUnavailable`/無料 → 導回 `/source?u=url&err=…`（教訓 3，不 500）。
 - **`app.state.extractor_factory`** = `make_root_cause_extractor`（預設），測試注入 Stub。

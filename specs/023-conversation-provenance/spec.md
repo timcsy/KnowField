@@ -1,6 +1,6 @@
 # 規格：對話的「由來」存檔（tool 的 episodes 層）
 
-**功能**：LearnNews 路線圖階段 18
+**功能**：KnowField 路線圖階段 18
 **分支／目錄**：`specs/023-conversation-provenance/`
 **建立日期**：2026-07-29
 **設計源**：`draft/2026-07-29-對話的由來存檔.md`、vision 階段 18、`history/060`

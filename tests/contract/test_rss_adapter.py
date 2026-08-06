@@ -3,8 +3,8 @@
 import unittest
 from datetime import datetime
 
-from learnnews.sources.rss import RssAdapter
-from learnnews.sources.base import SourceUnavailable
+from knowfield.sources.rss import RssAdapter
+from knowfield.sources.base import SourceUnavailable
 
 _RSS = """<?xml version="1.0"?>
 <rss version="2.0"><channel>

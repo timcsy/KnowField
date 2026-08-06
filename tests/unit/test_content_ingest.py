@@ -5,9 +5,9 @@
 
 import unittest
 
-from learnnews.ingest.service import ContentIngestService
-from learnnews.rag.service import retrieve_corpus
-from learnnews.store.repository import Repository
+from knowfield.ingest.service import ContentIngestService
+from knowfield.rag.service import retrieve_corpus
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 
 
@@ -132,7 +132,7 @@ class TestIngestUrl(unittest.TestCase):
         repo.close()
 
     def test_url_fetch_failure_raises(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
 
         def boom(u):
             raise SourceUnavailable("抓不到")
@@ -161,7 +161,7 @@ class TestIngestYoutube(unittest.TestCase):
         repo.close()
 
     def test_no_captions_raises(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
         repo = Repository(temp_db())
         svc = ContentIngestService(repo, StubEmbedder())
         with self.assertRaises(SourceUnavailable):
@@ -181,7 +181,7 @@ class TestIngestPdf(unittest.TestCase):
         repo.close()
 
     def test_converter_failure_raises(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
 
         class Boom:
             def to_markdown(self, pdf_bytes=None, pdf_url=None):

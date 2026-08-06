@@ -15,13 +15,13 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 - **[Story]**：US1/US2/US3 溯源標籤
 
 ## Path Conventions
-單一專案：`src/learnnews/`、`tests/`（repo 根）。
+單一專案：`src/knowfield/`、`tests/`（repo 根）。
 
 ---
 
 ## Phase 1: Setup
 
-- [x] T001 [P] 建 `src/learnnews/seed/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
+- [x] T001 [P] 建 `src/knowfield/seed/__init__.py`；確認 `tests/{contract,integration,unit}/` 就緒
 
 ---
 
@@ -29,10 +29,10 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 
 **⚠️ 完成前任何 user story 不能開工。**
 
-- [x] T002 [P] schema：`digest_entries` 加 `source_class TEXT DEFAULT 'ordinary'` in `src/learnnews/store/schema.py`
-- [x] T003 [P] config：`rag_explainer_weight=1.5`（env `LEARNNEWS_RAG_EXPLAINER_WEIGHT`）＋`SEEDS_DATE='__種子__'` 常數 in `src/learnnews/config.py`
-- [x] T004 [P] `CorpusEntry` 加 `source_class` 欄 in `src/learnnews/rag/types.py`
-- [x] T005 repository：`list_corpus_entries` SELECT 帶 `source_class`；`today=True` 加 `WHERE d.date != SEEDS_DATE`（排除種子容器）in `src/learnnews/store/repository.py`（依賴 T002、T004）
+- [x] T002 [P] schema：`digest_entries` 加 `source_class TEXT DEFAULT 'ordinary'` in `src/knowfield/store/schema.py`
+- [x] T003 [P] config：`rag_explainer_weight=1.5`（env `KNOWFIELD_RAG_EXPLAINER_WEIGHT`）＋`SEEDS_DATE='__種子__'` 常數 in `src/knowfield/config.py`
+- [x] T004 [P] `CorpusEntry` 加 `source_class` 欄 in `src/knowfield/rag/types.py`
+- [x] T005 repository：`list_corpus_entries` SELECT 帶 `source_class`；`today=True` 加 `WHERE d.date != SEEDS_DATE`（排除種子容器）in `src/knowfield/store/repository.py`（依賴 T002、T004）
 - [x] T006 repository：`get_or_create_seeds_digest() -> int`（哨兵種子容器）in `repository.py`（依賴 T002）
 
 **Checkpoint**：語料帶 source_class、種子有家、`ask` 撈得到種子（尚無 ingest）。
@@ -54,7 +54,7 @@ description: "Task list — 種子 ingest（個人知識庫）增量 2a"
 - [x] T010 [US1] `seed/fetch.py`：`normalize_arxiv_id`、`fetch_arxiv_by_id`、`fetch_url`（`http_get` 可注入）→ `Item`
 - [x] T011 [US1] repository：`seed_exists(external_id, url)`（`content_hash` 去重）＋`ingest_seed(item, article, source_class) -> entry_id` in `repository.py`（依賴 T006）
 - [x] T012 [US1] `seed/service.py`：`SeedService.ingest(ref, explainer)`：正規化→查重→抓→`ArticleBuilder` 消化→`ingest_seed`→`ensure_embeddings`（**交易式：抓+消化成功才寫入**）
-- [x] T013 [US1] `cli/ingest_cmd.py`（組後端→SeedService→列印）＋`ingest` subparser（位置 `ref`、`--explainer`）in `src/learnnews/cli/__main__.py`
+- [x] T013 [US1] `cli/ingest_cmd.py`（組後端→SeedService→列印）＋`ingest` subparser（位置 `ref`、`--explainer`）in `src/knowfield/cli/__main__.py`
 
 **Checkpoint**：離線 `ingest` 收單篇→`ask` 問得到＋溯源→重複不重複。**MVP 達成。**
 

@@ -64,7 +64,7 @@ specs/008-source-subscribe/
 ### Source Code (repository root)
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── sources/
 │   ├── subscribe.py          # 新增：discover_feed／validate_feed／subscribe（http_get 可注入）
 │   └── rss.py                # 複用 RssAdapter（驗證有料），不改

@@ -24,7 +24,7 @@
   web_search → `fetch` **向外拋**（不吞）。
 
 ### 實作
-- [x] T004 [US1] 新增 `src/learnnews/sources/websearch_adapter.py`：`WebSearchAdapter(SourceAdapter)`
+- [x] T004 [US1] 新增 `src/knowfield/sources/websearch_adapter.py`：`WebSearchAdapter(SourceAdapter)`
   ——`__init__(source_id, web_search, queries)`；`fetch(since)` 每 query `search()`→ 映 `Item`
   （source_id="web"）→ 依 url 正規化去重 → `_finalize`；搜尋拋 `SourceUnavailable` 向外拋。
 

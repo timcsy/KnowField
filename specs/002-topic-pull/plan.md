@@ -6,7 +6,7 @@
 
 ## Summary
 
-實作 LearnNews「拉」模式：給定主題 → 跨來源**擴展搜尋**（對可查詢來源用主題查詢、對
+實作 KnowField「拉」模式：給定主題 → 跨來源**擴展搜尋**（對可查詢來源用主題查詢、對
 其他來源以相關性過濾近期材料）→ 去重 → 依主題相關性排序 → 收斂上限 →（預設）附一句
 封頂定位、可 `--raw` 切純原礦 → 輸出可直達原文的材料清單。**大量複用階段 2 的地基**
 （sources／dedup／ranking／summarize／backends／store），只新增一個 pull 服務、一個
@@ -65,12 +65,12 @@ specs/002-topic-pull/
 ### Source Code (repository root) — 新增以粗體標示，其餘複用
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── pull/                    # 【新增】拉模式
 │   ├── service.py           #   PullService：擴展→去重→排序→(可選)摘要→組裝
 │   └── topic_query.py       #   為可查詢來源建構主題查詢 URL（arXiv search）
 ├── cli/
-│   └── pull_cmd.py          # 【新增】learnnews pull 指令
+│   └── pull_cmd.py          # 【新增】knowfield pull 指令
 ├── sources/ dedup/ ranking/ summarize/ backends/ store/ models/   # 複用
 └── digest/                  # 複用（部分邏輯共用）
 

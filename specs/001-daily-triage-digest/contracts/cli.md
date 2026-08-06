@@ -1,9 +1,9 @@
-# CLI 指令契約：learnnews
+# CLI 指令契約：knowfield
 
 MVP 的對外介面。每個指令為一個契約，測試以 `tests/contract/` 驗證其輸入/輸出與退出碼。
 面向使用者文字皆繁中（FR-010）。錯誤以非零退出碼＋繁中可行動訊息回報，不靜默（原則 V）。
 
-## `learnnews digest`
+## `knowfield digest`
 產出當日匯整（核心，US1）。
 
 - **輸入**：`--date YYYY-MM-DD`（預設今日）、`--limit N`（預設 15，SC-007）、
@@ -19,7 +19,7 @@ MVP 的對外介面。每個指令為一個契約，測試以 `tests/contract/` 
   - 某來源不可取得 → 匯整照常產出並列於 `missing_sources`（FR-011）。
   - 無符合條目 → 退出碼 0 且標示空匯整（Edge Case）。
 
-## `learnnews interests`
+## `knowfield interests`
 管理興趣清單（US2、FR-008/009；憲章原則 VI）。
 
 - **子指令**：
@@ -31,7 +31,7 @@ MVP 的對外介面。每個指令為一個契約，測試以 `tests/contract/` 
 - **契約測試**：add/remove/set 後 `list` 反映變更；被 remove 的主題不因學習權重復活
   （明講優先）。
 
-## `learnnews sources`
+## `knowfield sources`
 檢視／啟用來源（維運用）。
 
 - **子指令**：`list`（顯示來源與 `last_status`）、`enable/disable <id>`。

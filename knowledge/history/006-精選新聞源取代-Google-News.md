@@ -23,7 +23,7 @@ Last Week in AI 因為**最貼「AI 新聞策展」**（週報式彙整，而非
   拉出 Import AI 的政策議題（核能 LLM、網路戰、電子戰），純論文給不了。**廣度差異化
   首次展現實際價值**。
 - 為長文新聞加 embedding 輸入截斷（2000 字）省成本。
-- commit 見下方；程式碼 `src/learnnews/cli/fetchers.py`。
+- commit 見下方；程式碼 `src/knowfield/cli/fetchers.py`。
 
 ## 待續
 Import AI／Last Week in AI 為**週報**，單日可能無新內容（論文源補足每日新鮮度）。

@@ -61,11 +61,11 @@
 
 ### 受影響檔案
 ```text
-src/learnnews/models/__init__.py          # DigestEntry += entry_id
-src/learnnews/store/repository.py         # get_last_digest 帶 id；get_entry_material（新）
-src/learnnews/web/views.py                # PageEntry += entry_id；entry_to_page 帶出
-src/learnnews/web/app.py                  # /field/relate 泛化（get_entry_material）
-src/learnnews/web/templates/_entry.html   # 加關聯鈕（{% if e.entry_id %}）
+src/knowfield/models/__init__.py          # DigestEntry += entry_id
+src/knowfield/store/repository.py         # get_last_digest 帶 id；get_entry_material（新）
+src/knowfield/web/views.py                # PageEntry += entry_id；entry_to_page 帶出
+src/knowfield/web/app.py                  # /field/relate 泛化（get_entry_material）
+src/knowfield/web/templates/_entry.html   # 加關聯鈕（{% if e.entry_id %}）
 tests/test_relate_flow.py                 # 新測（本增量）
 tests/test_field_relate_web.py            # 既有種子路徑回歸不破
 ```

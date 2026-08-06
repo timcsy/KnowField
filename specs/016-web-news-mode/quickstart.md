@@ -17,7 +17,7 @@
 
 ## 3. 調時間範圍
 ```
-.env 設 LEARNNEWS_SEARCH_NEWS_RANGE=day → 重啟 → 重新整理
+.env 設 KNOWFIELD_SEARCH_NEWS_RANGE=day → 重啟 → 重新整理
 ```
 預期：web 活水只撈**當日**新聞。
 

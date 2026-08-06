@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.backends.openai_api import OpenAIError
-from learnnews.summarize.article import ArticleBuilder
+from knowfield.backends.openai_api import OpenAIError
+from knowfield.summarize.article import ArticleBuilder
 from tests.helpers import make_item
 
 

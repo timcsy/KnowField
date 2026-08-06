@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.rag.service import RagService
+from knowfield.rag.service import RagService
 
 
 class TestRootWeight(unittest.TestCase):

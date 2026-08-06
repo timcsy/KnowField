@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.models import Article, Digest, DigestEntry, Figure, Item
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Digest, DigestEntry, Figure, Item
+from knowfield.store.repository import Repository
 
 
 class TestGetLastDigest(unittest.TestCase):

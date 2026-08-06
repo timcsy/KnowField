@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from learnnews.chat.field_chat import FieldChat, build_field_system_prompt
-from learnnews.store.repository import Repository
+from knowfield.chat.field_chat import FieldChat, build_field_system_prompt
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 

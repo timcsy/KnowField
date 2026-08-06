@@ -83,17 +83,17 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 ### 受影響檔案
 ```text
-src/learnnews/store/schema.py                 # + conversations 表（SCHEMA＋_migrate）
-src/learnnews/store/repository.py             # save/list/get_conversation + why_node_provenance
-src/learnnews/models/__init__.py（或 chat）    # Conversation dataclass
-src/learnnews/chat/field_chat.py              # FieldChat.title（自動由來標題）
-src/learnnews/web/app.py                       # /chat/save、/conversations、/conversations/{id}、
+src/knowfield/store/schema.py                 # + conversations 表（SCHEMA＋_migrate）
+src/knowfield/store/repository.py             # save/list/get_conversation + why_node_provenance
+src/knowfield/models/__init__.py（或 chat）    # Conversation dataclass
+src/knowfield/chat/field_chat.py              # FieldChat.title（自動由來標題）
+src/knowfield/web/app.py                       # /chat/save、/conversations、/conversations/{id}、
                                                #   /chat/anoint 擴充、/roots 帶 provenance、title_factory
-src/learnnews/web/templates/chat.html          # 「存這段對話」＋冊封「連同存」checkbox
-src/learnnews/web/templates/conversations.html # 新：清單
-src/learnnews/web/templates/conversation.html  # 新：單篇（.md-render 渲染）
-src/learnnews/web/templates/roots.html         # 加「← 由來」連結
-src/learnnews/web/templates/base.html          # 導覽入口
+src/knowfield/web/templates/chat.html          # 「存這段對話」＋冊封「連同存」checkbox
+src/knowfield/web/templates/conversations.html # 新：清單
+src/knowfield/web/templates/conversation.html  # 新：單篇（.md-render 渲染）
+src/knowfield/web/templates/roots.html         # 加「← 由來」連結
+src/knowfield/web/templates/base.html          # 導覽入口
 tests/unit/test_conversations.py               # repo save/list/get、provenance、刪根因不崩、title 退回
 tests/contract/test_conversation_web.py        # 兩存檔點、/conversations 頁、roots 由來連結、不入地基守衛
 ```

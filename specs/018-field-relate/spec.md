@@ -1,6 +1,6 @@
 # 規格：場對新材料做工（理解＝forward pass over your field）
 
-**功能**：LearnNews 路線圖階段 15
+**功能**：KnowField 路線圖階段 15
 **分支／目錄**：`specs/018-field-relate/`
 **建立日期**：2026-07-26
 **設計源**：`concepts/有吸引子的場.md`（理解＝前向傳遞、梯度＝成核/證偽/驚訝）、

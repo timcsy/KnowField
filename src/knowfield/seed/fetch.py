@@ -31,7 +31,7 @@ def normalize_arxiv_id(ref: str) -> str | None:
 
 def default_http_get(url: str) -> str:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "LearnNews/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "KnowField/1.0"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read().decode("utf-8", "replace")
     except Exception as e:  # noqa: BLE001 - 統一轉成友善的來源不可用

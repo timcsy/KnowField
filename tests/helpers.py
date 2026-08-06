@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from learnnews.models import Item
-from learnnews.sources.base import SourceAdapter, SourceUnavailable, content_hash
+from knowfield.models import Item
+from knowfield.sources.base import SourceAdapter, SourceUnavailable, content_hash
 
 
 class FakeAdapter(SourceAdapter):

@@ -2,7 +2,7 @@
 
 ## 語法
 ```
-learnnews ask "<問題>" [--today] [--lang <語言>] [-k <取回數>]
+knowfield ask "<問題>" [--today] [--lang <語言>] [-k <取回數>]
 ```
 
 | 參數 | 必填 | 預設 | 說明 |

@@ -25,7 +25,7 @@
   `*, news=False, time_range=None`（Stub 忽略）；`ApiWebSearch.search` 於 `news=True` 加
   `topic="news"`、`time_range` 有值加 `time_range`。
 - [x] T005 [US1] `config.py`：加 `search_news_time_range`（"week"），`from_env` 讀
-  `LEARNNEWS_SEARCH_NEWS_RANGE`。
+  `KNOWFIELD_SEARCH_NEWS_RANGE`。
 
 ## Phase 3：US1/US3 活水走 news、時間範圍可調（P1/P2，接管線）
 

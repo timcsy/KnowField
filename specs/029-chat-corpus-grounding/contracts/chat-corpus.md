@@ -1,13 +1,13 @@
 # Contracts: 問答併進聊天
 
-## A. 檢索純函式（`src/learnnews/rag/service.py`）
+## A. 檢索純函式（`src/knowfield/rag/service.py`）
 
 ### `retrieve_corpus(repo, embedder, query, top_k, min_score) -> list[CorpusEntry]`
 - `list_corpus_entries`→`ensure_embeddings`→`embed(query)`→`cosine`→`≥ min_score` 過濾→加權排序→`top_k`。
 - 空語料/無相關 → `[]`。離線可測（注入 stub embedder）。純檢索、**不合成**。
 - `RagService.answer` 改呼叫它（行為不變、既有測不回歸）。
 
-## B. field-chat 注入（`src/learnnews/chat/field_chat.py`）
+## B. field-chat 注入（`src/knowfield/chat/field_chat.py`）
 
 ### `_messages(..., corpus_contents=None)`（改）／`reply`/`reply_stream` 透傳
 - `corpus_contents`＝`[{"n","title","excerpt"}]` → 注入**獨立 system 塊**：
@@ -15,7 +15,7 @@
 - **不碰 `build_field_system_prompt`**（只吃 roots）。
 - `_MEMBRANE` 加一句三層：核心理解＝地基／你收藏的＝證言／web＝外部。
 
-## C. Web（`src/learnnews/web/app.py`＋模板）
+## C. Web（`src/knowfield/web/app.py`＋模板）
 - `_default_chat`／`chat_stream`：非腦力激盪時，web 撒網後也 `retrieve_corpus`（best-effort；可注入 `corpus_search_for_test`）。
   把收進 hits 與 web 來源**併成一個 sources 清單**（連號、帶 `kind`）＋組 `corpus_contents` 傳給 `fc.reply(...)`。
   cited-only：只留被答案 `[n]` 引用的來源。

@@ -1,7 +1,7 @@
 [project]
-name = "learnnews"
+name = "knowfield"
 version = "0.1.0"
-description = "LearnNews — AI 新聞/論文的每日分診工具（推模式 MVP）"
+description = "KnowField — AI 新聞/論文的每日分診工具（推模式 MVP）"
 requires-python = ">=3.12"
 # 核心與真實後端皆以標準函式庫實作，零必要外部相依（YAGNI，離線可測）。
 # 真實 embedding／摘要走使用者的 OpenAI 格式 API（stdlib urllib），不需額外套件。
@@ -13,7 +13,7 @@ dev = ["pytest>=8", "httpx>=0.27"]   # httpx：FastAPI TestClient 需要
 web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1", "python-multipart>=0.0.12"]
 
 [project.scripts]
-learnnews = "learnnews.cli.__main__:main"
+knowfield = "knowfield.cli.__main__:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.export.notebooklm import (
+from knowfield.export.notebooklm import (
     conversation_evidence_urls,
     conversation_to_markdown,
     dedup_urls,

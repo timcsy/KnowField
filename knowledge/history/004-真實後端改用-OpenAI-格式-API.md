@@ -21,7 +21,7 @@ Anthropic SDK。走 OpenAI 格式一次涵蓋 embedding＋chat，且 urllib 直�
 
 ## 影響
 - `pyproject.toml` 移除重量級 backends extra（sentence-transformers／anthropic）。
-- 新增 `src/learnnews/backends/`（openai_api、factory）、`config.py` 支援 .env。
+- 新增 `src/knowfield/backends/`（openai_api、factory）、`config.py` 支援 .env。
 - 真實驗證：embedding 相關性精準（LLM 推理／RAG／agent 命中）、摘要封頂繁中、
   直達原文、缺漏來源優雅降級。commit `5ea4e0b`、`50205bc`。
 

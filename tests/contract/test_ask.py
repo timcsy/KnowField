@@ -4,14 +4,14 @@ import os
 import unittest
 from types import SimpleNamespace
 
-from learnnews.cli import ask_cmd
-from learnnews.store.repository import Repository
+from knowfield.cli import ask_cmd
+from knowfield.store.repository import Repository
 from tests.rag_helpers import capture, make_entry, seed_digest, temp_db
 
 
 class TestAskContract(unittest.TestCase):
     def setUp(self):
-        os.environ["LEARNNEWS_BACKEND"] = "offline"   # 明講離線，勝過 .env
+        os.environ["KNOWFIELD_BACKEND"] = "offline"   # 明講離線，勝過 .env
         self.db = temp_db()
         repo = Repository(self.db)
         seed_digest(repo, "2026-07-23", [

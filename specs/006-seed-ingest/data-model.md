@@ -49,7 +49,7 @@ ref（arXiv-id | url）
 - 門檻：入選條件仍 `cosine >= min_score`（**原始 cosine**，非加權）；權重只排序入選者。
 
 ## Config 新增
-- `rag_explainer_weight: float = 1.5`（env `LEARNNEWS_RAG_EXPLAINER_WEIGHT`）
+- `rag_explainer_weight: float = 1.5`（env `KNOWFIELD_RAG_EXPLAINER_WEIGHT`）
 - `SEEDS_DATE = '__種子__'` 哨兵常數。
 
 ## Fetch（`seed/fetch.py`）

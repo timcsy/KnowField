@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.models import BehaviorSignal, InterestProfile, Item, Source
-from learnnews.store.repository import Repository
+from knowfield.models import BehaviorSignal, InterestProfile, Item, Source
+from knowfield.store.repository import Repository
 
 
 class TestStore(unittest.TestCase):

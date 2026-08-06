@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.ingest.chunk import chunk_markdown, stitch_chunks
+from knowfield.ingest.chunk import chunk_markdown, stitch_chunks
 
 
 class TestStitch(unittest.TestCase):

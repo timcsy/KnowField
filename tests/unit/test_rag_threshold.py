@@ -7,14 +7,14 @@
 import os
 import unittest
 
-from learnnews.config import Config
+from knowfield.config import Config
 
 
 class TestThresholdCalibration(unittest.TestCase):
     def setUp(self):
         self._saved = {k: os.environ.get(k) for k in
-                       ("LEARNNEWS_BACKEND", "LEARNNEWS_RAG_MINSCORE")}
-        os.environ.pop("LEARNNEWS_RAG_MINSCORE", None)
+                       ("KNOWFIELD_BACKEND", "KNOWFIELD_RAG_MINSCORE")}
+        os.environ.pop("KNOWFIELD_RAG_MINSCORE", None)
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -24,18 +24,18 @@ class TestThresholdCalibration(unittest.TestCase):
                 os.environ[k] = v
 
     def test_openai_backend_uses_high_threshold(self):
-        os.environ["LEARNNEWS_BACKEND"] = "openai"
+        os.environ["KNOWFIELD_BACKEND"] = "openai"
         c = Config.from_env(dotenv="/nonexistent")
         self.assertGreaterEqual(c.rag_min_score, 0.30)   # 濾鬆散相關、擋無關問題
 
     def test_offline_backend_uses_low_threshold(self):
-        os.environ["LEARNNEWS_BACKEND"] = "offline"
+        os.environ["KNOWFIELD_BACKEND"] = "offline"
         c = Config.from_env(dotenv="/nonexistent")
         self.assertLessEqual(c.rag_min_score, 0.10)      # 離線雜湊尺度低
 
     def test_env_override_wins(self):
-        os.environ["LEARNNEWS_BACKEND"] = "openai"
-        os.environ["LEARNNEWS_RAG_MINSCORE"] = "0.5"
+        os.environ["KNOWFIELD_BACKEND"] = "openai"
+        os.environ["KNOWFIELD_RAG_MINSCORE"] = "0.5"
         c = Config.from_env(dotenv="/nonexistent")
         self.assertEqual(c.rag_min_score, 0.5)
 

@@ -66,7 +66,7 @@ specs/004-web-ui/
 
 ### Source Code — 新增粗體，其餘複用
 ```text
-src/learnnews/
+src/knowfield/
 ├── web/                     # 【新增】只有這層碰框架
 │   ├── app.py               #   FastAPI app、路由、例外處理器
 │   ├── views.py             #   把 Article/Digest/PullResult 轉成頁面用資料

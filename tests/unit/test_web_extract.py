@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.ingest.web import extract_article_markdown
+from knowfield.ingest.web import extract_article_markdown
 
 _HTML = """<html><head><title>我的文章 - 部落格</title></head><body>
 <nav>首頁 關於 聯絡</nav>

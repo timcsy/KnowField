@@ -2,7 +2,7 @@
 
 ## 語法
 ```
-learnnews ingest <ref> [--explainer]
+knowfield ingest <ref> [--explainer]
 ```
 
 | 參數 | 必填 | 預設 | 說明 |

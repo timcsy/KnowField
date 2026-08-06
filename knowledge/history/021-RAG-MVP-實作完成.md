@@ -2,7 +2,7 @@
 > 日期：2026-07-24
 
 ## 轉移
-走完 spec-kit（specify→plan→tasks→implement）做出 spec 005 增量 1：`learnnews ask` 對已落庫
+走完 spec-kit（specify→plan→tasks→implement）做出 spec 005 增量 1：`knowfield ask` 對已落庫
 匯整可溯源問答。**這是「有吸引子的場」概念第一次接觸現實**——雖只鋪了「流＋檢索」地板
 （吸引子/根因/optimizer 是後續增量）。
 

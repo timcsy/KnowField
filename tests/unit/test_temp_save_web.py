@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 _H1 = [{"role": "user", "content": "第一句"}]
@@ -143,7 +143,7 @@ class TestGuardNotInjected(unittest.TestCase):
         secret = "SECRET_FANTASY_暫存不該進場"
         TestClient(app).post("/chat/autosave", data={
             "history": json.dumps([{"role": "user", "content": secret}]), "temp_id": ""})
-        from learnnews.chat.field_chat import build_field_system_prompt
+        from knowfield.chat.field_chat import build_field_system_prompt
         repo = Repository(db)
         roots = repo.list_why_nodes("anointed")
         repo.close()

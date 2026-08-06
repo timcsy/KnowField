@@ -11,14 +11,14 @@
 
 ### 情境 A — 對主題拉取（US1，預設附定位）
 ```bash
-uv run learnnews pull "latent reasoning" --limit 20
+uv run knowfield pull "latent reasoning" --limit 20
 ```
 **預期**：一份依「latent reasoning」相關性排序、去重、每則含一句定位＋直達原文的清單；
 結尾標示缺漏來源與未納入則數。
 
 ### 情境 B — 純原礦模式（SC-007）
 ```bash
-uv run learnnews pull "latent reasoning" --raw
+uv run knowfield pull "latent reasoning" --raw
 ```
 **預期**：每則僅標題＋來源＋連結，**完全無生成文字**；且未呼叫 LLM。
 
@@ -40,7 +40,7 @@ uv run learnnews pull "latent reasoning" --raw
 
 ### 情境 G — 冷門主題空結果（Edge Case）
 ```bash
-uv run learnnews pull "某個查無相關的冷門詞"
+uv run knowfield pull "某個查無相關的冷門詞"
 ```
 **預期**：退出碼 0，明確標示無相關結果，不報錯、不硬塞。
 

@@ -1,6 +1,6 @@
 # Quickstart：live web 活水（階段 13）
 
-前置：`.env` 設了搜尋金鑰（`LEARNNEWS_SEARCH_API_URL`＋`LEARNNEWS_SEARCH_KEY`，同 `/search`）。
+前置：`.env` 設了搜尋金鑰（`KNOWFIELD_SEARCH_API_URL`＋`KNOWFIELD_SEARCH_KEY`，同 `/search`）。
 
 ## 1. 啟用開放網路趨勢源
 ```
@@ -10,7 +10,7 @@
 
 ## 2. 重新整理 → 匯整含剛紅新聞
 ```
-回首頁按「🔄 重新整理」（或 uv run learnnews digest）
+回首頁按「🔄 重新整理」（或 uv run knowfield digest）
 ```
 預期：匯整**納入開放網路剛紅的 AI 新聞**（Opus 5 這類進得來），每則帶原文連結、經興趣排序、
 消化成散文——固定名冊看不到的東西補進來了。

@@ -44,7 +44,7 @@
   預設 1.5、其餘 1.0）。**相關度門檻仍套在原始 cosine**（`cosine >= min_score` 才入選），
   **權重只影響入選者的排序**——解說文不會把不相關內容擠進來。
 - **Rationale**：門檻把關相關性（不被權重繞過）、權重決定「同樣相關時誰優先」＝「一篇打敗
-  五十篇」。權重 env 可調（`LEARNNEWS_RAG_EXPLAINER_WEIGHT`）。
+  五十篇」。權重 env 可調（`KNOWFIELD_RAG_EXPLAINER_WEIGHT`）。
 - **Alternatives rejected**：把權重乘進門檻——會讓解說文的弱相關內容混進答案，違 FR-004 精神。
 
 ## R6：消化與嵌入複用

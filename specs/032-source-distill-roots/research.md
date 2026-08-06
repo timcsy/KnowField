@@ -4,7 +4,7 @@
 - **選定**：`rootcause.extract.RootCauseExtractor.extract(title, body) -> Candidate`。
 - **理由**：它本為「從一則材料抽根因候選」設計，內建 7 條試金石自我反駁＋ladder＋fog_flag＋no_material，正中 FR-002/FR-003（候選須標「AI 推斷、過試金石」）。`field_chat.distill` 吃對話 history、產無試金石的較輕 CandidateDraft，不合。
 - **替代**：field_chat.distill（規格輸入原提）——否決：對話導向、無純度守門的試金石。
-- **證據**：`src/learnnews/rootcause/extract.py:53-122`（extract 簽章＋StubExtractor＋OpenAIExtractor＋TOUCHSTONES）；`backends/factory.py:33` `make_root_cause_extractor` 已備雙後端。
+- **證據**：`src/knowfield/rootcause/extract.py:53-122`（extract 簽章＋StubExtractor＋OpenAIExtractor＋TOUCHSTONES）；`backends/factory.py:33` `make_root_cause_extractor` 已備雙後端。
 
 ## 決策 2：源→根因由來＝復用 evidence_urls（零 schema）
 - **選定**：整理時把來源 url 存進候選的 `evidence_urls`；讀端 `why_node_source_provenance()` 把「evidence_url 命中現有來源」映成由來連結。

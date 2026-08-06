@@ -8,10 +8,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.rag.service import RagService
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.rag.answerer import StubAnswerer
-from learnnews.store.repository import Repository
+from knowfield.rag.service import RagService
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.rag.answerer import StubAnswerer
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 from tests.web_helpers import build_app
 

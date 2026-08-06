@@ -2,12 +2,12 @@
 
 import unittest
 
-from learnnews.summarize.summarizer import (
+from knowfield.summarize.summarizer import (
     SummaryBuilder,
     count_sentences,
     first_sentence,
 )
-from learnnews.summarize.llm import Summarizer
+from knowfield.summarize.llm import Summarizer
 from tests.helpers import make_item
 
 

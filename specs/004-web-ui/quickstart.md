@@ -4,8 +4,8 @@
 
 ## 前置
 - `uv sync --extra web --extra dev`（裝 fastapi/uvicorn/jinja2/httpx）
-- 先跑一次匯整讓首頁有料：`uv run learnnews digest`（離線亦可）
-- 啟動：`uv run uvicorn learnnews.web.app:app --reload`，開 http://127.0.0.1:8000
+- 先跑一次匯整讓首頁有料：`uv run knowfield digest`（離線亦可）
+- 啟動：`uv run uvicorn knowfield.web.app:app --reload`，開 http://127.0.0.1:8000
 
 ## 驗證情境
 

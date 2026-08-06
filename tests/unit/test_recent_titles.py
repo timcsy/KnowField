@@ -2,9 +2,9 @@
 
 import unittest
 
-from learnnews.config import SEEDS_DATE
-from learnnews.models import Article, Digest, DigestEntry, Item
-from learnnews.store.repository import Repository
+from knowfield.config import SEEDS_DATE
+from knowfield.models import Article, Digest, DigestEntry, Item
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 
 

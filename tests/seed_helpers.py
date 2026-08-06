@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from learnnews.sources.base import SourceUnavailable
+from knowfield.sources.base import SourceUnavailable
 
 ARXIV_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">

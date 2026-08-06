@@ -1,4 +1,4 @@
-"""`learnnews ingest` 指令（spec 006）：把一篇經典/解說文收進知識庫成種子。
+"""`knowfield ingest` 指令（spec 006）：把一篇經典/解說文收進知識庫成種子。
 
 核心 `SeedService` 與 CLI 解耦；此處組後端、列印結果、攔抓取/後端失敗（教訓 3）。
 """
@@ -14,7 +14,7 @@ from ..sources.base import SourceUnavailable
 from ..store.repository import Repository
 from ..summarize.article import ArticleBuilder
 
-_log = get_logger("learnnews.cli")
+_log = get_logger("knowfield.cli")
 
 
 def handle(args) -> int:

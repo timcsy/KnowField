@@ -6,7 +6,7 @@
 
 ## Summary
 
-實作 LearnNews「推」模式的每日分診管線：從論文骨幹（arXiv、Hugging Face Daily
+實作 KnowField「推」模式的每日分診管線：從論文骨幹（arXiv、Hugging Face Daily
 Papers、Semantic Scholar）加 1–2 個精選新聞來源取得條目，**跨來源去重**、依**興趣過濾**
 排序、為每則產生**封頂摘要（一句定位＋一句為何值得看）**與**直達原文連結**，輸出一份
 每日匯整。技術取徑：Python 批次管線，核心邏輯做成可測試的函式庫，外加一層薄 CLI；
@@ -77,7 +77,7 @@ specs/001-daily-triage-digest/
 
 ```text
 src/
-└── learnnews/
+└── knowfield/
     ├── sources/         # 各來源 adapter（arxiv, hf_papers, semantic_scholar, newsletter…）
     ├── models/          # 資料實體（Source, Item, EventCluster, InterestProfile, Digest, Summary）
     ├── dedup/           # 去重／事件叢集

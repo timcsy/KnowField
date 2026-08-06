@@ -20,13 +20,13 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 ## Path Conventions
 
-單一專案：核心於 `src/learnnews/`，測試於 `tests/`（見 plan.md 結構決策）。
+單一專案：核心於 `src/knowfield/`，測試於 `tests/`（見 plan.md 結構決策）。
 
 ---
 
 ## Phase 1: Setup（共用基礎）
 
-- [X] T001 建立專案結構（`src/learnnews/{sources,models,dedup,ranking,summarize,digest,store,cli}/`、`tests/{contract,integration,unit}/`）per plan.md
+- [X] T001 建立專案結構（`src/knowfield/{sources,models,dedup,ranking,summarize,digest,store,cli}/`、`tests/{contract,integration,unit}/`）per plan.md
 - [X] T002 初始化 Python 專案 `pyproject.toml`（Python 3.12+，相依：httpx、feedparser、sentence-transformers、anthropic、pytest）
 - [X] T003 [P] 設定 lint/format（ruff、black）於 `pyproject.toml`
 - [X] T004 [P] 設定 pytest 與離線測試慣例（`tests/conftest.py`：錄製樣本 fixtures、embedding 與 LLM 以 stub，禁打真實 API）
@@ -38,13 +38,13 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 **⚠️ CRITICAL**：本階段完成前，任何使用者故事不得開工。
 
 - [X] T005 [P] 單元測試（先失敗）：SQLite schema 與 repository round-trip，於 `tests/unit/test_store.py`
-- [X] T006 依 data-model.md 實作 SQLite schema 於 `src/learnnews/store/schema.py`
-- [X] T007 [P] 定義資料實體（Source、Item、EventCluster、InterestProfile、Digest、Summary、BehaviorSignal）於 `src/learnnews/models/`
-- [X] T008 實作 store repository（CRUD）於 `src/learnnews/store/repository.py`（依 T006、T007；使 T005 通過）
-- [X] T009 [P] 設定與結構化日誌（原則 V）於 `src/learnnews/config.py`、`src/learnnews/logging_setup.py`
-- [X] T010 [P] SourceAdapter 基底介面與 `SourceUnavailable` 例外於 `src/learnnews/sources/base.py`（per contracts/source-adapter.md）
-- [X] T011 [P] Embedding 包裝（`embed()` 介面＋本地模型＋離線 stub）於 `src/learnnews/ranking/embeddings.py`
-- [X] T012 [P] 摘要 LLM 包裝（Claude `claude-haiku-4-5`）＋錄製回應 stub 於 `src/learnnews/summarize/llm.py`
+- [X] T006 依 data-model.md 實作 SQLite schema 於 `src/knowfield/store/schema.py`
+- [X] T007 [P] 定義資料實體（Source、Item、EventCluster、InterestProfile、Digest、Summary、BehaviorSignal）於 `src/knowfield/models/`
+- [X] T008 實作 store repository（CRUD）於 `src/knowfield/store/repository.py`（依 T006、T007；使 T005 通過）
+- [X] T009 [P] 設定與結構化日誌（原則 V）於 `src/knowfield/config.py`、`src/knowfield/logging_setup.py`
+- [X] T010 [P] SourceAdapter 基底介面與 `SourceUnavailable` 例外於 `src/knowfield/sources/base.py`（per contracts/source-adapter.md）
+- [X] T011 [P] Embedding 包裝（`embed()` 介面＋本地模型＋離線 stub）於 `src/knowfield/ranking/embeddings.py`
+- [X] T012 [P] 摘要 LLM 包裝（Claude `claude-haiku-4-5`）＋錄製回應 stub 於 `src/knowfield/summarize/llm.py`
 
 **Checkpoint**：基礎就緒，可開始使用者故事。
 
@@ -54,7 +54,7 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 **Goal**：給定來源與一份興趣清單，執行一次每日匯整——去重、依興趣排序、封頂摘要、直達原文。
 
-**Independent Test**：以錄製來源樣本＋預設興趣清單執行 `learnnews digest`，驗證輸出為去重、排序後、每則含封頂摘要與原文連結的匯整。
+**Independent Test**：以錄製來源樣本＋預設興趣清單執行 `knowfield digest`，驗證輸出為去重、排序後、每則含封頂摘要與原文連結的匯整。
 
 ### Tests for User Story 1（先寫、先失敗）⚠️
 
@@ -72,18 +72,18 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 ### Implementation for User Story 1
 
-- [X] T024 [P] [US1] ArxivAdapter 於 `src/learnnews/sources/arxiv.py`（依 T010）
-- [X] T025 [P] [US1] HFPapersAdapter 於 `src/learnnews/sources/hf_papers.py`（依 T010）
-- [X] T026 [P] [US1] SemanticScholarAdapter（指數退避）於 `src/learnnews/sources/semantic_scholar.py`（依 T010）
-- [X] T027 [P] [US1] RssAdapter 於 `src/learnnews/sources/rss.py`（依 T010）
-- [X] T028 [US1] 去重精確層（content_hash／external_id／canonical URL）於 `src/learnnews/dedup/exact.py`
-- [X] T029 [US1] 去重語義層（embedding 叢集＋entity 加權）於 `src/learnnews/dedup/semantic.py`（依 T011、T028）
-- [X] T030 [US1] 興趣相關性排序於 `src/learnnews/ranking/relevance.py`（依 T011）
-- [X] T031 [US1] 封頂摘要器（提示禁結論式分析＋程式端長度守衛）於 `src/learnnews/summarize/summarizer.py`（依 T012）
-- [X] T032 [US1] 預設興趣清單讀取（供 US1 獨立測試）於 `src/learnnews/ranking/interest_preset.py`
-- [X] T033 [US1] 匯整組裝（排序、上限 ≤15、truncated_count、missing_sources、is_empty）於 `src/learnnews/digest/builder.py`（依 T028–T032）
-- [X] T034 [US1] CLI `digest`（--date/--limit/--format/--output/--json）於 `src/learnnews/cli/digest_cmd.py`（依 T033）
-- [X] T035 [US1] 匯整流程結構化日誌與繁中錯誤訊息（原則 V）於 `src/learnnews/digest/builder.py`、`cli/digest_cmd.py`
+- [X] T024 [P] [US1] ArxivAdapter 於 `src/knowfield/sources/arxiv.py`（依 T010）
+- [X] T025 [P] [US1] HFPapersAdapter 於 `src/knowfield/sources/hf_papers.py`（依 T010）
+- [X] T026 [P] [US1] SemanticScholarAdapter（指數退避）於 `src/knowfield/sources/semantic_scholar.py`（依 T010）
+- [X] T027 [P] [US1] RssAdapter 於 `src/knowfield/sources/rss.py`（依 T010）
+- [X] T028 [US1] 去重精確層（content_hash／external_id／canonical URL）於 `src/knowfield/dedup/exact.py`
+- [X] T029 [US1] 去重語義層（embedding 叢集＋entity 加權）於 `src/knowfield/dedup/semantic.py`（依 T011、T028）
+- [X] T030 [US1] 興趣相關性排序於 `src/knowfield/ranking/relevance.py`（依 T011）
+- [X] T031 [US1] 封頂摘要器（提示禁結論式分析＋程式端長度守衛）於 `src/knowfield/summarize/summarizer.py`（依 T012）
+- [X] T032 [US1] 預設興趣清單讀取（供 US1 獨立測試）於 `src/knowfield/ranking/interest_preset.py`
+- [X] T033 [US1] 匯整組裝（排序、上限 ≤15、truncated_count、missing_sources、is_empty）於 `src/knowfield/digest/builder.py`（依 T028–T032）
+- [X] T034 [US1] CLI `digest`（--date/--limit/--format/--output/--json）於 `src/knowfield/cli/digest_cmd.py`（依 T033）
+- [X] T035 [US1] 匯整流程結構化日誌與繁中錯誤訊息（原則 V）於 `src/knowfield/digest/builder.py`、`cli/digest_cmd.py`
 
 **Checkpoint**：US1 可獨立運作與測試 = **MVP**。
 
@@ -103,9 +103,9 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 ### Implementation for User Story 2
 
-- [X] T039 [US2] InterestProfile 服務（CRUD、明講優先）於 `src/learnnews/interests/service.py`（依 T008 store）
-- [X] T040 [US2] CLI `interests`（list/add/remove/set）於 `src/learnnews/cli/interests_cmd.py`（依 T039）
-- [X] T041 [US2] 將 InterestProfile 接入排序，取代 US1 預設（保明講優先）於 `src/learnnews/ranking/relevance.py`（依 T039、T030）
+- [X] T039 [US2] InterestProfile 服務（CRUD、明講優先）於 `src/knowfield/interests/service.py`（依 T008 store）
+- [X] T040 [US2] CLI `interests`（list/add/remove/set）於 `src/knowfield/cli/interests_cmd.py`（依 T039）
+- [X] T041 [US2] 將 InterestProfile 接入排序，取代 US1 預設（保明講優先）於 `src/knowfield/ranking/relevance.py`（依 T039、T030）
 
 **Checkpoint**：US1＋US2 皆可獨立運作。
 
@@ -124,9 +124,9 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 ### Implementation for User Story 3
 
-- [X] T044 [US3] BehaviorSignal 擷取（clicked/skipped）於 `src/learnnews/interests/behavior.py`（依 T008）
-- [X] T045 [US3] learned_weights 校準（明講仍優先）於 `src/learnnews/interests/learning.py`（依 T044、T039）
-- [X] T046 [US3] 將 learned_weights 疊入排序於 `src/learnnews/ranking/relevance.py`（依 T045、T041）
+- [X] T044 [US3] BehaviorSignal 擷取（clicked/skipped）於 `src/knowfield/interests/behavior.py`（依 T008）
+- [X] T045 [US3] learned_weights 校準（明講仍優先）於 `src/knowfield/interests/learning.py`（依 T044、T039）
+- [X] T046 [US3] 將 learned_weights 疊入排序於 `src/knowfield/ranking/relevance.py`（依 T045、T041）
 
 **Checkpoint**：三個故事皆可獨立運作。
 
@@ -134,7 +134,7 @@ description: "Task list — 每日推播分診（推模式 MVP）"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [X] T047 [P] CLI `sources`（list/enable/disable）＋contract test 於 `src/learnnews/cli/sources_cmd.py`、`tests/contract/test_cli_sources.py`
+- [X] T047 [P] CLI `sources`（list/enable/disable）＋contract test 於 `src/knowfield/cli/sources_cmd.py`、`tests/contract/test_cli_sources.py`
 - [X] T048 [P] 執行 quickstart.md 情境 A–G 端到端驗證
 - [X] T049 [P] 繁中使用說明文件（憲章原則 II）於 `docs/usage.md`
 - [X] T050 程式碼整理與重構（YAGNI，去除重複）
@@ -178,10 +178,10 @@ Task: "Integration test 跨源去重 in tests/integration/test_dedup_digest.py"
 Task: "Unit test 去重 in tests/unit/test_dedup.py"
 
 # 再平行實作四個來源 adapter：
-Task: "ArxivAdapter in src/learnnews/sources/arxiv.py"
-Task: "HFPapersAdapter in src/learnnews/sources/hf_papers.py"
-Task: "SemanticScholarAdapter in src/learnnews/sources/semantic_scholar.py"
-Task: "RssAdapter in src/learnnews/sources/rss.py"
+Task: "ArxivAdapter in src/knowfield/sources/arxiv.py"
+Task: "HFPapersAdapter in src/knowfield/sources/hf_papers.py"
+Task: "SemanticScholarAdapter in src/knowfield/sources/semantic_scholar.py"
+Task: "RssAdapter in src/knowfield/sources/rss.py"
 ```
 
 ---

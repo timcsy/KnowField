@@ -6,11 +6,11 @@
 
 import unittest
 
-from learnnews.chat.field_chat import build_field_system_prompt
-from learnnews.ingest.activate import distill_source
-from learnnews.ingest.service import ContentIngestService
-from learnnews.rootcause.extract import Candidate
-from learnnews.store.repository import Repository
+from knowfield.chat.field_chat import build_field_system_prompt
+from knowfield.ingest.activate import distill_source
+from knowfield.ingest.service import ContentIngestService
+from knowfield.rootcause.extract import Candidate
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 
 

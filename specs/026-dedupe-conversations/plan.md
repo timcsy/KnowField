@@ -54,7 +54,7 @@ specs/026-dedupe-conversations/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── chat/
 │   └── capture.py              # 【改】加 plan_dedupe(convos, provenance)->DedupePlan（純函式，複用 fingerprint）
 ├── store/

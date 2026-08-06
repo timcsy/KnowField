@@ -1,4 +1,4 @@
-"""learnnews CLI 入口（argparse）。"""
+"""knowfield CLI 入口（argparse）。"""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from . import ask_cmd, ingest_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="learnnews", description="AI 知識庫問答／收進工具")
-    p.add_argument("--db", default="learnnews.db", help="SQLite 資料庫路徑")
+    p = argparse.ArgumentParser(prog="knowfield", description="AI 知識庫問答／收進工具")
+    p.add_argument("--db", default="knowfield.db", help="SQLite 資料庫路徑")
     p.add_argument("--json", action="store_true", help="以 JSON 輸出")
     sub = p.add_subparsers(dest="command", required=True)
 

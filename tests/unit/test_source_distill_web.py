@@ -7,10 +7,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.ingest.service import ContentIngestService
-from learnnews.rootcause.extract import Candidate
-from learnnews.sources.base import SourceUnavailable
-from learnnews.store.repository import Repository
+from knowfield.ingest.service import ContentIngestService
+from knowfield.rootcause.extract import Candidate
+from knowfield.sources.base import SourceUnavailable
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 

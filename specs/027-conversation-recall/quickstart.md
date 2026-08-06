@@ -10,9 +10,9 @@ uv run pytest tests/unit/test_capture_core.py tests/unit/test_recall_web.py -q
 uv run pytest -q     # 全套不回歸（423 →）
 ```
 
-## 手動驗證（web，真實 learnnews.db）
+## 手動驗證（web，真實 knowfield.db）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:create_app --factory --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:create_app --factory --port 8000
 ```
 1. **US1 重生標題**：`/conversations` 開一則叫「Flow Matching…」的長對話 → 按「重新命名」→ 標題應重生成反映**落點**（四元樹/影片串流），不再只是開頭。也可直接**改名**輸入自己的。
 2. **US1 新標題**：`/chat` 聊一段「開頭 A、落點 B」→ 存 → 標題反映 B。

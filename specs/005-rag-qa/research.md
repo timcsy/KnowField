@@ -51,7 +51,7 @@
   （教訓 4 的延伸）。**實測 text-embedding-3-small**：命中≈0.62、鬆散相關 0.10–0.25、
   **完全無關的問題最高才 0.22**。故固定 0.10 太低→什麼都放行。改成 `Config.from_env` 依
   backend 給預設：**openai≈0.30**（濾噪音＋擋無關）、**offline≈0.05**（雜湊尺度低），
-  env `LEARNNEWS_RAG_MINSCORE` 可覆寫。
+  env `KNOWFIELD_RAG_MINSCORE` 可覆寫。
 - **Rationale**：門檻是「無來源不出貨」的閘。此校準一併解掉兩個真跑 bug：無關問題正確查無、
   且真命中時只有命中者過關→來源清單只列實際相關的（不再列 6 個噪音來源）。
 - **Alternatives rejected**：單一固定門檻——真實/離線尺度不同，一個值服務不了兩邊；相對

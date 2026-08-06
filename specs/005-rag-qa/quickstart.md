@@ -5,29 +5,29 @@
 ## 1. 離線問答（零外部呼叫，預設 stub 後端）
 ```bash
 # 未設 api_key → 自動離線後端
-uv run learnnews digest            # 先產生一份匯整（若還沒有）
-uv run learnnews ask "最近有什麼值得看的"
+uv run knowfield digest            # 先產生一份匯整（若還沒有）
+uv run knowfield ask "最近有什麼值得看的"
 ```
 預期：印出一段繁中答案＋「來源：」清單（每則附原文連結）；或在庫空/無關時印「沒有相關材料」。
 
 ## 2. 範圍過濾
 ```bash
-uv run learnnews ask "今天的重點" --today     # 只查最近一份匯整
-uv run learnnews ask "agent 記憶體進展"         # 預設跨全部累積匯整
+uv run knowfield ask "今天的重點" --today     # 只查最近一份匯整
+uv run knowfield ask "agent 記憶體進展"         # 預設跨全部累積匯整
 ```
 預期：`--today` 的來源只含最近一份匯整的條目。
 
 ## 3. 真實後端（品質＋忠實抽查）
 ```bash
-# .env 設 LEARNNEWS_API_KEY（勿貼進聊天/勿進版控）
-uv run learnnews ask "最近 RL 有什麼新方向"
+# .env 設 KNOWFIELD_API_KEY（勿貼進聊天/勿進版控）
+uv run knowfield ask "最近 RL 有什麼新方向"
 ```
 預期：答案更通順、逐點 `[n]` 標來源；**人工抽查**：每個論點都能在對應來源原文找到依據
 （無杜撰）。
 
 ## 4. 誠實邊界
 ```bash
-uv run learnnews ask "完全無關的冷門主題xyz"    # → 沒有相關材料，不硬答
+uv run knowfield ask "完全無關的冷門主題xyz"    # → 沒有相關材料，不硬答
 ```
 
 ## 5. 測試（TDD 驗收）

@@ -3,8 +3,8 @@
 import unittest
 from datetime import datetime
 
-from learnnews.sources.base import SourceUnavailable
-from learnnews.sources.semantic_scholar import (
+from knowfield.sources.base import SourceUnavailable
+from knowfield.sources.semantic_scholar import (
     RateLimited,
     SemanticScholarAdapter,
     with_backoff,

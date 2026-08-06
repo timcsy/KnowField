@@ -30,4 +30,4 @@ promote「跟你的場聊天」→ **vision 階段 17**。使用者拍板「prom
 - 下一步：`/speckit-specify` 開 spec 022。
 - 相關：experience「提案-批准≠打到需求」＋解方（先探針再蓋）、principle 6（膜/過度擬合檢查）、
   concept `有吸引子的場`（複利而不污染）、spec 021（/worth＝一個進料口）、示範產物冊封進使用者個人場
-  `learnnews.db` #14/#15（非本 repo）。
+  `knowfield.db` #14/#15（非本 repo）。

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: 路線圖階段 1／2——LearnNews「推」模式：把 AI 相關新聞與論文的洪流，
+**Input**: 路線圖階段 1／2——KnowField「推」模式：把 AI 相關新聞與論文的洪流，
 去重、依興趣排序、濾成「今天值得點的幾則」，每則附極簡定位與直達原文連結。
 知識來源：`knowledge/vision.md`、`knowledge/principles.md`、`.specify/memory/constitution.md`
 與 `knowledge/draft/` 四份設計/研究草稿。

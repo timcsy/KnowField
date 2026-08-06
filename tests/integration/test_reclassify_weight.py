@@ -2,12 +2,12 @@
 
 import unittest
 
-from learnnews.models import Article, Item
-from learnnews.rag.answerer import StubAnswerer
-from learnnews.rag.service import RagService, embedder_tag
-from learnnews.rag.types import CorpusEntry
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Item
+from knowfield.rag.answerer import StubAnswerer
+from knowfield.rag.service import RagService, embedder_tag
+from knowfield.rag.types import CorpusEntry
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.store.repository import Repository
 
 
 def _add_seed(repo, title, url, body, cls="ordinary"):

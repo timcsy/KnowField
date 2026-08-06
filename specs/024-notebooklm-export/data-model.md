@@ -4,12 +4,12 @@
 
 ## 既有實體（唯讀）
 
-### 對話 Conversation（`src/learnnews/models`，spec 023）
+### 對話 Conversation（`src/knowfield/models`，spec 023）
 - `id: int`、`title: str`、`messages: list[dict]`、`why_node_id: int | None`、`created_at: str`
 - `messages` 每則：`{"role": "user"|"assistant", "content": str, "sources"?: list[dict]}`
   - `sources` 每項：`{"n": int, "url": str, "title": str}`（**逐訊息各自從 1 編號**）
 
-### 根因 WhyNode（`src/learnnews/rootcause/extract.py`）
+### 根因 WhyNode（`src/knowfield/rootcause/extract.py`）
 - `claim: str`（最底層 aha）、`ladder: list[str]`（表面 → bedrock，每層一句）、
   `evidence_urls: list[str]`、`status`（本功能只匯出 `anointed`／`/roots` 呈現者）
 

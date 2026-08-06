@@ -18,21 +18,21 @@ description: "Task list — 可讀文章式消化（階段 5）"
 - 面向使用者輸出與文件為繁體中文（憲章原則 II）
 
 ## Path Conventions
-單一專案：新增 `src/learnnews/summarize/article.py`、`src/learnnews/media/`；改 digest/pull/render。
+單一專案：新增 `src/knowfield/summarize/article.py`、`src/knowfield/media/`；改 digest/pull/render。
 
 ---
 
 ## Phase 1: Setup
 
-- [X] T001 建立骨架：`src/learnnews/summarize/article.py`、`src/learnnews/media/{__init__,figure_extract,ai_image}.py`（佔位）per plan.md
+- [X] T001 建立骨架：`src/knowfield/summarize/article.py`、`src/knowfield/media/{__init__,figure_extract,ai_image}.py`（佔位）per plan.md
 
 ---
 
 ## Phase 2: Foundational（阻斷性前置）
 
-- [X] T002 [P] 定義 `Article`、`Figure` dataclass（含 body、source_url、figure、degraded；Figure.kind＝原文/AI 示意）於 `src/learnnews/summarize/article.py`（per data-model.md）
-- [X] T003 entry 遷移：`DigestEntry`／`PullEntry` 由 `summary` 改帶 `article`（`--raw` 時為 None）於 `src/learnnews/models/__init__.py`、`src/learnnews/pull/types.py`；同步更新既有受影響測試斷言
-- [X] T004 [P] `digest_entries` schema 增欄（article_body、figure_url、figure_kind）於 `src/learnnews/store/schema.py`、`src/learnnews/store/repository.py`
+- [X] T002 [P] 定義 `Article`、`Figure` dataclass（含 body、source_url、figure、degraded；Figure.kind＝原文/AI 示意）於 `src/knowfield/summarize/article.py`（per data-model.md）
+- [X] T003 entry 遷移：`DigestEntry`／`PullEntry` 由 `summary` 改帶 `article`（`--raw` 時為 None）於 `src/knowfield/models/__init__.py`、`src/knowfield/pull/types.py`；同步更新既有受影響測試斷言
+- [X] T004 [P] `digest_entries` schema 增欄（article_body、figure_url、figure_kind）於 `src/knowfield/store/schema.py`、`src/knowfield/store/repository.py`
 
 **Checkpoint**：Article 地基就緒，可開始使用者故事。
 
@@ -54,11 +54,11 @@ description: "Task list — 可讀文章式消化（階段 5）"
 
 ### Implementation for User Story 1
 
-- [X] T010 [US1] ArticleBuilder（散文生成＋程式端守衛：剝鷹架、標 degraded）＋ 散文 prompt/stub 於 `src/learnnews/summarize/article.py`、`src/learnnews/summarize/llm.py`（依 T002）
-- [X] T011 [US1] digest builder 產 `Article` 取代 `Summary` 於 `src/learnnews/digest/builder.py`（依 T010、T003）
-- [X] T012 [US1] pull service 產 `Article` 於 `src/learnnews/pull/service.py`（依 T010、T003）
-- [X] T013 [US1] 渲染散文文章（markdown/terminal，含一鍵原文）於 `src/learnnews/cli/render.py`、`src/learnnews/cli/pull_render.py`
-- [X] T014 [US1] 優雅降級：散文後端失敗 → 退精簡＋標 degraded、退出碼 0、不炸於 `src/learnnews/summarize/article.py`、`src/learnnews/cli/digest_cmd.py`、`src/learnnews/cli/pull_cmd.py`（FR-011）
+- [X] T010 [US1] ArticleBuilder（散文生成＋程式端守衛：剝鷹架、標 degraded）＋ 散文 prompt/stub 於 `src/knowfield/summarize/article.py`、`src/knowfield/summarize/llm.py`（依 T002）
+- [X] T011 [US1] digest builder 產 `Article` 取代 `Summary` 於 `src/knowfield/digest/builder.py`（依 T010、T003）
+- [X] T012 [US1] pull service 產 `Article` 於 `src/knowfield/pull/service.py`（依 T010、T003）
+- [X] T013 [US1] 渲染散文文章（markdown/terminal，含一鍵原文）於 `src/knowfield/cli/render.py`、`src/knowfield/cli/pull_render.py`
+- [X] T014 [US1] 優雅降級：散文後端失敗 → 退精簡＋標 degraded、退出碼 0、不炸於 `src/knowfield/summarize/article.py`、`src/knowfield/cli/digest_cmd.py`、`src/knowfield/cli/pull_cmd.py`（FR-011）
 
 **Checkpoint**：US1 可獨立運作與測試 = **MVP**（散文消化，暫無圖）。
 
@@ -78,10 +78,10 @@ description: "Task list — 可讀文章式消化（階段 5）"
 
 ### Implementation for User Story 2
 
-- [X] T018 [US2] figure_extract（RSS enclosure/img、arXiv HTML；best-effort，取不到回 None）於 `src/learnnews/media/figure_extract.py`
-- [X] T019 [US2] ai_image（OpenAI 格式 images 端點，可選；回傳標 kind=AI 示意）於 `src/learnnews/media/ai_image.py`
-- [X] T020 [US2] 配圖接入 ArticleBuilder（原文圖優先、`--ai-image` 才 AI 圖）＋渲染標示於 `src/learnnews/summarize/article.py`、`src/learnnews/cli/render.py`、`src/learnnews/cli/pull_render.py`（依 T018、T019）
-- [X] T021 [US2] CLI 加 `--ai-image` 旗標於 `src/learnnews/cli/__main__.py`
+- [X] T018 [US2] figure_extract（RSS enclosure/img、arXiv HTML；best-effort，取不到回 None）於 `src/knowfield/media/figure_extract.py`
+- [X] T019 [US2] ai_image（OpenAI 格式 images 端點，可選；回傳標 kind=AI 示意）於 `src/knowfield/media/ai_image.py`
+- [X] T020 [US2] 配圖接入 ArticleBuilder（原文圖優先、`--ai-image` 才 AI 圖）＋渲染標示於 `src/knowfield/summarize/article.py`、`src/knowfield/cli/render.py`、`src/knowfield/cli/pull_render.py`（依 T018、T019）
+- [X] T021 [US2] CLI 加 `--ai-image` 旗標於 `src/knowfield/cli/__main__.py`
 
 **Checkpoint**：US1＋US2 皆可運作（散文＋圖）。
 
@@ -99,7 +99,7 @@ description: "Task list — 可讀文章式消化（階段 5）"
 
 ### Implementation for User Story 3
 
-- [X] T023 [US3] 確認/補強 `--raw` 路徑跳過 ArticleBuilder 與抓圖於 `src/learnnews/cli/digest_cmd.py`、`src/learnnews/cli/pull_cmd.py`
+- [X] T023 [US3] 確認/補強 `--raw` 路徑跳過 ArticleBuilder 與抓圖於 `src/knowfield/cli/digest_cmd.py`、`src/knowfield/cli/pull_cmd.py`
 
 **Checkpoint**：三故事皆可獨立運作。
 

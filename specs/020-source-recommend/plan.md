@@ -35,7 +35,7 @@
 
 ## 技術方案
 
-### 新模組 `src/learnnews/sources/recommend.py`（純函式、可注入）
+### 新模組 `src/knowfield/sources/recommend.py`（純函式、可注入）
 ```
 @dataclass CandidateSource:
     domain: str; homepage: str; feed_url: str | None; name: str
@@ -84,10 +84,10 @@ recommend_sources(web_search, embedder, repo, *, http_get=default_http_get,
 
 ### 受影響檔案
 ```text
-src/learnnews/sources/recommend.py          # 新：CandidateSource + recommend_sources（純函式）
-src/learnnews/web/app.py                     # 新路由 POST /sources/recommend + recommend_factory
-src/learnnews/web/templates/sources.html     # 「幫我找新來源」表單 + 推薦區塊
-src/learnnews/config.py                       # source_recommend_queries/limit（小旋鈕）
+src/knowfield/sources/recommend.py          # 新：CandidateSource + recommend_sources（純函式）
+src/knowfield/web/app.py                     # 新路由 POST /sources/recommend + recommend_factory
+src/knowfield/web/templates/sources.html     # 「幫我找新來源」表單 + 推薦區塊
+src/knowfield/config.py                       # source_recommend_queries/limit（小旋鈕）
 tests/unit/test_source_recommend.py           # 純函式測（排序/驗證濾除/已訂閱/無 attractor）
 tests/contract/test_source_recommend_web.py   # 路由測（opt-in/friendly/訂閱複用 add）
 ```

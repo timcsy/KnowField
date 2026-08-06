@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.search.websearch import ApiWebSearch, SearchResult, StubWebSearch
-from learnnews.sources.base import SourceUnavailable
+from knowfield.search.websearch import ApiWebSearch, SearchResult, StubWebSearch
+from knowfield.sources.base import SourceUnavailable
 
 
 class TestWebSearch(unittest.TestCase):

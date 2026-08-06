@@ -19,24 +19,24 @@ summarize／backends／store／digest），只新增薄薄一層 `pull/`。
 - 面向使用者輸出與文件為繁體中文（憲章原則 II）
 
 ## Path Conventions
-單一專案：新增於 `src/learnnews/pull/` 與 `src/learnnews/cli/pull_cmd.py`；測試於 `tests/`。
+單一專案：新增於 `src/knowfield/pull/` 與 `src/knowfield/cli/pull_cmd.py`；測試於 `tests/`。
 
 ---
 
 ## Phase 1: Setup
 
-- [X] T001 建立拉模式結構：`src/learnnews/pull/__init__.py`、`pull/types.py`、`pull/topic_query.py`、
-  `pull/service.py`、`src/learnnews/cli/pull_cmd.py`、`src/learnnews/cli/pull_render.py`（佔位）per plan.md
+- [X] T001 建立拉模式結構：`src/knowfield/pull/__init__.py`、`pull/types.py`、`pull/topic_query.py`、
+  `pull/service.py`、`src/knowfield/cli/pull_cmd.py`、`src/knowfield/cli/pull_render.py`（佔位）per plan.md
 
 ---
 
 ## Phase 2: Foundational（阻斷性前置）
 
 - [X] T002 [P] 定義 `TopicQuery`、`PullResult`、`PullEntry` dataclass（含 is_empty、truncated_count、
-  missing_sources）於 `src/learnnews/pull/types.py`（per data-model.md）
+  missing_sources）於 `src/knowfield/pull/types.py`（per data-model.md）
 - [X] T003 [P] 單元測試（先失敗）：主題查詢建構與來源可查詢性分類於 `tests/unit/test_topic_query.py`
 - [X] T004 主題查詢建構——arXiv `search_query=all:<topic>`、標記來源可查詢/不可查詢於
-  `src/learnnews/pull/topic_query.py`（使 T003 通過；依既有 sources/base）
+  `src/knowfield/pull/topic_query.py`（使 T003 通過；依既有 sources/base）
 
 **Checkpoint**：拉模式地基就緒，可開始使用者故事。
 
@@ -46,7 +46,7 @@ summarize／backends／store／digest），只新增薄薄一層 `pull/`。
 
 **Goal**：給定主題 → 跨來源擴展、去重、依主題排序、直達原文；預設附一句定位，`--raw` 純原礦。
 
-**Independent Test**：以主題＋來源樣本執行 `learnnews pull`，驗證去重、依主題相關性排序、
+**Independent Test**：以主題＋來源樣本執行 `knowfield pull`，驗證去重、依主題相關性排序、
 每則含原文連結；`--raw` 時無任何生成文字。
 
 ### Tests for User Story 1（先寫、先失敗）⚠️
@@ -59,11 +59,11 @@ summarize／backends／store／digest），只新增薄薄一層 `pull/`。
 
 ### Implementation for User Story 1
 
-- [X] T010 [US1] PullService（擴展搜尋＋相關性過濾＋去重＋依主題排序＋上限＋可選摘要）於 `src/learnnews/pull/service.py`（依 T004；複用 dedup/ranking/summarize/backends）
-- [X] T011 [US1] 拉取結果渲染（terminal/markdown/json；`--raw` 純標題＋來源＋連結、不生成文字）於 `src/learnnews/cli/pull_render.py`
-- [X] T012 [US1] CLI `pull`（topic、--limit、--raw/--no-summary、--format、--output、--json）於 `src/learnnews/cli/pull_cmd.py`（依 T010、T011）
-- [X] T013 [US1] 註冊 `pull` 子指令到入口於 `src/learnnews/cli/__main__.py`
-- [X] T014 [US1] 拉取流程結構化日誌與繁中錯誤訊息（原則 V）於 `src/learnnews/pull/service.py`、`src/learnnews/cli/pull_cmd.py`
+- [X] T010 [US1] PullService（擴展搜尋＋相關性過濾＋去重＋依主題排序＋上限＋可選摘要）於 `src/knowfield/pull/service.py`（依 T004；複用 dedup/ranking/summarize/backends）
+- [X] T011 [US1] 拉取結果渲染（terminal/markdown/json；`--raw` 純標題＋來源＋連結、不生成文字）於 `src/knowfield/cli/pull_render.py`
+- [X] T012 [US1] CLI `pull`（topic、--limit、--raw/--no-summary、--format、--output、--json）於 `src/knowfield/cli/pull_cmd.py`（依 T010、T011）
+- [X] T013 [US1] 註冊 `pull` 子指令到入口於 `src/knowfield/cli/__main__.py`
+- [X] T014 [US1] 拉取流程結構化日誌與繁中錯誤訊息（原則 V）於 `src/knowfield/pull/service.py`、`src/knowfield/cli/pull_cmd.py`
 
 **Checkpoint**：US1 可獨立運作與測試 = **MVP**（直接給 topic 字串）。
 
@@ -81,8 +81,8 @@ summarize／backends／store／digest），只新增薄薄一層 `pull/`。
 
 ### Implementation for User Story 2
 
-- [X] T016 [US2] 匯整條目落庫（digest 執行時保存 entries：item＋matched_topic）於 `src/learnnews/store/repository.py`、`src/learnnews/digest/builder.py`
-- [X] T017 [US2] `pull --from-digest <rank>`：讀最近匯整第 N 則主題發起拉取於 `src/learnnews/cli/pull_cmd.py`（依 T016、T010）
+- [X] T016 [US2] 匯整條目落庫（digest 執行時保存 entries：item＋matched_topic）於 `src/knowfield/store/repository.py`、`src/knowfield/digest/builder.py`
+- [X] T017 [US2] `pull --from-digest <rank>`：讀最近匯整第 N 則主題發起拉取於 `src/knowfield/cli/pull_cmd.py`（依 T016、T010）
 
 **Checkpoint**：US1＋US2 皆可獨立運作。
 

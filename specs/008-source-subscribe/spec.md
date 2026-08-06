@@ -8,7 +8,7 @@
 
 **Input**: User description: "web `/sources`：貼一個 RSS/站台 URL 自助追蹤一個站台/部落格（RSS 自動探測＋加前驗證有料）＋列出/停用/啟用/刪除來源。第三種追蹤粒度（站台/作者＝持續水源）＝原則 5 人冊封。TDD 強制。"
 
-> 路線圖：LearnNews 階段 8。設計理由：`knowledge/draft/2026-07-25-來源訂閱.md`（＋`知識庫管理`
+> 路線圖：KnowField 階段 8。設計理由：`knowledge/draft/2026-07-25-來源訂閱.md`（＋`知識庫管理`
 > draft 的來源管理面合流）；模型：`concepts/有吸引子的場.md`（訂閱＝冊封持續水源、流的進水口）；
 > 規範：`principles.md` 原則 5、憲章原則 VI。
 

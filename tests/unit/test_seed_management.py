@@ -2,11 +2,11 @@
 
 import unittest
 
-from learnnews.models import Article, Item
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.rag.service import embedder_tag
-from learnnews.rag.types import CorpusEntry
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Item
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.rag.service import embedder_tag
+from knowfield.rag.types import CorpusEntry
+from knowfield.store.repository import Repository
 from tests.rag_helpers import make_entry, seed_digest
 
 

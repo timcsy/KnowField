@@ -64,7 +64,7 @@ specs/007-library/
 ### Source Code (repository root)
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── store/repository.py       # +list_seeds／delete_seed／set_seed_class（皆僅限種子容器）
 ├── web/
 │   ├── app.py                # +GET /library、POST /library/remove、POST /library/reclassify

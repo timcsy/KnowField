@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 _HIST = json.dumps([

@@ -65,7 +65,7 @@ specs/006-seed-ingest/
 ### Source Code (repository root)
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── seed/                     # 新增
 │   ├── __init__.py
 │   ├── fetch.py              # fetch_arxiv_by_id／fetch_url（http_get 可注入）→ Item

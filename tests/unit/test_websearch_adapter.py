@@ -3,9 +3,9 @@
 import unittest
 from datetime import datetime
 
-from learnnews.search.websearch import SearchResult, StubWebSearch
-from learnnews.sources.base import SourceUnavailable
-from learnnews.sources.websearch_adapter import WebSearchAdapter
+from knowfield.search.websearch import SearchResult, StubWebSearch
+from knowfield.sources.base import SourceUnavailable
+from knowfield.sources.websearch_adapter import WebSearchAdapter
 
 
 class TestWebSearchAdapter(unittest.TestCase):

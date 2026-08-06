@@ -57,7 +57,7 @@ specs/028-temporary-save/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── chat/
 │   └── capture.py              # 【改】加 expired_temp_ids(convos, now, ttl_days=7)＋cheap_title(messages)（純、零相依）
 ├── models/__init__.py          # 【改】Conversation 加 temporary、last_activity_at

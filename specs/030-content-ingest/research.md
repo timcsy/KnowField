@@ -3,7 +3,7 @@
 依據 `draft/2026-08-04-進料轉檔選型.md`（GeneralAffairs 萃取＋2026 SOTA＋Mistral 繁中實測）。
 
 ## R1：轉檔器＝Mistral Document AI（經現有 gateway）
-- **Decision**：PDF→markdown 走 `azure/mistral-document-ai-2512`，現有 LEARNNEWS gateway `/v1/ocr`、同一把 key、Bearer。
+- **Decision**：PDF→markdown 走 `azure/mistral-document-ai-2512`，現有 KNOWFIELD gateway `/v1/ocr`、同一把 key、Bearer。
 - **Rationale**：實測（英文＋繁中）吐乾淨 markdown、數學保 LaTeX、表格成 md 表、**繁體保留（OCR 讀既有字形，不需 OpenCC）**；零新後端設定、免 GPU（憲章 IV）。
 - **Alternatives**：自架 MinerU/olmOCR（要 GPU，砍）；docling 硬相依（重，砍）；vision LLM 逐頁（貴、會幻覺，只當後備）。
 

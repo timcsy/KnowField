@@ -1,6 +1,6 @@
 # Contracts: 對話暫時存檔＋TTL 衰減
 
-## A. 純核心（`src/learnnews/chat/capture.py`，零相依）
+## A. 純核心（`src/knowfield/chat/capture.py`，零相依）
 
 ### `expired_temp_ids(convos: list, now: str, ttl_days: int = 7) -> list[int]`
 - `convos` 每筆 dict/物件含 `id/temporary/last_activity_at`。回 `temporary` 為真且 `now - last_activity_at > ttl_days`
@@ -9,7 +9,7 @@
 ### `cheap_title(messages: list) -> str`
 - 首個 user 訊息截斷（≤20 字）；空→「（暫存對話）」。純、不呼 LLM。
 
-## B. Repository（`src/learnnews/store/repository.py`）
+## B. Repository（`src/knowfield/store/repository.py`）
 
 ### `autosave_temporary(temp_id, messages, now) -> int | None`
 - 空 messages → None（不存）。`temp_id` 給定且存在 → `UPDATE messages, last_activity_at=now`（同筆）→ 回 temp_id；
@@ -27,7 +27,7 @@
 ### `list_conversations()` / `get_conversation()` / `Conversation`（改）
 - 帶 `temporary`、`last_activity_at`。（`save_conversation` 維持 spec 025 dedup、temporary=0＝永久。）
 
-## C. Web（`src/learnnews/web/app.py`＋模板）
+## C. Web（`src/knowfield/web/app.py`＋模板）
 - `POST /chat/autosave`（Form: `history`、`temp_id?`）→ `autosave_temporary` → 回 `temp_id`（純文字/JSON）。best-effort。
 - `/chat/save`：有 `temp_id` → `promote_conversation(temp_id, 落點標題)`；無 → `save_conversation`（建永久）。先 purge。
 - `/chat/anoint`（save_convo）：有 `temp_id` → promote 該筆＋連 wid；無 → 既有 save_conversation(…, wid)。

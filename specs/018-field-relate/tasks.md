@@ -33,10 +33,10 @@
   **不呼叫 judge**；材料 url＝某種子 url → 該種子被排除、不選為 attractor。
 
 ### 實作
-- [x] T008 [US1] 新增 `src/learnnews/field/relate.py`：`FieldRelation` 型別＋`RelationJudge` Protocol＋
+- [x] T008 [US1] 新增 `src/knowfield/field/relate.py`：`FieldRelation` 型別＋`RelationJudge` Protocol＋
   `StubRelationJudge`（確定性）＋`OpenAIRelationJudge`（`_post` chat、grounded system 明令延伸/牴觸/
   無關聯、牴觸明說、不杜撰、輸出 JSON、解析、失敗拋 `SourceUnavailable`）。
-- [x] T009 [US1] `src/learnnews/field/relate.py` 續：`FieldRelate(embedder, judge, repo, min_score)`
+- [x] T009 [US1] `src/knowfield/field/relate.py` 續：`FieldRelate(embedder, judge, repo, min_score)`
   ＋`relate(title, body, exclude_url=None)`：吸引子空→empty；排除自己；ensure_embeddings＋cosine 找最近；
   `<min_score`→ nucleate（實質）/empty（太短）；否則 judge → FieldRelation。**不寫庫**。
 - [x] T010 [US1] `backends/factory.py` 加 `make_relation_judge(config)`。

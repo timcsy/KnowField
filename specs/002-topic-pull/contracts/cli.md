@@ -1,9 +1,9 @@
-# CLI 指令契約：learnnews pull
+# CLI 指令契約：knowfield pull
 
 拉模式的對外介面。測試以 `tests/contract/test_cli_pull.py` 驗證。輸出繁中（FR-009）；
 缺漏以繁中標示、退出碼 0（不靜默，原則 V）。
 
-## `learnnews pull <topic>`
+## `knowfield pull <topic>`
 對指定主題擴展、去重、排序、溯源（US1）。
 
 - **輸入**：
@@ -24,7 +24,7 @@
   - 某來源不可取得 → 照常回傳其餘、列於 `missing_sources`（FR-008）。
   - 冷門主題無結果 → 退出碼 0 且標示空（Edge Case）。
 
-## `learnnews pull --from-digest <rank>`（US2，可後續）
+## `knowfield pull --from-digest <rank>`（US2，可後續）
 從最近一次匯整的第 N 則取其主題／關鍵詞，發起拉取。
 
 - **契約測試**：給定一則匯整條目 → 以其主題拉取，回傳擴展結果。

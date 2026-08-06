@@ -4,9 +4,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.ingest.clean import clean_markdown
-from learnnews.ingest.service import ContentIngestService
-from learnnews.store.repository import Repository
+from knowfield.ingest.clean import clean_markdown
+from knowfield.ingest.service import ContentIngestService
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 from tests.web_helpers import build_app
 from tests.web_helpers import temp_db as web_temp_db
@@ -43,7 +43,7 @@ class TestSourceGrouping(unittest.TestCase):
         body = "".join(f"第{i}句不同的貓內容。" for i in range(80))
         svc.ingest_text(body, title="長文")
         chunks = repo.get_source_chunks(repo.list_source_groups()[0]["url"])
-        from learnnews.ingest.chunk import stitch_chunks
+        from knowfield.ingest.chunk import stitch_chunks
         stitched = stitch_chunks(chunks)
         self.assertIn("第0句", stitched)
         self.assertIn("第79句", stitched)

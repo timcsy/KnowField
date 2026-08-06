@@ -2,7 +2,7 @@
 
 ## 1. 離線（預設 stub）
 ```bash
-uv run uvicorn learnnews.web.app:app     # 開 http://127.0.0.1:8000/search
+uv run uvicorn knowfield.web.app:app     # 開 http://127.0.0.1:8000/search
 ```
 未設搜尋金鑰 → 用離線 stub 回固定假結果；打任意 query 看結果列出。
 
@@ -13,8 +13,8 @@ uv run uvicorn learnnews.web.app:app     # 開 http://127.0.0.1:8000/search
 ## 3. 真實搜尋（Tavily）
 在 `.env` 設（金鑰勿貼聊天/勿進版控）：
 ```
-LEARNNEWS_SEARCH_API_URL=https://api.tavily.com/search
-LEARNNEWS_SEARCH_KEY=<你的 Tavily 金鑰>
+KNOWFIELD_SEARCH_API_URL=https://api.tavily.com/search
+KNOWFIELD_SEARCH_KEY=<你的 Tavily 金鑰>
 ```
 重啟服務 → 打真實 query → 回開放網路結果；挑有價值的按「收進」成種子。
 （Tavily 免費層約 1000 次/月；金鑰放請求 body，非 Bearer。換相容服務改 URL 即可。）

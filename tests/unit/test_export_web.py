@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 _HIST = [
@@ -132,7 +132,7 @@ class TestReadOnlyGuard(unittest.TestCase):
         repo.close()
 
         # 場脈絡（system prompt）只來自冊封根因、不含發想對話內容
-        from learnnews.chat.field_chat import build_field_system_prompt
+        from knowfield.chat.field_chat import build_field_system_prompt
         repo = Repository(db)
         roots = repo.list_why_nodes("anointed")
         repo.close()

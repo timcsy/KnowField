@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.models import Article, Digest, DigestEntry, Item
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Digest, DigestEntry, Item
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 
 

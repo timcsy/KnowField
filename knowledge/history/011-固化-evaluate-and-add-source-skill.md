@@ -14,7 +14,7 @@ knowie-next／judge 連續多次把它標為 skill candidate（重複手動操�
 ## 影響
 - 來源 = `knowledge/skills/`（真理來源）；投影 = `.claude/skills/` 的 per-skill symlink
   （fresh clone 後 judge §5 會重新確保投影）。
-- 技能內容為 LearnNews 專屬（DEFAULT_SOURCES 在 `src/learnnews/cli/fetchers.py`）。
+- 技能內容為 KnowField 專屬（DEFAULT_SOURCES 在 `src/knowfield/cli/fetchers.py`）。
 
 ## 待辦（另記）
 - 真實後端散文忠實度抽查仍待做——API 額度 `allocation_quarantined`（403）尚未解除

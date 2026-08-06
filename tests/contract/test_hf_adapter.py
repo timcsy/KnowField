@@ -3,8 +3,8 @@
 import unittest
 from datetime import datetime
 
-from learnnews.sources.hf_papers import HFPapersAdapter
-from learnnews.sources.base import SourceUnavailable
+from knowfield.sources.hf_papers import HFPapersAdapter
+from knowfield.sources.base import SourceUnavailable
 
 _SAMPLE = """[
   {"paper": {"id": "2401.00002", "title": "Agentic Planning",

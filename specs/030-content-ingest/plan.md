@@ -6,7 +6,7 @@
 - Python 3.12＋stdlib 核心；FastAPI＋Jinja2；SQLite。既有：`SeedService.ingest`（url→種子）、`repo.ingest_seed`（一筆 digest_entry）、`repo.ensure_embeddings`、`retrieve_corpus`（spec 029，讀 `digest_entries`）、`/chat` 引用「你收藏的」（029）。
 - **核心洞見**：把「一段內容切成多塊、每塊當一筆 digest_entry 存」即可——`retrieve_corpus`／`/chat` 自動吃到、自動標「你收藏的」、自動不進地基（它只讀 anointed why_nodes）。**無新表**（教訓 8），純度守衛（原則 6）由「存成 corpus 非 why_node」天然成立。
 
-## 架構（新 `src/learnnews/ingest/` 套件）
+## 架構（新 `src/knowfield/ingest/` 套件）
 - `chunk.py`：`chunk_markdown(md, target=400, overlap=40) -> list[str]`。純函式、零相依、離線可測。規則：**原子塊不切**（fenced code ```、`$$` 數學、markdown 表格連續 `|` 行）；**章節（`^#{1,6} `）為優先切點**；章節內 prose 按**字元數**切＋重疊；短內容→一塊。
 - `convert.py`：`DocConverter` 協定（`to_markdown(pdf_bytes=None, pdf_url=None) -> str`）＋`MistralDocConverter`（真實：走現有 gateway `/v1/ocr`，`azure/mistral-document-ai-2512`；>30 頁→每頁 `pdftoppm` render 成圖走 `image_url` 逐頁 OCR 合併，避開 30 頁上限與笨切爆脹）。真實 adapter 不進單元測試（比照 make_chat_backend）；**離線靠注入 stub**（教訓 1）。
 - `service.py`：`store_chunks(repo, embedder, title, url, chunks, source_class)`＝逐塊 `ingest_seed`＋批次 `ensure_embeddings`，回塊數。`ContentIngestService.ingest_text(text, title)`／`ingest_pdf(pdf_bytes|pdf_url, title)`；空內容→`IngestResult(status="empty")`；轉檔/切塊/embed 失敗攔成友善（教訓 3）。

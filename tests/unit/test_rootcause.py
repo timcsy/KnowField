@@ -3,8 +3,8 @@
 import json
 import unittest
 
-from learnnews.rootcause.extract import Candidate, OpenAIExtractor, StubExtractor
-from learnnews.sources.base import SourceUnavailable
+from knowfield.rootcause.extract import Candidate, OpenAIExtractor, StubExtractor
+from knowfield.sources.base import SourceUnavailable
 
 
 class TestExtractor(unittest.TestCase):

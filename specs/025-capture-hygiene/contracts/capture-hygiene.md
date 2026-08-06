@@ -1,6 +1,6 @@
 # Contracts: 對話收料的漏
 
-## A. 純核心（`src/learnnews/chat/capture.py`，零相依）
+## A. 純核心（`src/knowfield/chat/capture.py`，零相依）
 
 ### `conversation_fingerprint(messages: list) -> str`
 - 由訊息序列（每則 `role`＋`content`，忽略 sources 等易變欄）算穩定雜湊字串（stdlib `hashlib`）。
@@ -10,7 +10,7 @@
 - 回 `(from, to)`＝`(last_captured+1, total)` 當 `total >= min_total` 且 `total - last_captured >= gap_threshold`；
   否則 `None`。`last_captured` 為負/None 視為 0；`total<=0` → `None`。純函式、不崩。
 
-## B. Repository 契約（`src/learnnews/store/repository.py`）
+## B. Repository 契約（`src/knowfield/store/repository.py`）
 
 ### `save_conversation(title, messages, why_node_id=None) -> int`（改為指紋冪等）
 - 算 `conversation_fingerprint(messages)`；若已有同指紋對話 → 取其 `cid`（**不插入**）；否則插入新列得 `cid`。
@@ -26,7 +26,7 @@
 ### schema `_migrate`（冪等）
 - `why_nodes` 無 `conversation_id` → `ALTER TABLE ADD COLUMN`；回填既有 `conversations.why_node_id`。
 
-## C. Web 契約（`src/learnnews/web/app.py`＋`chat.html`）
+## C. Web 契約（`src/knowfield/web/app.py`＋`chat.html`）
 
 - **#1 去重**：`/chat/anoint`（`save_convo=1`）沿用呼叫 `save_conversation` → **自動去重**（前端零改）。
 - **#2 提醒**：chat 頁以 `distill_gap` 判斷是否顯示「尾段未收」提醒；`last_captured` 由 client（localStorage

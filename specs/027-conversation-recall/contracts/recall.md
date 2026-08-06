@@ -1,6 +1,6 @@
 # Contracts: 對話的可找回性
 
-## A. 純核心（`src/learnnews/chat/capture.py`，零相依）
+## A. 純核心（`src/knowfield/chat/capture.py`，零相依）
 
 ### `title_material(messages: list, head_chars=600, tail_chars=1600) -> str`
 - 回「首段＋尾段」取材字串（尾段為主、標出落點）。空→空字串。缺 content 視為空、不崩。
@@ -10,7 +10,7 @@
 - 把 raw（`[{title,start,end,summary}]`，範圍可能粗/越界/重疊）→ clamp 到 `[1,n]`、依 start 排序、補洞去重疊，
   保證**涵蓋 [1,n] 且不重疊**。空/壞/`n<=0` → 合理退回（`n>=1` 時整段一章；`n<=0` 回 `[]`）。純函式。
 
-## B. 語意層（`src/learnnews/chat/field_chat.py`，可注入 backend）
+## B. 語意層（`src/knowfield/chat/field_chat.py`，可注入 backend）
 
 ### `FieldChat.title(messages) -> str`（改）
 - 用 `title_material` 取材＋落點提示。失敗→退回首個 user 訊息截斷（教訓 3）。
@@ -18,11 +18,11 @@
 ### `FieldChat.segment(messages) -> list[dict]`（新）
 - backend 判語意轉折→`_parse_chapters`→`normalize_chapters`。失敗/過短→整段一章。回章節清單。
 
-## C. Repository（`src/learnnews/store/repository.py`）
+## C. Repository（`src/knowfield/store/repository.py`）
 ### `rename_conversation(cid, title) -> bool`
 - `UPDATE conversations SET title=? WHERE id=?`；回是否有更新。不碰其他欄。
 
-## D. Web（`src/learnnews/web/app.py`＋模板）
+## D. Web（`src/knowfield/web/app.py`＋模板）
 - `POST /conversations/{cid}/rename`（Form `title`）→ `rename_conversation`→ redirect。空標題→不改、友善。
 - `POST /conversations/{cid}/retitle` → 對 conv.messages 跑 `title_factory`→ rename → redirect。
 - `POST /conversations/{cid}/segment` → `segment_factory(conv.messages)`→ 渲染 conversation.html 帶章節大綱（跳讀錨點）。

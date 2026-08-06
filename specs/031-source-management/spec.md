@@ -27,7 +27,7 @@
 2. **Given** 內容含 markdown 圖片語法，**When** 檢視，**Then** 圖片顯示出來。
 
 ### User Story 3 - rich-paste：帶結構與圖片、濾掉網站雜訊 (Priority: P1)
-使用者在網頁全選複製、貼進 LearnNews，收進來的是**乾淨的正文＋圖片**——導覽/評論/UI 文字被剝掉、原文圖片以行內圖顯示。
+使用者在網頁全選複製、貼進 KnowField，收進來的是**乾淨的正文＋圖片**——導覽/評論/UI 文字被剝掉、原文圖片以行內圖顯示。
 
 **Why this priority**: 直接解決「雜訊」＋「圖片」；rich-paste 一石多鳥（擷取貼上的 HTML → 抽正文 markdown＋圖片）。
 **Independent Test**: 用含 nav/script/footer/`<img>` 的 HTML 模擬貼上 → 收進的 markdown 不含 nav/footer、含 `![](圖片url)`；詳情頁圖片顯示。

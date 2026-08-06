@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.cli.fetchers import DEFAULT_SOURCES, build_adapters
+from knowfield.cli.fetchers import DEFAULT_SOURCES, build_adapters
 
 
 class TestDefaultSources(unittest.TestCase):

@@ -12,8 +12,8 @@
 
 ## Phase 2：Foundational（阻擋所有 US）
 
-- [x] T002 在 `src/learnnews/config.py` 加 `smart_search_topn`（預設 "4"），`from_env` 讀
-  `LEARNNEWS_SMART_TOPN`（沿用既有欄位樣式）。
+- [x] T002 在 `src/knowfield/config.py` 加 `smart_search_topn`（預設 "4"），`from_env` 讀
+  `KNOWFIELD_SMART_TOPN`（沿用既有欄位樣式）。
 
 ## Phase 3：US1 讀完給我重點（整理）＋ US2 排序（P1，MVP 核心）
 
@@ -28,12 +28,12 @@
   用 snippet、run 不拋）、**no_material**（answerer 回「沒有相關材料」→ `no_material=True`、`sources=[]`）。
 
 ### 實作
-- [x] T005 [US1] 新增 `src/learnnews/search/smart.py`：`SmartResult` dataclass（overview／sources／
+- [x] T005 [US1] 新增 `src/knowfield/search/smart.py`：`SmartResult` dataclass（overview／sources／
   no_material／results／overview_error）＋`SmartSearch`（注入 web_search／embedder／answerer／fetch／
   top_n），`run(query)`：搜尋→排序（embed query 與 title+snippet、cosine、stable sort）→ top-N `fetch`
   （失敗退 snippet）→ 包 `CorpusEntry`→ `answerer.answer(query, passages, "繁體中文")`→ `_is_no_material`
   判定→ 回 `SmartResult`。內文抓取單則以 try 包、降級。
-- [x] T006 [US1] `src/learnnews/backends/factory.py` 加 `make_smart_search(config)`：組
+- [x] T006 [US1] `src/knowfield/backends/factory.py` 加 `make_smart_search(config)`：組
   web_search/embedder/answerer/fetch_url/top_n。
 
 ## Phase 4：US3 挑到的才留（P1，串頁面）＋ US4 友善降級（P2）
@@ -48,14 +48,14 @@
   友善繁中整理錯誤、**仍列原始結果**、非 500、無 Traceback；**no_material** 的 SmartResult → 顯示無材料、
   **不列 `[n]` 來源**。
 - [x] T009 [P] [US3] `tests/contract/test_smart_search.py` 續：**收進不變**——對一則結果 url POST /ingest
-  （monkeypatch `learnnews.seed.fetch.default_http_get` 真實離線）→ `list_seeds` 有該 url（同 spec 009 US2）。
+  （monkeypatch `knowfield.seed.fetch.default_http_get` 真實離線）→ `list_seeds` 有該 url（同 spec 009 US2）。
 
 ### 實作
-- [x] T010 [US3] `src/learnnews/web/app.py`：`app.state.smart_search_factory = _default_smart_search`
+- [x] T010 [US3] `src/knowfield/web/app.py`：`app.state.smart_search_factory = _default_smart_search`
   （呼叫 `make_smart_search(config).run(q)`）；`/search` 路由改為：搜尋層 try（`SourceUnavailable`→err，
   同階段 9）外，**整理層另一個 try**——成功回 `SmartResult`、失敗設 `overview_error` 但保留原始 results。
   傳 `result`（SmartResult 或降級物）給 template。
-- [x] T011 [US3] `src/learnnews/web/templates/search.html`：頂端渲染 `overview`（marked＋MathJax，`[n]`→
+- [x] T011 [US3] `src/knowfield/web/templates/search.html`：頂端渲染 `overview`（marked＋MathJax，`[n]`→
   `#res-n`，複用 ask.html JS）＋ `overview_error`／`no_material` 友善區塊；結果卡加 `id="res-{{ loop.index }}"`、
   維持「收進」表單。空 query／查無維持既有。
 

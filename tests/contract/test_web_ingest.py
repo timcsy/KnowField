@@ -4,8 +4,8 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.seed.service import IngestResult
-from learnnews.sources.base import SourceUnavailable
+from knowfield.seed.service import IngestResult
+from knowfield.sources.base import SourceUnavailable
 from tests.web_helpers import build_app, temp_db
 
 

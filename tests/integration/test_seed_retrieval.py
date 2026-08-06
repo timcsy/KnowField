@@ -2,12 +2,12 @@
 
 import unittest
 
-from learnnews.rag.answerer import StubAnswerer
-from learnnews.rag.service import RagService
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.seed.service import SeedService
-from learnnews.store.repository import Repository
-from learnnews.summarize.article import ArticleBuilder
+from knowfield.rag.answerer import StubAnswerer
+from knowfield.rag.service import RagService
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.seed.service import SeedService
+from knowfield.store.repository import Repository
+from knowfield.summarize.article import ArticleBuilder
 from tests.seed_helpers import http_arxiv
 
 

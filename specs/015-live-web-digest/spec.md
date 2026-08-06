@@ -1,6 +1,6 @@
 # 規格：live web 活水（開放網路進每日 digest）
 
-**功能**：LearnNews 路線圖階段 13
+**功能**：KnowField 路線圖階段 13
 **分支／目錄**：`specs/015-live-web-digest/`
 **建立日期**：2026-07-25
 **設計源**：`draft/2026-07-24-趨勢熱詞發現.md`（live 活水段）、`concepts/有吸引子的場.md`（反濾泡）

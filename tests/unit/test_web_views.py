@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.models import Article, DigestEntry, Figure, Item
-from learnnews.web.views import entry_to_page
+from knowfield.models import Article, DigestEntry, Figure, Item
+from knowfield.web.views import entry_to_page
 
 
 def _entry(headline, title, body, figkind=None):

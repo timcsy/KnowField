@@ -5,15 +5,15 @@
 
 import unittest
 
-from learnnews.backends.openai_api import OpenAIError
-from learnnews.chat.field_chat import (
+from knowfield.backends.openai_api import OpenAIError
+from knowfield.chat.field_chat import (
     CandidateDraft,
     FieldChat,
     OpenAIChatBackend,
     StubChatBackend,
     build_field_system_prompt,
 )
-from learnnews.rootcause.extract import WhyNode
+from knowfield.rootcause.extract import WhyNode
 
 
 def _root(cid, claim, ladder):
@@ -52,7 +52,7 @@ class TestSystemPrompt(unittest.TestCase):
 
 class TestReplyWithSources(unittest.TestCase):
     def test_sources_injected_for_inline_citation(self):         # 每輪撒網→回答可標 [n]
-        from learnnews.search.websearch import SearchResult
+        from knowfield.search.websearch import SearchResult
         spy = _SpyBackend()
         FieldChat(spy).reply([], "問題", [], [SearchResult("標題T", "https://a/1", "摘要S")])
         joined = " ".join(m["content"] for m in spy.seen)

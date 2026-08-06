@@ -35,7 +35,7 @@
 
 ## 技術方案
 
-### 新模組 `src/learnnews/search/worthit.py`
+### 新模組 `src/knowfield/search/worthit.py`
 ```
 def worthit_queries(subject: str) -> list[str]      # 獵心得多角度（模板、確定性、可測）
     # 心得/評價、review reddit、vs 缺點 complaints、值得嗎 limitations、怎麼用 how to use
@@ -83,11 +83,11 @@ def assess_worth(web_search, synthesizer, subject: str, *, content: str|None=Non
 
 ### 受影響檔案
 ```text
-src/learnnews/search/worthit.py              # 新：queries + WorthItVerdict + Synthesizer + assess_worth
-src/learnnews/backends/factory.py            # make_worthit_synthesizer
-src/learnnews/web/app.py                      # GET/POST /worth + worth_factory
-src/learnnews/web/templates/worth.html        # 新：手機友善表單 + 綜合呈現
-src/learnnews/web/templates/base.html         # 導覽加「值不值得」入口
+src/knowfield/search/worthit.py              # 新：queries + WorthItVerdict + Synthesizer + assess_worth
+src/knowfield/backends/factory.py            # make_worthit_synthesizer
+src/knowfield/web/app.py                      # GET/POST /worth + worth_factory
+src/knowfield/web/templates/worth.html        # 新：手機友善表單 + 綜合呈現
+src/knowfield/web/templates/base.html         # 導覽加「值不值得」入口
 tests/unit/test_worthit.py                    # queries/synthesize/assess_worth/subject 解析
 tests/contract/test_worth_web.py              # 路由：三種輸入/收內容口/失敗友善/抓不到不崩
 ```

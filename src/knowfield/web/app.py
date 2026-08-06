@@ -28,7 +28,7 @@ from ..logging_setup import get_logger
 from ..store.repository import Repository
 from .cache import TTLCache
 
-_log = get_logger("learnnews.web")
+_log = get_logger("knowfield.web")
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
@@ -81,7 +81,7 @@ def _default_seed_ingest(config: Config, repo_factory, ref: str, explainer: bool
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="LearnNews")
+    app = FastAPI(title="KnowField")
     app.state.config = Config.from_env()
     app.state.cache = TTLCache()
     app.state.repo_factory = _default_repo_factory

@@ -27,7 +27,7 @@ _ADAPTERS = {
 
 def _http_fetch_raw(endpoint: str):
     def fetch_raw(_since: datetime) -> str:
-        req = urllib.request.Request(endpoint, headers={"User-Agent": "LearnNews/0.1"})
+        req = urllib.request.Request(endpoint, headers={"User-Agent": "KnowField/0.1"})
         try:
             with urllib.request.urlopen(req, timeout=45) as resp:
                 return resp.read().decode("utf-8", errors="replace")

@@ -15,7 +15,7 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 - **[Story]**：US1/US2/US3 溯源標籤
 
 ## Path Conventions
-單一專案：`src/learnnews/`、`tests/`（repo 根）。
+單一專案：`src/knowfield/`、`tests/`（repo 根）。
 
 ---
 
@@ -27,8 +27,8 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 
 ## Phase 2: Foundational（阻塞所有 user story）
 
-- [x] T002 repository：`delete_source(source_id)`（`DELETE FROM sources WHERE id=?`）in `src/learnnews/store/repository.py`
-- [x] T003 [P] `sources/subscribe.py` 骨架：`_FeedLinkParser`（html.parser 找 `<link rel=alternate rss/atom>`）＋`discover_feed(url, http_get)` in `src/learnnews/sources/subscribe.py`
+- [x] T002 repository：`delete_source(source_id)`（`DELETE FROM sources WHERE id=?`）in `src/knowfield/store/repository.py`
+- [x] T003 [P] `sources/subscribe.py` 骨架：`_FeedLinkParser`（html.parser 找 `<link rel=alternate rss/atom>`）＋`discover_feed(url, http_get)` in `src/knowfield/sources/subscribe.py`
 
 **Checkpoint**：探測與刪除底層就緒。
 
@@ -46,9 +46,9 @@ description: "Task list — 來源訂閱（自助加/管理來源）"
 
 ### Implementation
 - [x] T006 [US1] `sources/subscribe.py`：`validate_feed`（復用 `RssAdapter`＋注入 fetch，≥1 條）＋`subscribe(url, http_get)`（discover→validate→建 `Source(id=網域 slug, name=feed 標題)`；失敗拋 `SourceUnavailable`）
-- [x] T007 [US1] `templates/sources.html`（來源清單＋加來源框；結果/錯誤訊息）in `src/learnnews/web/templates/`
-- [x] T008 [US1] `GET /sources`＋`POST /sources/add`（`app.state.subscribe_factory`→已存提示/否則 `upsert_source`；攔 `SourceUnavailable` 頁內友善不落庫）in `src/learnnews/web/app.py`
-- [x] T009 [US1] 導覽加「來源」in `src/learnnews/web/templates/base.html`
+- [x] T007 [US1] `templates/sources.html`（來源清單＋加來源框；結果/錯誤訊息）in `src/knowfield/web/templates/`
+- [x] T008 [US1] `GET /sources`＋`POST /sources/add`（`app.state.subscribe_factory`→已存提示/否則 `upsert_source`；攔 `SourceUnavailable` 頁內友善不落庫）in `src/knowfield/web/app.py`
+- [x] T009 [US1] 導覽加「來源」in `src/knowfield/web/templates/base.html`
 
 **Checkpoint**：離線貼假來源 → 加入 → digest 抓得到。**MVP 達成。**
 

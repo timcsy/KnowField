@@ -8,11 +8,11 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。**核心零新�
 
 ## Phase 1：Setup
 
-- [X] T001 建 `src/learnnews/export/` 套件：`__init__.py`＋`notebooklm.py` 骨架（4 函式簽名 `conversation_to_markdown`／`conversation_evidence_urls`／`why_node_to_markdown`／`dedup_urls`，先 `pass`／回空，讓測試可 import）。
+- [X] T001 建 `src/knowfield/export/` 套件：`__init__.py`＋`notebooklm.py` 骨架（4 函式簽名 `conversation_to_markdown`／`conversation_evidence_urls`／`why_node_to_markdown`／`dedup_urls`，先 `pass`／回空，讓測試可 import）。
 
 ## Phase 2：Foundational（跨三頁共用 UI infra，阻塞各頁鈕）
 
-- [X] T002 [P] 在 `src/learnnews/web/templates/base.html` 加共用 `copyExport(url, opts)`＋toast：`fetch`（GET 或帶 body 的 POST）取 `text` → `navigator.clipboard.writeText` → 顯示「已複製，可貼進 NotebookLM」；`as=urls` 空 → 提示「（無佐證網址）」；複製/抓取失敗 → 明確繁中提示、不靜默（FR-004、教訓 3）。複用既有 clipboard 慣例。
+- [X] T002 [P] 在 `src/knowfield/web/templates/base.html` 加共用 `copyExport(url, opts)`＋toast：`fetch`（GET 或帶 body 的 POST）取 `text` → `navigator.clipboard.writeText` → 顯示「已複製，可貼進 NotebookLM」；`as=urls` 空 → 提示「（無佐證網址）」；複製/抓取失敗 → 明確繁中提示、不靜默（FR-004、教訓 3）。複用既有 clipboard 慣例。
 
 **檢查點**：共用複製助手就緒，三頁鈕可掛。
 
@@ -21,9 +21,9 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。**核心零新�
 ## Phase 3：US1（P1）——對話 → Markdown（核心價值）
 
 - [X] T003 [P] [US1] 在 `tests/unit/test_export_notebooklm.py` 寫 `conversation_to_markdown` 紅測：多則 user/assistant＋含來源 → 標題、「**你：**／**副手：**」標示、內文保留行內 `[n]`、**每則來源塊接在該則之後**（`- [n] 標題 — url`）；空 messages → 只標題；缺 `content` → 空字串不崩；缺 title → 「（未命名對話）」；缺 source 標題 → 用 url。
-- [X] T004 [US1] 在 `src/learnnews/export/notebooklm.py` 實作 `conversation_to_markdown(title, messages)`。跑 T003 轉綠。
+- [X] T004 [US1] 在 `src/knowfield/export/notebooklm.py` 實作 `conversation_to_markdown(title, messages)`。跑 T003 轉綠。
 - [X] T005 [P] [US1] 在 `tests/unit/test_export_web.py` 寫端點紅測（`as=md`）：`POST /chat/export`（帶 `history` JSON）回 `text/plain` 的對話 Markdown；`GET /conversations/{cid}/export?as=md` 存在→回 Markdown、不存在→404。（注入測試用 repo／factory，沿用既有 web 測慣例。）
-- [X] T006 [US1] 在 `src/learnnews/web/app.py` 加 `POST /chat/export`（`_parse_history`→formatter，`PlainTextResponse`）＋`GET /conversations/{cid}/export`（`repo.get_conversation`；404）——先接 `as=md` 分支。跑 T005 轉綠。
+- [X] T006 [US1] 在 `src/knowfield/web/app.py` 加 `POST /chat/export`（`_parse_history`→formatter，`PlainTextResponse`）＋`GET /conversations/{cid}/export`（`repo.get_conversation`；404）——先接 `as=md` 分支。跑 T005 轉綠。
 - [X] T007 [US1] `chat.html`（送出區）＋`conversation.html`（標題列）各加「📋 複製 Markdown」鈕，接 `copyExport`（chat 帶 `history_json`＋POST；conversation 走 GET）。
 
 **檢查點**：`/chat`、`/conversations/{id}` 皆能一鍵複製乾淨對話 Markdown（貼 NotebookLM 文字來源可讀）。

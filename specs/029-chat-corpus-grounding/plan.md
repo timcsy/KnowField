@@ -58,7 +58,7 @@ specs/029-chat-corpus-grounding/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── rag/
 │   └── service.py              # 【改】抽出 retrieve_corpus(repo, embedder, query, top_k, min_score)；answer() 改呼叫它
 ├── chat/

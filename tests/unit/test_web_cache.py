@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.web.cache import TTLCache, normalize_topic
+from knowfield.web.cache import TTLCache, normalize_topic
 
 
 class TestWebCache(unittest.TestCase):

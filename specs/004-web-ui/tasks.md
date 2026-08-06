@@ -17,25 +17,25 @@ description: "Task list — Web 介面（階段 6）"
 - 面向使用者輸出與文件為繁體中文（憲章原則 II）
 
 ## Path Conventions
-單一專案：新增 `src/learnnews/web/`（唯一碰框架處）；測試於 `tests/`（含 FastAPI TestClient）。
+單一專案：新增 `src/knowfield/web/`（唯一碰框架處）；測試於 `tests/`（含 FastAPI TestClient）。
 
 ---
 
 ## Phase 1: Setup
 
-- [X] T001 `pyproject.toml` 加 `web` extra（fastapi、uvicorn、jinja2），dev 加 httpx（TestClient 需）；建 `src/learnnews/web/{__init__,app,views,cache}.py`、`src/learnnews/web/templates/`（佔位）per plan.md
+- [X] T001 `pyproject.toml` 加 `web` extra（fastapi、uvicorn、jinja2），dev 加 httpx（TestClient 需）；建 `src/knowfield/web/{__init__,app,views,cache}.py`、`src/knowfield/web/templates/`（佔位）per plan.md
 
 ---
 
 ## Phase 2: Foundational（阻斷性前置）
 
 - [X] T002 [P] 單元測試（先失敗）：`get_last_digest()` 讀最近匯整全部 entries 於 `tests/unit/test_get_last_digest.py`
-- [X] T003 store 擴充 `get_last_digest() -> Digest | None` 於 `src/learnnews/store/repository.py`（使 T002 通過；per data-model.md）
+- [X] T003 store 擴充 `get_last_digest() -> Digest | None` 於 `src/knowfield/store/repository.py`（使 T002 通過；per data-model.md）
 - [X] T004 [P] 單元測試（先失敗）：views 把 Article/DigestEntry → PageEntry（散文切段、圖 is_ai、原標題副標）於 `tests/unit/test_web_views.py`
-- [X] T005 `web/views.py`（Article/entry → PageEntry：headline、original_title、paragraphs、figure）於 `src/learnnews/web/views.py`（使 T004 通過）
-- [X] T006 FastAPI app 骨架＋`base.html`（Tailwind CDN、RWD viewport、繁中版型）於 `src/learnnews/web/app.py`、`web/templates/base.html`
+- [X] T005 `web/views.py`（Article/entry → PageEntry：headline、original_title、paragraphs、figure）於 `src/knowfield/web/views.py`（使 T004 通過）
+- [X] T006 FastAPI app 骨架＋`base.html`（Tailwind CDN、RWD viewport、繁中版型）於 `src/knowfield/web/app.py`、`web/templates/base.html`
 - [X] T007 [P] Contract test（先失敗）：後端失敗 → 友善繁中頁、**無 traceback、非未處理 500** 於 `tests/contract/test_web_error.py`
-- [X] T008 錯誤邊界：`OpenAIError` 例外處理器 → 友善繁中錯誤頁 於 `src/learnnews/web/app.py`、`web/templates/error.html`（使 T007 通過；FR-009、教訓 3）
+- [X] T008 錯誤邊界：`OpenAIError` 例外處理器 → 友善繁中錯誤頁 於 `src/knowfield/web/app.py`、`web/templates/error.html`（使 T007 通過；FR-009、教訓 3）
 
 **Checkpoint**：web 地基（app／views／錯誤邊界／get_last_digest）就緒。
 
@@ -53,7 +53,7 @@ description: "Task list — Web 介面（階段 6）"
 
 ### Implementation for User Story 1
 
-- [X] T010 [US1] `GET /` 路由：讀 `get_last_digest()` → PageEntry 渲染 於 `src/learnnews/web/app.py`（依 T003、T005）
+- [X] T010 [US1] `GET /` 路由：讀 `get_last_digest()` → PageEntry 渲染 於 `src/knowfield/web/app.py`（依 T003、T005）
 - [X] T011 [US1] `digest.html` 模板：散文＋圖內嵌＋一鍵原文＋空狀態（Tailwind RWD）於 `web/templates/digest.html`
 
 **Checkpoint**：US1 可獨立運作 = **MVP**（瀏覽器看匯整）。
@@ -73,8 +73,8 @@ description: "Task list — Web 介面（階段 6）"
 
 ### Implementation for User Story 2
 
-- [X] T014 [US2] `web/cache.py`：記憶體 TTL 快取＋節流（使 T012 通過）於 `src/learnnews/web/cache.py`
-- [X] T015 [US2] `GET /pull` 路由：正規化主題→快取命中回快取／否則 `run_pull`→存快取 於 `src/learnnews/web/app.py`（依 T014）
+- [X] T014 [US2] `web/cache.py`：記憶體 TTL 快取＋節流（使 T012 通過）於 `src/knowfield/web/cache.py`
+- [X] T015 [US2] `GET /pull` 路由：正規化主題→快取命中回快取／否則 `run_pull`→存快取 於 `src/knowfield/web/app.py`（依 T014）
 - [X] T016 [US2] `pull.html` 模板（＋首頁主題輸入框）於 `web/templates/pull.html`、`web/templates/digest.html`
 
 **Checkpoint**：US1＋US2 皆可運作。
@@ -93,7 +93,7 @@ description: "Task list — Web 介面（階段 6）"
 
 ### Implementation for User Story 3
 
-- [X] T018 [US3] `/interests`＋`/interests/add`＋`/interests/remove` 路由（`InterestService`）＋`interests.html` 於 `src/learnnews/web/app.py`、`web/templates/interests.html`
+- [X] T018 [US3] `/interests`＋`/interests/add`＋`/interests/remove` 路由（`InterestService`）＋`interests.html` 於 `src/knowfield/web/app.py`、`web/templates/interests.html`
 
 **Checkpoint**：三故事皆可運作。
 
@@ -102,7 +102,7 @@ description: "Task list — Web 介面（階段 6）"
 ## Phase 6: Polish & Cross-Cutting
 
 - [X] T019 [P] 執行 quickstart.md 情境 A–H 端到端驗證（含 RWD 手機/桌面人工檢視）
-- [X] T020 [P] 更新 `docs/usage.md`：web 啟動說明（`uv sync --extra web`、`uvicorn learnnews.web.app:app`）
+- [X] T020 [P] 更新 `docs/usage.md`：web 啟動說明（`uv sync --extra web`、`uvicorn knowfield.web.app:app`）
 - [X] T021 [P] 補齊剩餘單元測試覆蓋於 `tests/`
 
 ---

@@ -52,7 +52,7 @@ specs/027-conversation-recall/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── chat/
 │   ├── capture.py              # 【改】加 title_material(messages)＋normalize_chapters(raw, n)（純函式，零相依）
 │   └── field_chat.py           # 【改】title() 改用 title_material＋落點提示；加 segment(messages)＋_parse_chapters

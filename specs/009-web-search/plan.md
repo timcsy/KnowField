@@ -58,7 +58,7 @@ specs/009-web-search/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── search/
 │   ├── __init__.py
 │   └── websearch.py          # SearchResult／WebSearch 協定／StubWebSearch／真實 urllib 後端

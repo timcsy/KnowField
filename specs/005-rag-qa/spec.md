@@ -8,7 +8,7 @@
 
 **Input**: User description: "RAG 問答（個人知識庫）增量 1 MVP——對已落庫每日匯整做可溯源問答；`ask \"問題\" [--today]`；查無說無不杜撰；批次嵌入落庫、查詢只嵌問題＋cosine；離線 stub 綠燈。TDD 強制。"
 
-> 路線圖：LearnNews 階段 4（知識沉澱）復活為「個人知識庫（可 RAG 問答）」的**增量 1**。
+> 路線圖：KnowField 階段 4（知識沉澱）復活為「個人知識庫（可 RAG 問答）」的**增量 1**。
 > 設計理由：`knowledge/draft/2026-07-24-RAG問答.md`；模型：`knowledge/concepts/有吸引子的場.md`。
 > 本增量只鋪「流＋檢索」地板；種子 ingest／根因萃取／吸引子拓撲是後續增量（範圍外）。
 

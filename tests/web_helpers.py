@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import tempfile
 
-from learnnews.models import Article, Digest, DigestEntry, Figure, Item
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Digest, DigestEntry, Figure, Item
+from knowfield.store.repository import Repository
 
 
 def temp_db() -> str:
@@ -14,9 +14,9 @@ def temp_db() -> str:
 
 
 def build_app(db_path: str):
-    os.environ["LEARNNEWS_DB"] = db_path
-    os.environ["LEARNNEWS_BACKEND"] = "offline"   # 明講離線（勝過 .env）
-    from learnnews.web.app import create_app
+    os.environ["KNOWFIELD_DB"] = db_path
+    os.environ["KNOWFIELD_BACKEND"] = "offline"   # 明講離線（勝過 .env）
+    from knowfield.web.app import create_app
     return create_app()
 
 

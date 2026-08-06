@@ -2,7 +2,7 @@
 
 ## D1：formatter 放哪？——新純模組 vs repository/web
 
-- **決定**：新模組 `src/learnnews/export/notebooklm.py`，函式收**基本型別**（不 import models/repository）。
+- **決定**：新模組 `src/knowfield/export/notebooklm.py`，函式收**基本型別**（不 import models/repository）。
 - **理由**：核心要「離線可單測、零相依、失敗不崩」。把組裝邏輯自 DB／web 抽離＝可測性最高、耦合最低；符合教訓 1（離線 stub 可測）、憲章 IV。放 repository 會綁 DB／dataclass、放 web 會綁 request，都較難純測。
 - **駁回**：純前端 JS 組裝——最省後端，但**沒有可測 Python 核心**、違 TDD 與「可測純 formatter」需求；且三頁會各寫一份 JS 組裝、易漂移。
 

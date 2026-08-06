@@ -2,7 +2,7 @@
 
 ## 前置
 - 在 `028-temporary-save`；`uv run pytest -q` 現 441 綠。
-- conversations 加 `temporary`＋`last_activity_at`（冪等 migrate、回填既有=永久）。`learnnews.db` 已備份。
+- conversations 加 `temporary`＋`last_activity_at`（冪等 migrate、回填既有=永久）。`knowfield.db` 已備份。
 
 ## 跑測試（TDD）
 ```bash
@@ -10,9 +10,9 @@ uv run pytest tests/unit/test_capture_core.py tests/unit/test_temp_save_web.py -
 uv run pytest -q     # 全套不回歸（441 →）
 ```
 
-## 手動驗證（web，真實 learnnews.db）
+## 手動驗證（web，真實 knowfield.db）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:create_app --factory --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:create_app --factory --port 8000
 ```
 1. **自動暫存**：`/chat` 聊幾輪 → `/conversations` 的「暫存（會自動清除）」區出現**一筆**（不是每句一筆），便宜標題。
 2. **接回**：重整/關掉 `/chat` 再開 → 出現「上次還沒存的對話還在，接回嗎？」→ 接回續聊，仍是同一筆。

@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.rag.service import retrieve_corpus
-from learnnews.store.repository import Repository
+from knowfield.rag.service import retrieve_corpus
+from knowfield.store.repository import Repository
 from tests.rag_helpers import make_entry, seed_digest, temp_db
 
 

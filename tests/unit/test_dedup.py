@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.dedup.exact import group_exact
-from learnnews.dedup.semantic import deduplicate
+from knowfield.dedup.exact import group_exact
+from knowfield.dedup.semantic import deduplicate
 from tests.helpers import make_item
 
 

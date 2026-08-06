@@ -10,7 +10,7 @@ TDD 強制：先紅後綠。**核心零新相依、無新表**（US1 只 UPDATE 
 
 - [X] T001 [P] `tests/unit/test_capture_core.py` 擴 `title_material` 紅測：開頭大量「A」＋結尾「B」→ 取材**含 B**（尾段有進，不只開頭）；空 messages→空字串；缺 content 不崩。
 - [X] T002 [P] `tests/unit/test_capture_core.py` 擴 `normalize_chapters` 紅測：粗/越界/亂序/重疊 raw → clamp 到 [1,n]、排序、補洞去重疊、**涵蓋 [1,n] 不重疊**；空/壞 raw 且 n≥1→整段一章；n≤0→[]。
-- [X] T002b `src/learnnews/chat/capture.py`：實作 `title_material(messages, head_chars=600, tail_chars=1600)`＋`normalize_chapters(raw, n_messages)`。跑 T001/T002 轉綠。
+- [X] T002b `src/knowfield/chat/capture.py`：實作 `title_material(messages, head_chars=600, tail_chars=1600)`＋`normalize_chapters(raw, n_messages)`。跑 T001/T002 轉綠。
 
 **檢查點**：取材含尾段、章節正規化涵蓋不重疊、缺項不崩。
 
@@ -19,7 +19,7 @@ TDD 強制：先紅後綠。**核心零新相依、無新表**（US1 只 UPDATE 
 ## Phase 2：US1（P1）——落點重命名（MVP，真解找不回）
 
 - [X] T003 [P] [US1] `tests/unit/test_recall_web.py` 寫紅測：注入 `title_factory` 回「落點B」→ `POST /chat/save`（開頭A落點B）後 `list_conversations` 標題含 B；`POST /conversations/{id}/rename`（title=新名）→ 標題改為新名；`POST /conversations/{id}/retitle`→ 重生標題；title_factory 拋例外→存檔仍成功、退回不崩；`GET /conversations/{id}` 檢視**不改**標題（不自動）。
-- [X] T004 [US1] `src/learnnews/chat/field_chat.py`：`title()` 改用 `title_material`＋落點提示（「描述最後得出/聊到什麼與整體」）；`src/learnnews/store/repository.py` 加 `rename_conversation(cid, title)->bool`；`src/learnnews/web/app.py` 加 `POST /conversations/{cid}/rename`＋`POST /conversations/{cid}/retitle`（用 title_factory）。跑 T003 轉綠。
+- [X] T004 [US1] `src/knowfield/chat/field_chat.py`：`title()` 改用 `title_material`＋落點提示（「描述最後得出/聊到什麼與整體」）；`src/knowfield/store/repository.py` 加 `rename_conversation(cid, title)->bool`；`src/knowfield/web/app.py` 加 `POST /conversations/{cid}/rename`＋`POST /conversations/{cid}/retitle`（用 title_factory）。跑 T003 轉綠。
 - [X] T005 [US1] `conversation.html` 加改名欄＋「重新命名」鈕；`conversations.html` 每則加行內改名（送 rename）。
 
 **檢查點**：新標題反映落點、可手動改名、既有可重生、失敗退回、不自動改。

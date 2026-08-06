@@ -8,7 +8,7 @@
 
 **Input**: User description: "種子 ingest 增量 2a——`ingest <arXiv-id|url>` 把手挑的經典/解說文收進 KB，成 RAG 問答的『深度吸引子』。解說文品質權重高於快訊。人冊封、工具不認定 canon。TDD 強制。"
 
-> 路線圖：LearnNews 階段 4 增量 2a。設計理由：`knowledge/draft/2026-07-24-RAG問答.md`；
+> 路線圖：KnowField 階段 4 增量 2a。設計理由：`knowledge/draft/2026-07-24-RAG問答.md`；
 > 模型：`knowledge/concepts/有吸引子的場.md`（種子＝深度吸引子）；規範：`principles.md` 原則 5
 > （知識繞根因組織，權重由人冊封）。**根因萃取／試金石是增量 2b（範圍外）。**
 

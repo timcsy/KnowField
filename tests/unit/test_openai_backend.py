@@ -3,11 +3,11 @@
 import math
 import unittest
 
-from learnnews.backends import openai_api
-from learnnews.backends.factory import make_embedder, make_summarizer
-from learnnews.config import Config
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.summarize.llm import StubSummarizer
+from knowfield.backends import openai_api
+from knowfield.backends.factory import make_embedder, make_summarizer
+from knowfield.config import Config
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.summarize.llm import StubSummarizer
 
 
 class TestOpenAIBackend(unittest.TestCase):
@@ -71,7 +71,7 @@ class TestOpenAIBackend(unittest.TestCase):
         self.assertIn("日本語", system_msg)   # 指定語言進入提示
 
     def test_article_backend_default_language_is_zh(self):
-        from learnnews.backends.factory import make_article_backend
+        from knowfield.backends.factory import make_article_backend
         w = make_article_backend(Config(backend="openai", api_key="sk-x"))
         self.assertEqual(w.lang, "繁體中文")  # 預設繁中（FR-010）
 

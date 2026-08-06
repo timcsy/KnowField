@@ -4,7 +4,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 
@@ -47,7 +47,7 @@ class TestPdfIngest(unittest.TestCase):
         self.assertGreater(len(Repository(db).list_corpus_entries()), 0)
 
     def test_pdf_converter_failure_friendly(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
 
         class Boom:
             def to_markdown(self, pdf_bytes=None, pdf_url=None):
@@ -76,7 +76,7 @@ class TestUrlIngest(unittest.TestCase):
         self.assertGreater(len(Repository(db).list_corpus_entries()), 0)
 
     def test_url_fetch_failure_friendly(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
 
         def boom(u):
             raise SourceUnavailable("抓不到")
@@ -121,7 +121,7 @@ class TestPurityGuard(unittest.TestCase):
         secret = "SECRET_外部觀點_不該進地基"
         TestClient(app).post("/ingest/paste", data={"text": secret, "title": "x"},
                              follow_redirects=True)
-        from learnnews.chat.field_chat import build_field_system_prompt
+        from knowfield.chat.field_chat import build_field_system_prompt
         repo = Repository(db)
         roots = repo.list_why_nodes("anointed")
         n_anointed = len(roots)

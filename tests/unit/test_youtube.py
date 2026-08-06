@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.ingest.youtube import (
+from knowfield.ingest.youtube import (
     extract_caption_url,
     fetch_transcript,
     parse_transcript,
@@ -46,7 +46,7 @@ class TestFetchTranscript(unittest.TestCase):
         self.assertIn("貓要吃貓糧", text)
 
     def test_no_captions_raises(self):
-        from learnnews.sources.base import SourceUnavailable
+        from knowfield.sources.base import SourceUnavailable
         with self.assertRaises(SourceUnavailable):
             fetch_transcript("https://youtu.be/abcdefghij1", lambda u: "沒字幕頁")
 

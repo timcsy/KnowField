@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.ranking.embeddings import HashingEmbedder
-from learnnews.store.repository import Repository
+from knowfield.ranking.embeddings import HashingEmbedder
+from knowfield.store.repository import Repository
 from tests.rag_helpers import make_entry, seed_digest
 
 

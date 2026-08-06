@@ -1,9 +1,9 @@
 ---
 name: evaluate-and-add-source
-description: 為 LearnNews 評估並加入一個新的新聞/論文來源——實測可用性、挑穩定高訊號的、加進預設來源、驗證供料、反流 history。當要新增或替換來源（RSS 電子報、部落格、論文 API）時使用。
+description: 為 KnowField 評估並加入一個新的新聞/論文來源——實測可用性、挑穩定高訊號的、加進預設來源、驗證供料、反流 history。當要新增或替換來源（RSS 電子報、部落格、論文 API）時使用。
 ---
 
-# 評估並加入來源（LearnNews）
+# 評估並加入來源（KnowField）
 
 重複做過多次（history/005、006、007，及拉模式的 arXiv search）：每次都是「實測 → 挑 →
 加 → 驗 → 反流」。此技能把它固化，避免每次重造。
@@ -22,7 +22,7 @@ cands = { "名稱": "URL", ... }
 for name, url in cands.items():
     t = time.time()
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "LearnNews/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "KnowField/0.1"})
         with urllib.request.urlopen(req, timeout=30) as r:
             body = r.read().decode("utf-8", "replace")
         n = len(re.findall(r"<item\b|<entry\b", body))
@@ -42,7 +42,7 @@ for name, url in cands.items():
   持續 429，別當預設**（見 history/005）。
 
 ### 3. 加進預設來源
-在 `src/learnnews/cli/fetchers.py` 的 `DEFAULT_SOURCES` 加一列：
+在 `src/knowfield/cli/fetchers.py` 的 `DEFAULT_SOURCES` 加一列：
 ```python
 Source("<id>", "<顯示名>", "<paper|news|blog>", "<arxiv_api|hf_papers|rss|email_ingest>",
        "<endpoint>"),
@@ -52,7 +52,7 @@ Source("<id>", "<顯示名>", "<paper|news|blog>", "<arxiv_api|hf_papers|rss|ema
 ### 4. 驗證供料
 跑一次匯整（離線即可）確認新源進池、`missing_sources` 不含它：
 ```bash
-LEARNNEWS_BACKEND=offline uv run learnnews --db /tmp/probe.db digest --limit 6
+KNOWFIELD_BACKEND=offline uv run knowfield --db /tmp/probe.db digest --limit 6
 ```
 確認測試仍綠：`uv run pytest -q`。
 

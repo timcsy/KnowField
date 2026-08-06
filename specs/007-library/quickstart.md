@@ -1,10 +1,10 @@
 # Quickstart：驗證 知識庫管理（階段 7）
 
-前置：可 `uv run`；已 ingest 幾則種子（`learnnews ingest …` 或 web 收進）。
+前置：可 `uv run`；已 ingest 幾則種子（`knowfield ingest …` 或 web 收進）。
 
 ## 1. 瀏覽
 ```bash
-uv run uvicorn learnnews.web.app:app     # 開 http://127.0.0.1:8000/library
+uv run uvicorn knowfield.web.app:app     # 開 http://127.0.0.1:8000/library
 ```
 預期：看到你收的種子（標題/類型/日期/原文連結）；每日匯整條目**不**出現。
 

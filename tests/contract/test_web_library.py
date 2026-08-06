@@ -4,8 +4,8 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.models import Article, Item
-from learnnews.store.repository import Repository
+from knowfield.models import Article, Item
+from knowfield.store.repository import Repository
 from tests.rag_helpers import make_entry, seed_digest, temp_db
 from tests.web_helpers import build_app
 

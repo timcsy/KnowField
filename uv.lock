@@ -147,7 +147,7 @@ wheels = [
 ]
 
 [[package]]
-name = "learnnews"
+name = "knowfield"
 version = "0.1.0"
 source = { editable = "." }
 

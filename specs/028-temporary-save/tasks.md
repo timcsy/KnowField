@@ -8,13 +8,13 @@ TDD 強制：先紅後綠。**核心零新相依**；conversations 加 `temporar
 
 ## Phase 1：Setup／Schema
 
-- [X] T001 `src/learnnews/store/schema.py`：`conversations` 的 `SCHEMA` 加 `temporary INTEGER DEFAULT 0`＋`last_activity_at TEXT`；`_migrate` 冪等——`PRAGMA table_info(conversations)` 無欄則 `ALTER TABLE ADD COLUMN`，並**回填**既有列（`temporary=0`、`last_activity_at=created_at`）。`models/__init__.py` 的 `Conversation` 加 `temporary`、`last_activity_at`；`repository._row_to_conversation`／`list_conversations`／`get_conversation` 帶新欄。
+- [X] T001 `src/knowfield/store/schema.py`：`conversations` 的 `SCHEMA` 加 `temporary INTEGER DEFAULT 0`＋`last_activity_at TEXT`；`_migrate` 冪等——`PRAGMA table_info(conversations)` 無欄則 `ALTER TABLE ADD COLUMN`，並**回填**既有列（`temporary=0`、`last_activity_at=created_at`）。`models/__init__.py` 的 `Conversation` 加 `temporary`、`last_activity_at`；`repository._row_to_conversation`／`list_conversations`／`get_conversation` 帶新欄。
 
 ## Phase 2：Foundational（純核心，阻塞 US1/US2）
 
 - [X] T002 [P] `tests/unit/test_capture_core.py` 擴 `expired_temp_ids` 紅測：過期暫存選中／未過期不選／`temporary=0` 永久不選／剛好 7 天邊界／last_activity 更新後不選（計時重設）／缺或壞時間保守不選。
 - [X] T003 [P] `tests/unit/test_capture_core.py` 擴 `cheap_title` 紅測：取首個 user 訊息截斷（≤20）；空→「（暫存對話）」；缺 content 不崩。
-- [X] T004 `src/learnnews/chat/capture.py`：實作 `expired_temp_ids(convos, now, ttl_days=7)`（stdlib datetime parse/比較）＋`cheap_title(messages)`。跑 T002/T003 轉綠。
+- [X] T004 `src/knowfield/chat/capture.py`：實作 `expired_temp_ids(convos, now, ttl_days=7)`（stdlib datetime parse/比較）＋`cheap_title(messages)`。跑 T002/T003 轉綠。
 
 **檢查點**：TTL 判準與便宜標題純函式、離線可測、缺項保守不誤刪。
 

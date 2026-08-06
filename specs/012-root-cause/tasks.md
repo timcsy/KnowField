@@ -15,7 +15,7 @@
 
 - [x] T002 `store/schema.py`：加 `why_nodes` 表（`CREATE TABLE IF NOT EXISTS`）＋`_migrate` 冪等
   （既有 db 也建表）。欄位見 data-model。
-- [x] T003 `config.py`：加 `rag_root_weight`（預設 2.0），`from_env` 讀 `LEARNNEWS_RAG_ROOT_WEIGHT`。
+- [x] T003 `config.py`：加 `rag_root_weight`（預設 2.0），`from_env` 讀 `KNOWFIELD_RAG_ROOT_WEIGHT`。
 
 ## Phase 3：US1 AI 抽根因＋試金石（P1，萃取核心）
 
@@ -28,7 +28,7 @@
   claim/touchstones/fog/no_material；poster 拋 → `SourceUnavailable`；抽不出 → `no_material=True`。
 
 ### 實作
-- [x] T006 [US1] 新增 `src/learnnews/rootcause/extract.py`：`Candidate` 型別＋`RootCauseExtractor`
+- [x] T006 [US1] 新增 `src/knowfield/rootcause/extract.py`：`Candidate` 型別＋`RootCauseExtractor`
   Protocol＋`StubExtractor`（確定性、試金石全「待驗」passed=False）＋`OpenAIExtractor`（`_post` chat、
   system 明令逐條試金石自我反駁/標霧詞/只用材料不杜撰、輸出 JSON、解析、失敗拋 `SourceUnavailable`）。
 - [x] T007 [US1] `backends/factory.py` 加 `make_root_cause_extractor(config)`。

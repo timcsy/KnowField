@@ -8,7 +8,7 @@
 
 **Input**: User description: "web `/library` 管理頁：瀏覽、刪除、重新分類自己收進 KB 的種子。補上工具缺的『修剪』那一半＝原則 5 人冊封的另一半。TDD 強制。"
 
-> 路線圖：LearnNews 階段 7。設計理由：`knowledge/draft/2026-07-25-知識庫管理.md`；
+> 路線圖：KnowField 階段 7。設計理由：`knowledge/draft/2026-07-25-知識庫管理.md`；
 > 模型：`concepts/有吸引子的場.md`（管理＝人工修剪場、退吸引子＝手動衰減）；
 > 規範：`principles.md` 原則 5、憲章原則 VI（決策主權）。
 

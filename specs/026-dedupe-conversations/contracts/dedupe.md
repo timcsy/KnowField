@@ -1,6 +1,6 @@
 # Contracts: 既有重複對話清理
 
-## A. 純核心（`src/learnnews/chat/capture.py`）
+## A. 純核心（`src/knowfield/chat/capture.py`）
 
 ### `plan_dedupe(convos: list[dict], provenance: dict) -> DedupePlan`
 - `convos`＝`[{"id","messages"}]`；`provenance`＝`{wid: cid}`。依 `conversation_fingerprint` 分組。
@@ -8,7 +8,7 @@
 - 回 `DedupePlan(delete_ids, repoint, n_groups, n_extra, n_roots)`。空/無重複 → 全空、三數 0。
 - 純函式、無副作用、離線可測；缺欄位（無 messages）視為空內容、不崩。
 
-## B. Repository 契約（`src/learnnews/store/repository.py`）
+## B. Repository 契約（`src/knowfield/store/repository.py`）
 
 ### `dedupe_plan() -> DedupePlan`（唯讀）
 - 讀 `list_conversations()`（取 id＋messages）＋`why_node_provenance()`；呼叫 `plan_dedupe`；回計畫。**不寫庫**。
@@ -18,7 +18,7 @@
   `DELETE FROM conversations WHERE id IN delete_ids`；commit。回摘要 `{"groups","removed","repointed"}`。
 - **不改任何 why_node 的 claim/ladder/evidence**；不動異指紋份。
 
-## C. Web 契約（`src/learnnews/web/app.py`＋模板）
+## C. Web 契約（`src/knowfield/web/app.py`＋模板）
 
 ### `GET /conversations/dedupe` → 預覽（唯讀）
 - 算 `dedupe_plan()`；渲染 `dedupe.html`：「發現 N 組重複、共 M 份多餘、K 條根因將重指」＋「確認清理」(POST)＋「取消」(回 /conversations)。

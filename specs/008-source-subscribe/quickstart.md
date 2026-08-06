@@ -4,13 +4,13 @@
 
 ## 1. 加一個部落格
 ```bash
-uv run uvicorn learnnews.web.app:app     # 開 http://127.0.0.1:8000/sources
+uv run uvicorn knowfield.web.app:app     # 開 http://127.0.0.1:8000/sources
 ```
 在 /sources 貼一個部落格首頁或 RSS（如某研究者部落格）→ 系統探測 feed、實測有料→加入、啟用。
 
 ## 2. 自動帶入匯整
 ```bash
-uv run learnnews digest        # 新加的來源會被一起抓取分診
+uv run knowfield digest        # 新加的來源會被一起抓取分診
 ```
 
 ## 3. 管理

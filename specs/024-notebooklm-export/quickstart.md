@@ -12,7 +12,7 @@ uv run pytest -q     # 全套不回歸（368 →）
 
 ## 手動驗證（web）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:app --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:app --port 8000
 ```
 1. **對話（存檔）**：開 `/conversations`→ 挑一段 → 按「📋 複製 Markdown」→ 貼到編輯器：應見標題、你／副手發言、逐訊息「來源：」清單、行內 `[n]` 對得上。按「🔗 複製佐證網址」→ 每行一個、去重的 URL。
 2. **對話（live）**：`/chat` 聊幾句 → 兩顆鈕 → 內容與存檔後複製一致。

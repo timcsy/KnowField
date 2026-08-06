@@ -12,7 +12,7 @@ uv run pytest -q     # 全套不回歸（393 →）
 
 ## 手動驗證（web）
 ```bash
-LEARNNEWS_DB=learnnews.db uv run uvicorn learnnews.web.app:create_app --factory --port 8000
+KNOWFIELD_DB=knowfield.db uv run uvicorn knowfield.web.app:create_app --factory --port 8000
 ```
 1. **#1 去重**：`/chat` 聊幾句 → 「整理成重點」→ 對多條候選各勾「連同這段對話存成由來」逐條「存這條」→
    到 `/conversations`：這段對話**只出現一次**；到 `/roots`：那幾條根因的「← 由來」**都指向同一段**。

@@ -2,8 +2,8 @@
 
 import unittest
 
-from learnnews.seed.fetch import fetch_arxiv_by_id, fetch_url, normalize_arxiv_id
-from learnnews.sources.base import SourceUnavailable
+from knowfield.seed.fetch import fetch_arxiv_by_id, fetch_url, normalize_arxiv_id
+from knowfield.sources.base import SourceUnavailable
 from tests.seed_helpers import http_arxiv, http_fail, http_html
 
 

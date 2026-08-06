@@ -5,11 +5,11 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.chat.field_chat import CandidateDraft
-from learnnews.models import Article, Item
-from learnnews.search.websearch import SearchResult
-from learnnews.sources.base import SourceUnavailable
-from learnnews.store.repository import Repository
+from knowfield.chat.field_chat import CandidateDraft
+from knowfield.models import Article, Item
+from knowfield.search.websearch import SearchResult
+from knowfield.sources.base import SourceUnavailable
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 
@@ -49,7 +49,7 @@ class TestChatWeb(unittest.TestCase):
         app = build_app(db)
         captured = {}
         # 覆寫 chat backend（stub 之上加 spy），確認 system 含根因
-        import learnnews.web.app as appmod  # noqa: F401
+        import knowfield.web.app as appmod  # noqa: F401
 
         class _Spy:
             def reply(self, messages):

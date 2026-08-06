@@ -11,8 +11,8 @@
 
 ## Phase 2：Foundational（阻擋所有 US）
 
-- [x] T002 `src/learnnews/config.py` 加 `explore_max_subqueries`（預設 5），`from_env` 讀
-  `LEARNNEWS_EXPLORE_MAXQ`（沿用既有欄位樣式）。
+- [x] T002 `src/knowfield/config.py` 加 `explore_max_subqueries`（預設 5），`from_env` 讀
+  `KNOWFIELD_EXPLORE_MAXQ`（沿用既有欄位樣式）。
 
 ## Phase 3：US1 一鍵撒更廣的網（P1，MVP 核心）
 
@@ -28,14 +28,14 @@
   （結果＝單搜尋、run 不拋，教訓 3）。
 
 ### 實作
-- [x] T006 [US1] 新增 `src/learnnews/search/expand.py`：`QueryExpander` Protocol＋`StubQueryExpander`
+- [x] T006 [US1] 新增 `src/knowfield/search/expand.py`：`QueryExpander` Protocol＋`StubQueryExpander`
   （確定性 `[q+" 原理", q+" 應用", q+" 比較"]`）＋`OpenAIQueryExpander`（`_post` chat 拆解、逐行解析、
   上限、空/例外回 `[]`；poster 可注入供測試）。
-- [x] T007 [US1] `src/learnnews/search/smart.py`：`SmartSearch.__init__` 加 `expander=None`、
+- [x] T007 [US1] `src/knowfield/search/smart.py`：`SmartSearch.__init__` 加 `expander=None`、
   `max_subqueries=5`；`run(query, explore=False)`＋私有 `_collect(query, explore)`——explore 時
   `angles=dedup([query]+expander.expand())[:max]`（expand 拋錯→`[query]`）、各搜、依 url 正規化
   合併去重；非 explore 走單 query。其餘（排序/抓取/整理）不動。
-- [x] T008 [US1] `src/learnnews/backends/factory.py` 加 `make_query_expander(config)`；
+- [x] T008 [US1] `src/knowfield/backends/factory.py` 加 `make_query_expander(config)`；
   `make_smart_search` 改為注入 expander＋`max_subqueries=config.explore_max_subqueries`。
 
 ## Phase 4：US1/US2 串頁面＋友善退回（P1/P2）
@@ -51,10 +51,10 @@
   預設走 offline、`/search?q=X&explore=1` 回 200、頁面正常（合併去重不崩）。
 
 ### 實作
-- [x] T012 [US1] `src/learnnews/web/app.py`：`_default_smart_search(query, explore)` 呼叫
+- [x] T012 [US1] `src/knowfield/web/app.py`：`_default_smart_search(query, explore)` 呼叫
   `make_smart_search(config).run(query, explore)`；`smart_search_factory` 簽名改 `(q, explore=False)`；
   `/search` 路由讀 `explore: str = ""`→`bool`、傳入 factory。
-- [x] T013 [US1] `src/learnnews/web/templates/search.html`：搜尋表單加「深入探索」checkbox
+- [x] T013 [US1] `src/knowfield/web/templates/search.html`：搜尋表單加「深入探索」checkbox
   （`name="explore" value="1"`，沿用 ask.html today 樣式）、勾選回填；加一行說明「從多個角度撒網、較花額度」。
 - [x] T014 [US1] 同步既有注入點：`tests/contract/test_smart_search.py`、`tests/contract/test_web_search.py`
   的 `smart_search_factory` lambda 改 `lambda q, explore=False: ...`（相容新簽名）。

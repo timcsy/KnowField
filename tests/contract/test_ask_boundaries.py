@@ -5,15 +5,15 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from learnnews.backends.openai_api import OpenAIError
-from learnnews.cli import ask_cmd
-from learnnews.store.repository import Repository
+from knowfield.backends.openai_api import OpenAIError
+from knowfield.cli import ask_cmd
+from knowfield.store.repository import Repository
 from tests.rag_helpers import capture, make_entry, seed_digest, temp_db
 
 
 class TestAskBoundaries(unittest.TestCase):
     def setUp(self):
-        os.environ["LEARNNEWS_BACKEND"] = "offline"
+        os.environ["KNOWFIELD_BACKEND"] = "offline"
 
     def test_empty_db_says_no_material_no_fabrication(self):
         db = temp_db()
@@ -53,7 +53,7 @@ class TestAskBoundaries(unittest.TestCase):
                 raise OpenAIError("模擬 403 allocation_quarantined")
 
         args = SimpleNamespace(db=db, question="agent", today=False, lang=None, k=None)
-        with mock.patch("learnnews.cli.ask_cmd.RagService", Boom):
+        with mock.patch("knowfield.cli.ask_cmd.RagService", Boom):
             rc, out = capture(ask_cmd.handle, args)
         self.assertEqual(rc, 1)
         self.assertIn("失敗", out)               # 友善繁中訊息

@@ -65,7 +65,7 @@ specs/003-readable-digest/
 
 ### Source Code — 新增粗體，其餘複用
 ```text
-src/learnnews/
+src/knowfield/
 ├── summarize/
 │   ├── article.py        # 【新增】Article dataclass ＋ ArticleBuilder（散文，忠實守衛）
 │   ├── llm.py            # 擴充：散文生成 prompt（OpenAI 格式）＋ stub

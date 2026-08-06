@@ -36,7 +36,7 @@
 
 ## 技術方案
 
-### 新模組 `src/learnnews/chat/field_chat.py`
+### 新模組 `src/knowfield/chat/field_chat.py`
 ```
 class ChatBackend(Protocol): def reply(self, messages: list[dict]) -> str
 class StubChatBackend      # 離線確定性、零外部呼叫（回可測的膜式回應）
@@ -88,12 +88,12 @@ class FieldChat:
 
 ### 受影響檔案
 ```text
-src/learnnews/chat/field_chat.py             # 新：ChatBackend/Stub + build_field_system_prompt + FieldChat + CandidateDraft
-src/learnnews/backends/openai_api.py         # + OpenAIChatBackend（_post 多輪、poster 可注入）
-src/learnnews/backends/factory.py            # + make_chat_backend
-src/learnnews/web/app.py                      # GET/POST /chat + /chat/distill + /chat/anoint + /chat/cite + factories
-src/learnnews/web/templates/chat.html         # 新：桌面對話頁（history hidden field、場-增量、候選/佐證動作）
-src/learnnews/web/templates/base.html         # 導覽加「跟場聊」入口
+src/knowfield/chat/field_chat.py             # 新：ChatBackend/Stub + build_field_system_prompt + FieldChat + CandidateDraft
+src/knowfield/backends/openai_api.py         # + OpenAIChatBackend（_post 多輪、poster 可注入）
+src/knowfield/backends/factory.py            # + make_chat_backend
+src/knowfield/web/app.py                      # GET/POST /chat + /chat/distill + /chat/anoint + /chat/cite + factories
+src/knowfield/web/templates/chat.html         # 新：桌面對話頁（history hidden field、場-增量、候選/佐證動作）
+src/knowfield/web/templates/base.html         # 導覽加「跟場聊」入口
 tests/unit/test_field_chat.py                 # 膜 prompt 注入根因/分層、reply、distill、cite
 tests/contract/test_chat_web.py               # 路由：多輪、anoint 人閘門、cite、失敗/場空友善
 ```

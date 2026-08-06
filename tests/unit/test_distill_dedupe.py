@@ -9,9 +9,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.chat.capture import norm_claim
-from learnnews.chat.field_chat import FieldChat, _parse_candidates
-from learnnews.store.repository import Repository
+from knowfield.chat.capture import norm_claim
+from knowfield.chat.field_chat import FieldChat, _parse_candidates
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 _H = [{"role": "user", "content": "為什麼殘差要用加法"},
@@ -78,7 +78,7 @@ class TestDistillJson(unittest.TestCase):
     def test_json_candidates_with_already(self):    # AJAX：回 JSON 候選、帶 already 旗標
         app = build_app(temp_db())
         app.state.distill_factory = lambda hist: __import__(
-            "learnnews.chat.field_chat", fromlist=["_parse_candidates"]
+            "knowfield.chat.field_chat", fromlist=["_parse_candidates"]
         )._parse_candidates("主張：甲\n主張：乙")
         c = TestClient(app)
         r = c.post("/chat/distill", data={"history": json.dumps(_H), "as": "json"})

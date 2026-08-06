@@ -30,7 +30,7 @@ TTL（如 10 分鐘）內同主題直接回快取、不打後端。另加簡單�
 ## R5. 首頁讀哪份匯整
 **決策**：首頁讀**最近一次落庫的匯整**（`digest_entries`）。新增
 `repository.get_last_digest()` 回該匯整的全部 entries（標題／原文連結／散文／圖）。
-尚無匯整時顯示空狀態，提示去跑 `learnnews digest`。**web MVP 不主動觸發每日匯整產生**
+尚無匯整時顯示空狀態，提示去跑 `knowfield digest`。**web MVP 不主動觸發每日匯整產生**
 （屬排程/CronJob 的事，見階段 7–9）。
 **理由**：讀既有最簡、責任分明；產生匯整是 CronJob 的職責，不混進 web 請求。
 

@@ -1,6 +1,6 @@
 # Contracts: 匯出給 NotebookLM
 
-## A. 純 formatter 契約（`src/learnnews/export/notebooklm.py`，零相依）
+## A. 純 formatter 契約（`src/knowfield/export/notebooklm.py`，零相依）
 
 所有函式收基本型別、無副作用、離線可測、對缺項不拋例外。
 
@@ -17,7 +17,7 @@
 ### `dedup_urls(urls: list[str]) -> list[str]`
 - 去重保序（供根因佐證與內部共用）。
 
-## B. 端點契約（`src/learnnews/web/app.py`）
+## B. 端點契約（`src/knowfield/web/app.py`）
 
 三端點皆回 `text/plain; charset=utf-8`（非 HTML）。`as` 參數：`md`（預設）｜`urls`。
 

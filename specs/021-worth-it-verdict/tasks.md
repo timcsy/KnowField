@@ -14,9 +14,9 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。核心零新相�
 - [X] T001 [P] 在 `tests/unit/test_worthit.py` 寫 `worthit_queries` 紅測：給 subject → 回多角度獵心得查詢（含心得/評價、review、缺點/complaints、值得嗎/limitations、怎麼用/how to use 等角度，**非只查通用名**）；空 subject → `[]`。
 - [X] T002 [P] 在 `tests/unit/test_worthit.py` 寫 `StubWorthItSynthesizer` 紅測：給 subject＋evidence（假 SearchResult）→ 回繁中綜合、**引用到 evidence 的 url**、零外部呼叫。
 - [X] T003 [P] 在 `tests/unit/test_worthit.py` 寫 `assess_worth` 紅測：注入假 web_search（多 query 回重複 url）＋stub synthesizer → ①按 url 去重、②`no_material=True` 當無結果、③search 全失敗拋 `SourceUnavailable`。
-- [X] T004 建 `src/learnnews/search/worthit.py`：`worthit_queries(subject)`（確定性模板）＋`@dataclass WorthItVerdict`＋`WorthItSynthesizer` Protocol＋`StubWorthItSynthesizer`＋`assess_worth(web_search, synthesizer, subject, *, content=None, result_cap=12)`。跑 T001/T002/T003 轉綠。
+- [X] T004 建 `src/knowfield/search/worthit.py`：`worthit_queries(subject)`（確定性模板）＋`@dataclass WorthItVerdict`＋`WorthItSynthesizer` Protocol＋`StubWorthItSynthesizer`＋`assess_worth(web_search, synthesizer, subject, *, content=None, result_cap=12)`。跑 T001/T002/T003 轉綠。
 - [X] T005 [P] 在 `tests/unit/test_worthit.py` 寫 `OpenAIWorthItSynthesizer` 紅測：注入假 poster 回反逢迎綜合 → 呼叫 chat、回綜合；poster 拋例外 → 拋 `OpenAIError`（教訓 3 邊界）。
-- [X] T006 在 `src/learnnews/search/worthit.py` 加 `OpenAIWorthItSynthesizer`（`_post`、反逢迎 `_SYSTEM`：官方/獨立/用戶分開、明說炒作/缺點、只依 evidence＋附引用、某層查無說「沒搜到」、末給值不值得＋怎麼用、`poster` 可注入）；`backends/factory.py` 加 `make_worthit_synthesizer(config)`。跑 T005 轉綠。
+- [X] T006 在 `src/knowfield/search/worthit.py` 加 `OpenAIWorthItSynthesizer`（`_post`、反逢迎 `_SYSTEM`：官方/獨立/用戶分開、明說炒作/缺點、只依 evidence＋附引用、某層查無說「沒搜到」、末給值不值得＋怎麼用、`poster` 可注入）；`backends/factory.py` 加 `make_worthit_synthesizer(config)`。跑 T005 轉綠。
 
 **檢查點**：純函式產出獵心得 query、去重撒網、反逢迎綜合（grounded、有引用）；離線零外部呼叫。
 
@@ -26,8 +26,8 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。核心零新相�
 
 - [X] T007 [P] 在 `tests/contract/test_worth_web.py` 寫路由紅測：注入假 `app.state.worth_factory` 回 `WorthItVerdict` → `POST /worth`（`subject` 名字）回 200＋`worth.html` 含綜合＋引用連結。
 - [X] T008 [P] 寫**收內容口/subject 解析**紅測：①只給 `content`（內文）→ factory 收到由內文首行解出的 subject；②給抓不到的 `url`（假 fetch 拋例外）→ 不崩、退回用 url/名字續跑（factory 仍被呼叫）；③三者皆空 → 友善提示「請貼名字或內文」、不呼叫 factory。
-- [X] T009 [US1] 在 `src/learnnews/web/app.py` 加 `app.state.worth_factory`（預設用 `make_web_search`＋`make_worthit_synthesizer` 建 `assess_worth`）＋ `GET /worth`（表單）＋ `POST /worth`（subject 解析序 name＞content 首行＞url 抓標題 best-effort＞url；呼叫 factory→render）。跑 T007/T008 轉綠。
-- [X] T010 [US1] 建 `src/learnnews/web/templates/worth.html`（手機友善表單：textarea「貼名字或內文」＋選填 url；綜合呈現＋`sources` 引用清單；`no_material`→「太新/資料太少」）；`base.html` 導覽加「值不值得」入口。
+- [X] T009 [US1] 在 `src/knowfield/web/app.py` 加 `app.state.worth_factory`（預設用 `make_web_search`＋`make_worthit_synthesizer` 建 `assess_worth`）＋ `GET /worth`（表單）＋ `POST /worth`（subject 解析序 name＞content 首行＞url 抓標題 best-effort＞url；呼叫 factory→render）。跑 T007/T008 轉綠。
+- [X] T010 [US1] 建 `src/knowfield/web/templates/worth.html`（手機友善表單：textarea「貼名字或內文」＋選填 url；綜合呈現＋`sources` 引用清單；`no_material`→「太新/資料太少」）；`base.html` 導覽加「值不值得」入口。
 
 **檢查點（US1/2/3 可獨立驗）**：/worth 丟名字/內文/抓不到的網址皆能回反逢迎綜合、有引用、手機友善。
 

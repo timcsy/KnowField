@@ -26,7 +26,7 @@
    `text/plain`＋前端 `fetch→clipboard`。三頁單一機制、單一事實來源。
 
 ## 產物
-- 純模組 `src/learnnews/export/notebooklm.py`（4 函式：`conversation_to_markdown`／
+- 純模組 `src/knowfield/export/notebooklm.py`（4 函式：`conversation_to_markdown`／
   `conversation_evidence_urls`／`why_node_to_markdown`／`dedup_urls`，零相依）。
 - app.py 3 端點：`POST /chat/export`、`GET /conversations/{cid}/export`、`GET /roots/{wid}/export`
   （`as=md|urls`、`PlainTextResponse`、404 友善）。

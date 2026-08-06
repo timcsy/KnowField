@@ -8,15 +8,15 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。核心零新相�
 
 ## Phase 1：Setup／Schema
 
-- [X] T001 在 `src/learnnews/store/schema.py`：`SCHEMA` 加 `CREATE TABLE IF NOT EXISTS conversations`（id/title/messages JSON/why_node_id 可空/created_at）；`_migrate` 也加同一 `CREATE TABLE IF NOT EXISTS`（既有 DB 冪等補表，不動既有表）。
+- [X] T001 在 `src/knowfield/store/schema.py`：`SCHEMA` 加 `CREATE TABLE IF NOT EXISTS conversations`（id/title/messages JSON/why_node_id 可空/created_at）；`_migrate` 也加同一 `CREATE TABLE IF NOT EXISTS`（既有 DB 冪等補表，不動既有表）。
 
 ## Phase 2：Foundational（repository＋自動標題，阻塞路由）
 
 - [X] T002 [P] 在 `tests/unit/test_conversations.py` 寫 repo 紅測：`save_conversation(title, messages, why_node_id)`→`list_conversations`（新到舊）／`get_conversation(id)` 取回 messages＋title＋why_node_id；`why_node_provenance()` 回 `{why_node_id: conversation_id}`（僅有連結者）。
 - [X] T003 [P] 在 `tests/unit/test_conversations.py` 寫**刪根因不崩**紅測：冊封根因→save_conversation 連它→`delete_why_node(wid)`→該對話仍在 `list_conversations`（獨立）、`why_node_provenance` 不再含它、不崩（FR-007/D3）。
-- [X] T004 建 `Conversation` dataclass（`models/__init__.py`）＋`src/learnnews/store/repository.py`：`save_conversation`／`list_conversations`／`get_conversation`／`why_node_provenance`。跑 T002/T003 轉綠。
+- [X] T004 建 `Conversation` dataclass（`models/__init__.py`）＋`src/knowfield/store/repository.py`：`save_conversation`／`list_conversations`／`get_conversation`／`why_node_provenance`。跑 T002/T003 轉綠。
 - [X] T005 [P] 在 `tests/unit/test_field_chat.py` 寫 `FieldChat.title` 紅測：注入假 backend 回一句標題→得該標題；backend 拋例外→退回首個 user 訊息截斷/非空 fallback（不崩，教訓 3）。
-- [X] T006 在 `src/learnnews/chat/field_chat.py` 加 `FieldChat.title(messages)->str`（一句摘要提示；失敗退回）。`StubChatBackend` 已有 reply→標題離線確定性。跑 T005 轉綠。
+- [X] T006 在 `src/knowfield/chat/field_chat.py` 加 `FieldChat.title(messages)->str`（一句摘要提示；失敗退回）。`StubChatBackend` 已有 reply→標題離線確定性。跑 T005 轉綠。
 
 **檢查點**：對話可落庫/取回、provenance 對應、刪根因不崩、自動標題可退回；離線可測。
 
@@ -26,7 +26,7 @@ TDD 強制：先寫紅測（Red）→ 實作轉綠（Green）。核心零新相�
 
 - [X] T007 [P] 在 `tests/contract/test_conversation_web.py` 寫**冊封時連同存**紅測：注入假 title_factory → `POST /chat/anoint`（claim/ladder＋`save_convo=1`＋`history`）→ 冊封一條根因＋存下一段對話**連到該根因**（`why_node_provenance` 有；`get_conversation` 取得整段）。`save_convo` 未給 → 只冊封、不存對話。
 - [X] T008 [P] 寫**獨立存**紅測：`POST /chat/save`（history）→ `list_conversations` 多一段（why_node_id 空）、有自動標題；空 history → 友善不存（清單不增）。
-- [X] T009 [US1] 在 `src/learnnews/web/app.py`：`app.state.title_factory`（預設 `FieldChat.title` with `make_chat_backend`）；`POST /chat/anoint` 擴充收 `save_convo`＋`history`（冊封得 wid 後，save_convo→存對話連 wid）。跑 T007 轉綠。
+- [X] T009 [US1] 在 `src/knowfield/web/app.py`：`app.state.title_factory`（預設 `FieldChat.title` with `make_chat_backend`）；`POST /chat/anoint` 擴充收 `save_convo`＋`history`（冊封得 wid 後，save_convo→存對話連 wid）。跑 T007 轉綠。
 - [X] T010 [US2] 加 `POST /chat/save`（獨立存整段＋自動標題）；`chat.html` 送出區加「💾 存這段對話」＋冊封候選表單加「連同這段對話存成由來」checkbox＋hidden history。跑 T008 轉綠。
 
 **檢查點**：兩存檔點都能存；冊封時連同存連得上根因；獨立存有標題。

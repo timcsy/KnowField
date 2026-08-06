@@ -9,7 +9,7 @@ TDD 強制：先紅後綠。**核心零新相依、無新表/新欄**（只刪�
 ## Phase 1：Foundational（純計畫核心，阻塞執行與 web）
 
 - [X] T001 [P] `tests/unit/test_capture_core.py` 擴 `plan_dedupe` 紅測：3 組各數份（同指紋）＋若干不重複＋一組異指紋 → `delete_ids`＝各組非最大 id、`n_extra` 正確、每組 survivor＝max id；`repoint` 只含「provenance 指向 loser」的 wid→survivor；**異指紋不入計畫**；空/無重複→全空、三數 0；一組中**未連根因的多餘份**仍列入 `delete_ids`（但不產生 repoint）。
-- [X] T002 `src/learnnews/chat/capture.py`：實作 `plan_dedupe(convos, provenance)`＋`DedupePlan`（dataclass：`delete_ids/repoint/n_groups/n_extra/n_roots`），複用 `conversation_fingerprint`。跑 T001 轉綠。
+- [X] T002 `src/knowfield/chat/capture.py`：實作 `plan_dedupe(convos, provenance)`＋`DedupePlan`（dataclass：`delete_ids/repoint/n_groups/n_extra/n_roots`），複用 `conversation_fingerprint`。跑 T001 轉綠。
 
 **檢查點**：計畫純函式正確、離線可測、非破壞（異指紋不入計畫）、缺項不崩。
 
@@ -18,7 +18,7 @@ TDD 強制：先紅後綠。**核心零新相依、無新表/新欄**（只刪�
 ## Phase 2：US1（P1）——預覽（唯讀、人閘門）
 
 - [X] T003 [P] [US1] `tests/unit/test_dedupe_web.py` 寫預覽紅測：種同內容多份＋不同內容數份 → `GET /conversations/dedupe` 回應含「N 組／M 份多餘／K 條根因」；且呼叫後 `list_conversations` 份數、`why_node_provenance` **完全未變**（人閘門守衛，GET 不動資料）；無重複→顯示「沒有重複可清」。
-- [X] T004 [US1] `src/learnnews/store/repository.py` 加 `dedupe_plan()`（讀 `list_conversations`＋`why_node_provenance`→`plan_dedupe`，**不寫庫**）；`src/learnnews/web/app.py` 加 `GET /conversations/dedupe`（算計畫、渲染 `dedupe.html`）；建 `templates/dedupe.html`（顯示 N/M/K＋「確認清理」POST 表單＋「取消」連回；無重複→友善訊息無確認鈕）；`conversations.html` 頁首加「🧹 清理重複對話」鈕。跑 T003 轉綠。
+- [X] T004 [US1] `src/knowfield/store/repository.py` 加 `dedupe_plan()`（讀 `list_conversations`＋`why_node_provenance`→`plan_dedupe`，**不寫庫**）；`src/knowfield/web/app.py` 加 `GET /conversations/dedupe`（算計畫、渲染 `dedupe.html`）；建 `templates/dedupe.html`（顯示 N/M/K＋「確認清理」POST 表單＋「取消」連回；無重複→友善訊息無確認鈕）；`conversations.html` 頁首加「🧹 清理重複對話」鈕。跑 T003 轉綠。
 
 **檢查點**：預覽顯示計畫、資料零變動、無重複友善。
 

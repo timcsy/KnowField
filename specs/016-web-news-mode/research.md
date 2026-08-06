@@ -22,7 +22,7 @@
 - **理由**：digest 活水要時效新聞（US1）；手動 `/search` 的 `SmartSearch` 不經此 adapter，維持一般。
 
 ## R5：config
-- **決策**：`config.search_news_time_range`（`LEARNNEWS_SEARCH_NEWS_RANGE`，預設 "week"）。可 "day"/"month"。
+- **決策**：`config.search_news_time_range`（`KNOWFIELD_SEARCH_NEWS_RANGE`，預設 "week"）。可 "day"/"month"。
 - **理由**：US3 時間範圍可調；"week" 是「剛紅」的合理窗。
 
 ## R6：失敗與相容

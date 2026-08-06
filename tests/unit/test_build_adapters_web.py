@@ -2,10 +2,10 @@
 
 import unittest
 
-from learnnews.config import Config
-from learnnews.cli.fetchers import DEFAULT_SOURCES, _parse_queries, build_adapters
-from learnnews.models import Source
-from learnnews.sources.websearch_adapter import WebSearchAdapter
+from knowfield.config import Config
+from knowfield.cli.fetchers import DEFAULT_SOURCES, _parse_queries, build_adapters
+from knowfield.models import Source
+from knowfield.sources.websearch_adapter import WebSearchAdapter
 
 _WEB = Source("web-ai-trends", "開放網路 AI 趨勢", "news", "web_search",
               "latest AI\nnew LLM", enabled=False)

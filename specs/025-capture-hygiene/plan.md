@@ -54,7 +54,7 @@ specs/025-capture-hygiene/
 
 ### Source Code (repository root)
 ```text
-src/learnnews/
+src/knowfield/
 ├── chat/
 │   └── capture.py              # 【新】純核心：conversation_fingerprint / distill_gap（零相依）
 ├── store/

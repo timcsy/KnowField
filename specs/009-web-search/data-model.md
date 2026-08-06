@@ -18,7 +18,7 @@
 
 ## Factory / Config
 - `make_web_search(config)`：`search_api_url`＋`search_api_key` 齊 → 真實；否則 `StubWebSearch`。
-- `Config`：+`search_api_url`、`search_api_key`（env `LEARNNEWS_SEARCH_API_URL`／`LEARNNEWS_SEARCH_KEY`）。
+- `Config`：+`search_api_url`、`search_api_key`（env `KNOWFIELD_SEARCH_API_URL`／`KNOWFIELD_SEARCH_KEY`）。
 
 ## Web
 - `GET /search?q=`：`web_search_factory(q)`→`search.html`（結果＋每則「收進」表單→`/ingest`）。

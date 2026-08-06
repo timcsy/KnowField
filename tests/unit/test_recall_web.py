@@ -5,7 +5,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 _HIST = [{"role": "user", "content": "開頭談 A"},
@@ -70,7 +70,7 @@ def _seg_stub(n_first_end):
     """回一個 segment_factory：把對話切成 2 章（第 1..k / k+1..end）。"""
     def _f(messages):
         n = len(messages)
-        from learnnews.chat.capture import normalize_chapters
+        from knowfield.chat.capture import normalize_chapters
         raw = [{"title": "前半章", "start": 1, "summary": "s1"},
                {"title": "後半章", "start": n_first_end + 1, "summary": "s2"}]
         return normalize_chapters(raw, n)

@@ -8,7 +8,7 @@
 
 **Input**: User description: "web `/search`：對開放網路搜尋 → 結果（標題/網址/摘要）→ 每則可『收進』冊封成種子（複用 ingest）。搜尋結果預設短暫、人冊封才留（原則 5）。可插拔搜尋後端（離線 stub／真實 urllib）。TDD 強制。"
 
-> 路線圖：LearnNews 階段 9。設計理由：`knowledge/draft/2026-07-24-趨勢熱詞發現.md`（A 搜尋 adapter 段）；
+> 路線圖：KnowField 階段 9。設計理由：`knowledge/draft/2026-07-24-趨勢熱詞發現.md`（A 搜尋 adapter 段）；
 > 模型：`concepts/有吸引子的場.md`（web search＝臨時大網/反濾泡；搜尋=AI 撒網、冊封=人挑）；
 > 規範：`principles.md` 原則 5、憲章 VI。**趨勢讀數（B）是後續（範圍外）。**
 

@@ -11,14 +11,14 @@
 
 ### 情境 A — 每日匯整的散文消化（US1）
 ```bash
-uv run learnnews interests set "LLM 推理"
-uv run learnnews digest --format markdown
+uv run knowfield interests set "LLM 推理"
+uv run knowfield digest --format markdown
 ```
 **預期**：每則是一篇可讀散文（非列點），完整傳達重點/數據/適用時機，附一鍵原文連結。
 
 ### 情境 B — 主題拉取的散文消化（US1，推拉皆套用）
 ```bash
-uv run learnnews pull "latent reasoning" --format markdown
+uv run knowfield pull "latent reasoning" --format markdown
 ```
 **預期**：同樣是散文文章清單，每則一鍵原文。
 
@@ -36,13 +36,13 @@ uv run learnnews pull "latent reasoning" --format markdown
 
 ### 情境 F — AI 示意圖標示（FR-007／SC-005）
 ```bash
-uv run learnnews pull "某無原文圖的主題" --ai-image --format markdown
+uv run knowfield pull "某無原文圖的主題" --ai-image --format markdown
 ```
 **預期**：無原文圖時附 AI 圖，且**明確標「AI 示意・非原文」**。
 
 ### 情境 G — 純原礦（FR-008／SC-006）
 ```bash
-uv run learnnews pull "latent reasoning" --raw
+uv run knowfield pull "latent reasoning" --raw
 ```
 **預期**：僅標題＋來源＋連結，無散文無圖，未呼叫生成後端。
 

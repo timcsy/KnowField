@@ -68,7 +68,7 @@ specs/005-rag-qa/
 ### Source Code (repository root)
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── rag/                     # 新增
 │   ├── __init__.py
 │   ├── types.py             # RagAnswer、Source、Scope
@@ -92,7 +92,7 @@ tests/
 └── unit/test_entry_embeddings.py    # 表存取、惰性回填、embedder tag 不符重嵌
 ```
 
-**Structure Decision**：單一專案，沿用既有 `src/learnnews/<子模組>` 佈局；RAG 自成 `rag/`
+**Structure Decision**：單一專案，沿用既有 `src/knowfield/<子模組>` 佈局；RAG 自成 `rag/`
 薄層，呼叫既有核心，不改去重/排序/消化邏輯。
 
 ## Complexity Tracking

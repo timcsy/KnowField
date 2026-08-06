@@ -10,7 +10,7 @@ TDD 強制：每組先寫測試（紅）→ 實作（綠）。全離線（StubEx
 
 ## Phase 3：US1 — 把一份收進整理成候選核心理解（P1）
 - [x] T003 [US1] 測試 `tests/unit/test_source_distill.py`：`distill_source(repo, StubExtractor(), url)` → 存一條候選、`evidence_urls==[url]`、含 ladder/touchstones；`no_material`/空 claim → 回 None 不存；空來源 → None。
-- [x] T004 [US1] 實作 `src/learnnews/ingest/activate.py::distill_source(repo, extractor, url)`（組材料→extract→存候選/回 None）。
+- [x] T004 [US1] 實作 `src/knowfield/ingest/activate.py::distill_source(repo, extractor, url)`（組材料→extract→存候選/回 None）。
 - [x] T005 [US1] 測試 repo：`why_node_source_provenance()` — anointed root 的 evidence_url 命中現有來源→{wid:url}；未命中→不列。
 - [x] T006 [US1] 實作 `repository.why_node_source_provenance()`。
 - [x] T007 [US1] web 測 `tests/unit/test_source_distill_web.py`：`POST /source/distill?u=url`（注入 Stub）→ 候選出現在 `/roots`；冊封該候選後 `/roots` 顯示「由來（你收進的來源）」連 `/source?u=url`。

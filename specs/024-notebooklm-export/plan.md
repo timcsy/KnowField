@@ -43,7 +43,7 @@
 
 ## 關鍵設計決策（研究結論，詳見 research.md）
 
-1. **純 formatter 模組、primitives 介面**：`src/learnnews/export/notebooklm.py`，函式收**基本型別**（title/messages/claim/ladder/urls），不 import models／repository → 零耦合、離線可單測、零相依。
+1. **純 formatter 模組、primitives 介面**：`src/knowfield/export/notebooklm.py`，函式收**基本型別**（title/messages/claim/ladder/urls），不 import models／repository → 零耦合、離線可單測、零相依。
 2. **來源逐訊息呈現，非單一全域清單**：現況來源是**逐 assistant 訊息各自編號** `[1..]`（conversation.html 用 per-message `data-src-prefix` 佐證）。故 Markdown 把每則的來源塊**接在該則之後**，行內 `[n]` 才對得上；**不做**會撞號的全域底部清單。（修正 spec「底部來源清單」的措辭為「逐訊息來源塊」，更忠實。）
 3. **端點回 `text/plain`、前端 fetch→複製**：三頁統一走「鈕 fetch 端點拿純文字 → `navigator.clipboard.writeText` → toast」，單一機制、都經過受測 formatter（單一事實來源）。`/chat` 走 POST（live history 在前端）；`/conversations/{id}`、`/roots/{id}` 走 GET。
 4. **佐證網址＝去重、保序、每行一個**：跨全對話收集所有訊息來源 URL、去重保序；根因用其 `evidence_urls` 去重。
@@ -66,7 +66,7 @@ specs/024-notebooklm-export/
 ### Source Code (repository root)
 
 ```text
-src/learnnews/
+src/knowfield/
 ├── export/                     # 【新】匯出純核心（零相依）
 │   ├── __init__.py
 │   └── notebooklm.py           # conversation_to_markdown / conversation_evidence_urls

@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.ranking.relevance import RelevanceRanker
+from knowfield.ranking.relevance import RelevanceRanker
 from tests.helpers import make_item
 
 

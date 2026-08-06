@@ -3,7 +3,7 @@ spec 026：既有重複清理計畫 plan_dedupe。"""
 
 import unittest
 
-from learnnews.chat.capture import (
+from knowfield.chat.capture import (
     cheap_title,
     conversation_fingerprint,
     distill_gap,

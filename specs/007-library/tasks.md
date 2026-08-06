@@ -15,7 +15,7 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 - **[Story]**：US1/US2/US3 溯源標籤
 
 ## Path Conventions
-單一專案：`src/learnnews/`、`tests/`（repo 根）。
+單一專案：`src/knowfield/`、`tests/`（repo 根）。
 
 ---
 
@@ -29,7 +29,7 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 
 **⚠️ 三個 repo 方法皆**僅限種子容器**（結構保證每日流唯讀，research R1）。同檔循序。**
 
-- [x] T002 repository：`list_seeds() -> list[CorpusEntry]`（只撈 `d.date=SEEDS_DATE` 的 entries，新在上）in `src/learnnews/store/repository.py`
+- [x] T002 repository：`list_seeds() -> list[CorpusEntry]`（只撈 `d.date=SEEDS_DATE` 的 entries，新在上）in `src/knowfield/store/repository.py`
 - [x] T003 repository：`delete_seed(entry_id) -> bool`（限種子容器；同交易刪 `digest_entries`＋`entry_embeddings`；非種子回 False）in `repository.py`（依賴 T002 之後、同檔循序）
 - [x] T004 repository：`set_seed_class(entry_id, cls) -> bool`（`cls∈{explainer,ordinary}`；限種子容器 UPDATE `source_class`）in `repository.py`
 
@@ -48,9 +48,9 @@ description: "Task list — 知識庫管理（前端策展/修剪）"
 - [x] T006 [P] [US1] 契約測試 `tests/contract/test_web_library.py`：`GET /library` 列出種子＋原文連結；`POST /library/remove` 後該則消失、`ask` 檢索不到；空庫顯示空狀態
 
 ### Implementation
-- [x] T007 [US1] `templates/library.html`（種子清單：標題/類型/日期/原文連結＋刪除表單；空狀態）in `src/learnnews/web/templates/`
-- [x] T008 [US1] `GET /library`（`repo.list_seeds()`→渲染）＋`POST /library/remove`（`delete_seed`→303）in `src/learnnews/web/app.py`
-- [x] T009 [US1] 導覽加「知識庫」連結 in `src/learnnews/web/templates/base.html`
+- [x] T007 [US1] `templates/library.html`（種子清單：標題/類型/日期/原文連結＋刪除表單；空狀態）in `src/knowfield/web/templates/`
+- [x] T008 [US1] `GET /library`（`repo.list_seeds()`→渲染）＋`POST /library/remove`（`delete_seed`→303）in `src/knowfield/web/app.py`
+- [x] T009 [US1] 導覽加「知識庫」連結 in `src/knowfield/web/templates/base.html`
 
 **Checkpoint**：離線 `/library` 列種子＋刪除（連清嵌入）可獨立跑通。**MVP 達成。**
 

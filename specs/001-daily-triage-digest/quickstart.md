@@ -8,15 +8,15 @@
 - Python 3.12+
 - 安裝相依（實作時以 `pyproject.toml` 定義）：`pip install -e .`
 - 設定 Anthropic API 金鑰（摘要用）：`export ANTHROPIC_API_KEY=...`
-- 首次初始化資料庫與預設來源：`learnnews sources list`（自動建立 SQLite）
+- 首次初始化資料庫與預設來源：`knowfield sources list`（自動建立 SQLite）
 
 ## 驗證情境
 
 ### 情境 A — 設定興趣並產出匯整（US1＋US2）
 ```bash
-learnnews interests set "LLM 推理" "agent" "編譯器"
-learnnews interests list          # 預期：列出三個明講主題
-learnnews digest --date 2026-07-23 --limit 15
+knowfield interests set "LLM 推理" "agent" "編譯器"
+knowfield interests list          # 預期：列出三個明講主題
+knowfield digest --date 2026-07-23 --limit 15
 ```
 **預期**：輸出一份 ≤15 則、依相關性排序的匯整；每則含「一句定位／一句為何值得看／
 直達原文連結」；結尾標示缺漏來源與未納入則數。
@@ -35,8 +35,8 @@ learnnews digest --date 2026-07-23 --limit 15
 
 ### 情境 E — 使用者主權（FR-009／憲章原則 VI）
 ```bash
-learnnews interests remove "編譯器"
-learnnews digest --date 2026-07-23
+knowfield interests remove "編譯器"
+knowfield digest --date 2026-07-23
 ```
 **預期**：即使行為訊號曾偏好「編譯器」，移除後該主題不再主導；明講設定優先。
 

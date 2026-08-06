@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}跟你的知識庫聊 — LearnNews{% endblock %}
+{% block title %}跟你的知識庫聊 — KnowField{% endblock %}
 {% block content %}
   <div class="flex items-center gap-2 mb-1">
     <h1 class="text-2xl font-bold">🧠 跟你的知識庫聊</h1>
@@ -511,7 +511,7 @@
     // 收尾缺口記帳（spec 025）：記「上次整理/存/冊封時的訊息數」於 localStorage，送出時餵回後端算缺口。
     (function () {
       var CONVO_LEN = {{ messages | length }};
-      var KEY = 'learnnews.lastCaptured';
+      var KEY = 'knowfield.lastCaptured';
       // 新對話（空）→ 歸零；否則沿用上次記錄餵給隱藏欄
       if (CONVO_LEN === 0) { try { localStorage.setItem(KEY, '0'); } catch (e) {} }
       var lc = 0;

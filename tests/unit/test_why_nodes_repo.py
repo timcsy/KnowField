@@ -2,7 +2,7 @@
 
 import unittest
 
-from learnnews.store.repository import Repository
+from knowfield.store.repository import Repository
 from tests.rag_helpers import temp_db
 
 
