@@ -1,72 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { api, streamChat, type Candidate, type Message, type Source } from "@/lib/api"
+import { useSearchParams } from "react-router-dom"
+import { api, pages, streamChat, type Candidate, type Message, type Source } from "@/lib/api"
+import { Markdown } from "@/components/Markdown"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-
-// 答案文字 → HTML：math 抽出佔位 → marked 渲染 → 還原成 .mathcopy(帶 data-tex) → [n] 變引用錨點。
-// 溯源靠結構、不靠模型自律（原則 3）。marked/MathJax 由 index.html 全域載入。
-function renderHtml(text: string, prefix: string): string {
-  const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
-  const math: string[] = []
-  const t = text.replace(
-    /\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
-    (m) => { math.push(m); return `@@M${math.length - 1}@@` },
-  )
-  let html = marked ? marked.parse(t) : t.replace(/\n/g, "<br>")
-  html = html.replace(/@@M(\d+)@@/g, (_m, i) => {
-    const tex = math[+i]
-    const esc = tex.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    const isBlock = /^\$\$|^\\\[/.test(tex)
-    const tag = isBlock ? "div" : "span"
-    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" data-tex="${esc.replace(/"/g, "&quot;")}">${esc}</${tag}>`
-  })
-  return html.replace(/\[(\d+)\]/g, (_m, n) => `<a href="#${prefix}-${n}" class="cite">[${n}]</a>`)
-}
-
-function MessageBody({ text, prefix }: { text: string; prefix: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const mj = (window as unknown as { MathJax?: { typesetPromise?(els: Element[]): Promise<void> } }).MathJax
-    if (ref.current && mj?.typesetPromise) mj.typesetPromise([ref.current]).catch(() => {})
-  }, [text])
-  return (
-    <div ref={ref} className="answer-md text-[15px] leading-relaxed"
-         dangerouslySetInnerHTML={{ __html: renderHtml(text, prefix) }} />
-  )
-}
-
-// 選取數學 → Ctrl/⌘+C 複製到 LaTeX 原始碼（含 $）。刻意不做「點公式就複製」（使用者要求）。
-function installMathCopy(): () => void {
-  const mathOf = (n: Node | null): Element | null => {
-    if (!n) return null
-    const el = n.nodeType === 1 ? (n as Element) : n.parentElement
-    return el ? el.closest(".mathcopy") : null
-  }
-  function onCopy(e: ClipboardEvent) {
-    const sel = window.getSelection()
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !e.clipboardData) return
-    const frag = sel.getRangeAt(0).cloneContents()
-    const maths = frag.querySelectorAll(".mathcopy")
-    if (maths.length === 0) {
-      const a = mathOf(sel.anchorNode)
-      if (a && a === mathOf(sel.focusNode)) {   // 選取整個落在單一數學元素內
-        e.clipboardData.setData("text/plain", a.getAttribute("data-tex") || "")
-        e.preventDefault()
-      }
-      return
-    }
-    maths.forEach((m) => {
-      const tex = m.getAttribute("data-tex") || ""
-      const block = m.classList.contains("mathcopy-block")
-      m.replaceWith(document.createTextNode(block ? `\n${tex}\n` : tex))
-    })
-    e.clipboardData.setData("text/plain", frag.textContent || "")
-    e.preventDefault()
-  }
-  document.addEventListener("copy", onCopy)
-  return () => document.removeEventListener("copy", onCopy)
-}
 
 function Sources({ sources, prefix }: { sources: Source[]; prefix: string }) {
   if (!sources.length) return null
@@ -98,11 +36,24 @@ export default function ChatPage() {
   const [saveConvo, setSaveConvo] = useState(false)
   const tempId = useRef<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [sp, setSp] = useSearchParams()
 
   useEffect(() => {
     api.state().then((s) => setRootCount(s.root_count)).catch(() => {})
   }, [])
-  useEffect(() => installMathCopy(), [])   // 選取數學→Ctrl/⌘+C 得 LaTeX（不點公式）
+  // 接回存下的對話（?resume=id）
+  useEffect(() => {
+    const rid = Number(sp.get("resume") || 0)
+    if (!rid) return
+    pages.conversation(rid, true).then((c) => {
+      if (c.found) {
+        setMessages(c.messages)
+        if (c.temporary) tempId.current = c.id
+      }
+      sp.delete("resume")
+      setSp(sp, { replace: true })
+    }).catch(() => {})
+  }, [sp, setSp])
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streaming, stage])
@@ -118,23 +69,16 @@ export default function ChatPage() {
     let full = ""
     await streamChat(hist, msg, brainstorm, {
       onStage: (t) => setStage(t),
-      onToken: (t) => {
-        full += t
-        setStage(null)
-        setStreaming(full)
-      },
+      onToken: (t) => { full += t; setStage(null); setStreaming(full) },
       onError: (t) => {
-        setStreaming(null)
-        setStage(null)
+        setStreaming(null); setStage(null)
         setMessages([...hist, { role: "user", content: msg },
           { role: "assistant", content: "⚠ " + t }])
       },
       onDone: (text, sources, extra) => {
         const next: Message[] = [...hist, { role: "user", content: msg },
           { role: "assistant", content: text || full, sources, found_extra: extra }]
-        setMessages(next)
-        setStreaming(null)
-        setStage(null)
+        setMessages(next); setStreaming(null); setStage(null)
         api.autosave(next, tempId.current).then((r) => { tempId.current = r.temp_id }).catch(() => {})
       },
     })
@@ -153,12 +97,9 @@ export default function ChatPage() {
 
   async function anointOne(i: number, c: Candidate) {
     const r = await api.anoint({
-      claim: c.claim,
-      ladder: c.ladder.join("\n"),
+      claim: c.claim, ladder: c.ladder.join("\n"),
       evidence_urls: c.evidence_urls.join(", "),
-      save_convo: saveConvo,
-      history: messages,
-      temp_id: tempId.current,
+      save_convo: saveConvo, history: messages, temp_id: tempId.current,
     })
     setCandDone((d) => ({ ...d, [i]: r.status === "exists" ? "➖ 已收過（沒重複收）" : "✅ 已精選" }))
     if (r.status === "created") setRootCount((n) => n + 1)
@@ -196,7 +137,7 @@ export default function ChatPage() {
             </div>
           ) : (
             <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
-              <MessageBody text={m.content} prefix={`m${i}`} />
+              <Markdown text={m.content} prefix={`m${i}`} />
               <Sources sources={m.sources || []} prefix={`m${i}`} />
             </div>
           ),
@@ -252,10 +193,7 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
             }}
             placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…"
             className="max-h-40 min-h-0 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"

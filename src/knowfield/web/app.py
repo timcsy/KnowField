@@ -766,6 +766,216 @@ def create_app() -> FastAPI:
                       "provenance": {str(k): v for k, v in prov.items()},
                       "source_provenance": {str(k): v for k, v in sprov.items()}})
 
+    # ══ /api：其餘頁（re-platform 里程碑二）——共用既有 repo/service ══
+    @app.post("/api/whynode/anoint")
+    async def api_whynode_anoint(request: Request):
+        b = await request.json()
+        wid = int(b.get("id") or 0)
+        if wid:
+            repo = app.state.repo_factory(app.state.config)
+            repo.anoint_why_node(wid, (b.get("claim") or "").strip() or None)
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/whynode/remove")
+    async def api_whynode_remove(request: Request):
+        b = await request.json()
+        wid = int(b.get("id") or 0)
+        if wid:
+            repo = app.state.repo_factory(app.state.config)
+            repo.delete_why_node(wid)
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.get("/api/library")
+    async def api_library():
+        repo = app.state.repo_factory(app.state.config)
+        groups = repo.list_source_groups()
+        repo.close()
+        return _JSON({"sources": groups})
+
+    @app.get("/api/source")
+    async def api_source(u: str = Query("")):
+        from ..ingest.chunk import stitch_chunks
+        repo = app.state.repo_factory(app.state.config)
+        chunks = repo.get_source_chunks(u)
+        title = repo.source_title(u)
+        meta = repo.source_meta(u)
+        repo.close()
+        if not chunks:
+            return _JSON({"found": False}, status_code=404)
+        return _JSON({"found": True, "url": u, "title": title,
+                      "markdown": stitch_chunks(chunks),
+                      "note": meta["note"], "ingested_at": meta["ingested_at"]})
+
+    @app.post("/api/source/meta")
+    async def api_source_meta(request: Request):
+        b = await request.json()
+        u = (b.get("u") or "").strip()
+        if u:
+            repo = app.state.repo_factory(app.state.config)
+            repo.set_source_meta(u, b.get("note", ""), b.get("ingested_at", ""))
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/source/distill")
+    async def api_source_distill(request: Request):
+        from ..ingest.activate import distill_source
+        b = await request.json()
+        url = (b.get("u") or "").strip()
+        if not url:
+            return _JSON({"ok": False, "err": "無來源"}, status_code=400)
+        try:
+            repo = app.state.repo_factory(app.state.config)
+            try:
+                cand = distill_source(repo, _extractor(), url, _now_iso())
+            finally:
+                repo.close()
+        except SourceUnavailable as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=502)
+        if cand is None:
+            return _JSON({"ok": False, "err": "這份來源沒有足夠內容可整理出核心理解"})
+        return _JSON({"ok": True})
+
+    @app.post("/api/library/reclassify")
+    async def api_library_reclassify(request: Request):
+        b = await request.json()
+        url = (b.get("url") or "").strip()
+        if url:
+            repo = app.state.repo_factory(app.state.config)
+            repo.set_source_class_by_url(url, b.get("source_class", "ordinary"))
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/library/remove")
+    async def api_library_remove(request: Request):
+        b = await request.json()
+        url = (b.get("url") or "").strip()
+        if url:
+            repo = app.state.repo_factory(app.state.config)
+            repo.delete_source(url)
+            repo.close()
+        return _JSON({"ok": True})
+
+    def _ingest_result(kind, **kw):
+        try:
+            res = _content_ingest(kind, **kw)
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("收進失敗", extra={"extra": {"reason": str(e)}})
+            return _JSON({"status": "error", "err": str(e)}, status_code=502)
+        return _JSON({"status": res.status, "count": getattr(res, "count", 0),
+                      "title": getattr(res, "title", "")})
+
+    @app.post("/api/ingest/paste")
+    async def api_ingest_paste(request: Request):
+        b = await request.json()
+        text, html = (b.get("text") or ""), (b.get("html") or "")
+        if not text.strip() and not html.strip():
+            return _JSON({"status": "empty", "count": 0})
+        at = (b.get("ingested_at") or "").strip() or _now_iso()[:10]
+        return _ingest_result("text", text=text, title=b.get("title", ""), html=html,
+                              clean=bool(b.get("clean")), source_url=b.get("source_url", ""),
+                              note=b.get("note", ""), ingested_at=at)
+
+    @app.post("/api/ingest/url")
+    async def api_ingest_url(request: Request):
+        b = await request.json()
+        url = (b.get("url") or "").strip()
+        if not url:
+            return _JSON({"status": "empty", "count": 0})
+        at = (b.get("ingested_at") or "").strip() or _now_iso()[:10]
+        return _ingest_result("url", url=url, title=b.get("title", ""),
+                              note=b.get("note", ""), ingested_at=at)
+
+    @app.post("/api/ingest/pdf")
+    async def api_ingest_pdf(url: str = Form(""), title: str = Form(""),
+                             file: UploadFile = File(None), note: str = Form(""),
+                             ingested_at: str = Form("")):
+        pdf_bytes = await file.read() if file is not None else None
+        pdf_url = (url or "").strip()
+        if not pdf_bytes and not pdf_url:
+            return _JSON({"status": "empty", "count": 0})
+        at = (ingested_at or "").strip() or _now_iso()[:10]
+        return _ingest_result("pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title,
+                              note=note, ingested_at=at)
+
+    @app.post("/api/ingest/share")
+    async def api_ingest_share(request: Request):
+        """PWA Web Share Target（里程碑四）：手機分享網址/文字進來→收進。"""
+        ct = request.headers.get("content-type", "")
+        b = (await request.json() if ct.startswith("application/json")
+             else dict(await request.form()))
+        url = str(b.get("url") or b.get("link") or "").strip()
+        text = str(b.get("text") or "").strip()
+        title = str(b.get("title") or "").strip()
+        at = _now_iso()[:10]
+        if url.startswith("http"):
+            return _ingest_result("url", url=url, title=title, note="手機分享", ingested_at=at)
+        if text:
+            return _ingest_result("text", text=text, title=title, note="手機分享", ingested_at=at)
+        return _JSON({"status": "empty", "count": 0})
+
+    @app.get("/api/conversations")
+    async def api_conversations():
+        repo = app.state.repo_factory(app.state.config)
+        repo.purge_expired_temporary(_now_iso())
+        convs = repo.list_conversations()
+        repo.close()
+
+        def _cv(c):
+            return {"id": c.id, "title": c.title, "created_at": c.created_at,
+                    "temporary": c.temporary, "why_node_id": c.why_node_id,
+                    "count": len(c.messages)}
+        return _JSON({"permanent": [_cv(c) for c in convs if not c.temporary],
+                      "temporary": [_cv(c) for c in convs if c.temporary]})
+
+    @app.get("/api/conversations/{cid}")
+    async def api_conversation(cid: int, resume: int = Query(0)):
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        if conv is not None and resume and conv.temporary:
+            repo.touch_conversation(cid, _now_iso())
+        repo.close()
+        if conv is None:
+            return _JSON({"found": False}, status_code=404)
+        return _JSON({"found": True, "id": conv.id, "title": conv.title,
+                      "messages": conv.messages, "temporary": conv.temporary})
+
+    @app.post("/api/conversations/{cid}/rename")
+    async def api_conversation_rename(cid: int, request: Request):
+        b = await request.json()
+        repo = app.state.repo_factory(app.state.config)
+        repo.rename_conversation(cid, b.get("title") or "")
+        repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/conversations/{cid}/promote")
+    async def api_conversation_promote_json(cid: int):
+        repo = app.state.repo_factory(app.state.config)
+        conv = repo.get_conversation(cid)
+        if conv is not None:
+            try:
+                t = (app.state.title_factory(conv.messages) or "").strip()
+            except Exception:  # noqa: BLE001
+                t = ""
+            repo.promote_conversation(cid, t or conv.title)
+        repo.close()
+        return _JSON({"ok": True})
+
+    @app.get("/api/conversations-dedupe/preview")
+    async def api_dedupe_preview():
+        repo = app.state.repo_factory(app.state.config)
+        plan = repo.dedupe_plan()
+        repo.close()
+        return _JSON({"n_groups": plan.n_groups, "n_extra": plan.n_extra, "n_roots": plan.n_roots})
+
+    @app.post("/api/conversations-dedupe/apply")
+    async def api_dedupe_apply():
+        repo = app.state.repo_factory(app.state.config)
+        summary = repo.apply_dedupe()
+        repo.close()
+        return _JSON({"ok": True, "removed": summary["removed"], "repointed": summary["repointed"]})
+
     # ══ 服務 React SPA（掛 /app，strangler：舊 Jinja / 與 /chat 不動）══
     _DIST = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if _DIST.is_dir():

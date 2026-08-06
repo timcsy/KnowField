@@ -52,6 +52,80 @@ export const api = {
     }).then(json),
 }
 
+// ── 其餘頁（re-platform 里程碑二）──
+export type WhyNode = {
+  id: number
+  claim: string
+  evidence_urls: string[]
+  ladder: string[]
+  touchstones: { name: string; passed: boolean }[]
+  fog_flag: boolean
+}
+export type RootsData = {
+  anointed: WhyNode[]
+  candidates: WhyNode[]
+  provenance: Record<string, number>
+  source_provenance: Record<string, string>
+}
+export type SourceGroup = {
+  url: string
+  title: string
+  count: number
+  source_class: string
+  note: string
+  ingested_at: string
+}
+export type ConvRow = {
+  id: number
+  title: string
+  created_at: string
+  temporary: boolean
+  why_node_id: number | null
+  count: number
+}
+
+const post = (url: string, body: unknown) =>
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(json)
+
+export const pages = {
+  roots: (): Promise<RootsData> => fetch("/api/roots").then(json),
+  whynodeAnoint: (id: number, claim?: string) => post("/api/whynode/anoint", { id, claim }),
+  whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
+  library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  source: (u: string): Promise<{
+    found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
+  }> => fetch(`/api/source?u=${encodeURIComponent(u)}`).then(json),
+  sourceMeta: (u: string, note: string, ingested_at: string) =>
+    post("/api/source/meta", { u, note, ingested_at }),
+  sourceDistill: (u: string): Promise<{ ok: boolean; err?: string }> =>
+    post("/api/source/distill", { u }),
+  reclassify: (url: string, source_class: string) =>
+    post("/api/library/reclassify", { url, source_class }),
+  removeSource: (url: string) => post("/api/library/remove", { url }),
+  ingestPaste: (b: {
+    text?: string; html?: string; title?: string; clean?: boolean
+    source_url?: string; note?: string; ingested_at?: string
+  }): Promise<{ status: string; count: number; title?: string; err?: string }> =>
+    post("/api/ingest/paste", b),
+  ingestUrl: (b: { url: string; title?: string; note?: string; ingested_at?: string }) =>
+    post("/api/ingest/url", b),
+  conversations: (): Promise<{ permanent: ConvRow[]; temporary: ConvRow[] }> =>
+    fetch("/api/conversations").then(json),
+  conversation: (id: number, resume = false): Promise<{
+    found: boolean; id: number; title: string; messages: Message[]; temporary: boolean
+  }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
+  renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
+  promoteConv: (id: number) => post(`/api/conversations/${id}/promote`, {}),
+  dedupePreview: (): Promise<{ n_groups: number; n_extra: number; n_roots: number }> =>
+    fetch("/api/conversations-dedupe/preview").then(json),
+  dedupeApply: (): Promise<{ removed: number; repointed: number }> =>
+    post("/api/conversations-dedupe/apply", {}),
+}
+
 export type StreamHandlers = {
   onStage?: (t: string) => void
   onToken?: (t: string) => void
