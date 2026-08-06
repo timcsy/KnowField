@@ -135,9 +135,36 @@ class TestSpaServed(unittest.TestCase):
         r = c.get("/app/")
         self.assertEqual(r.status_code, 200)
         self.assertIn('id="root"', r.text)              # SPA 入口
-        r2 = c.get("/app/chat")                          # 前端路由可直接開/重整
+        r2 = c.get("/app/roots")                         # 前端路由可直接開/重整→fallback index
         self.assertEqual(r2.status_code, 200)
         self.assertIn('id="root"', r2.text)
+
+    def test_pwa_manifest_and_sw_served_not_html(self):
+        """PWA：manifest/sw 是真檔（非 fallback 成 HTML），含 share_target。"""
+        c = TestClient(build_app(temp_db()))
+        m = c.get("/app/manifest.webmanifest")
+        self.assertEqual(m.status_code, 200)
+        self.assertIn("share_target", m.text)            # 手機分享目標
+        self.assertEqual(c.get("/app/sw.js").status_code, 200)
+
+    def test_root_redirects_to_spa(self):
+        """門面＝React：GET / → /app/（dist 已 build）。"""
+        r = TestClient(build_app(temp_db())).get("/", follow_redirects=False)
+        self.assertEqual(r.status_code, 307)
+        self.assertEqual(r.headers["location"], "/app/")
+
+    def test_share_target_ingests_and_redirects(self):
+        """PWA Web Share Target：分享文字→收進→導回 /app/library（Android）。"""
+        db = temp_db()
+        r = TestClient(build_app(db)).post(
+            "/app/share-target",
+            data={"text": "貓要吃貓糧與用貓砂很重要。" * 30, "title": "分享文"},
+            follow_redirects=False)
+        self.assertEqual(r.status_code, 303)
+        self.assertIn("/app/library", r.headers["location"])
+        repo = Repository(db)
+        self.assertGreaterEqual(len(repo.list_source_groups()), 1)   # 分享的收進了
+        repo.close()
 
 
 if __name__ == "__main__":

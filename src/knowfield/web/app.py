@@ -260,8 +260,9 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     async def home():
-        # 產品轉向後首頁＝聊天（新聞分診已退役，history/068）
-        return RedirectResponse("/chat", status_code=307)
+        # re-platform（階段 27）：門面＝React SPA（/app）。dist 未 build 時退回舊 Jinja /chat。
+        _dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
+        return RedirectResponse("/app/" if _dist.is_dir() else "/chat", status_code=307)
 
     @app.get("/ask")
     async def ask():
@@ -979,13 +980,37 @@ def create_app() -> FastAPI:
     # ══ 服務 React SPA（掛 /app，strangler：舊 Jinja / 與 /chat 不動）══
     _DIST = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if _DIST.is_dir():
+        from starlette.exceptions import HTTPException as _StarletteHTTPExc
         from fastapi.staticfiles import StaticFiles
-        app.mount("/app/assets", StaticFiles(directory=str(_DIST / "assets")), name="spa-assets")
 
-        @app.get("/app", response_class=HTMLResponse)
-        @app.get("/app/{path:path}", response_class=HTMLResponse)
-        async def spa(path: str = ""):
-            return HTMLResponse((_DIST / "index.html").read_text(encoding="utf-8"))
+        @app.post("/app/share-target")
+        async def app_share_target(request: Request):
+            """PWA Web Share Target（里程碑四）：手機分享網址/文字進來→收進→導回知識庫。"""
+            form = await request.form()
+            url = str(form.get("url") or form.get("link") or "").strip()
+            text = str(form.get("text") or "").strip()
+            title = str(form.get("title") or "").strip()
+            at = _now_iso()[:10]
+            try:
+                if url.startswith("http"):
+                    _content_ingest("url", url=url, title=title, note="手機分享", ingested_at=at)
+                elif text:
+                    _content_ingest("text", text=text, title=title, note="手機分享", ingested_at=at)
+            except (SourceUnavailable, OpenAIError) as e:  # best-effort（教訓 3）
+                _log.error("手機分享收進失敗", extra={"extra": {"reason": str(e)}})
+            return RedirectResponse("/app/library", status_code=303)
+
+        class _SpaStatic(StaticFiles):
+            """服務 dist 靜態檔（含 manifest/sw/icon）；client 路由（非檔案）fallback 回 index.html。"""
+            async def get_response(self, path, scope):
+                try:
+                    return await super().get_response(path, scope)
+                except _StarletteHTTPExc as e:
+                    if e.status_code == 404:
+                        return await super().get_response("index.html", scope)
+                    raise
+
+        app.mount("/app", _SpaStatic(directory=str(_DIST), html=True), name="spa")
 
     @app.post("/conversations/{cid}/promote")
     async def conversation_promote(cid: int):
