@@ -35,22 +35,5 @@ class TestClosedLoop(unittest.TestCase):
         repo.close()
 
 
-class TestRootCauseWeb(unittest.TestCase):
-    def test_anoint_and_remove(self):
-        db = temp_db()
-        repo = Repository(db)
-        wid = repo.add_why_node("候選 X", ["https://a/1"], [], False, 1, "2026-07-25")
-        repo.close()
-        client = TestClient(build_app(db))
-        client.post("/whynode/anoint", data={"id": wid, "claim": "冊封後 X"})
-        repo = Repository(db)
-        self.assertEqual(repo.list_why_nodes("anointed")[0].claim, "冊封後 X")
-        repo.close()
-        client.post("/whynode/remove", data={"id": wid})
-        repo = Repository(db)
-        self.assertEqual(repo.list_why_nodes(), [])
-        repo.close()
-
-
 if __name__ == "__main__":
     unittest.main()

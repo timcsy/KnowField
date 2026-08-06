@@ -14,12 +14,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import (
-    HTMLResponse,
     PlainTextResponse,
     RedirectResponse,
     StreamingResponse,
 )
-from fastapi.templating import Jinja2Templates
 
 from ..backends.openai_api import OpenAIError
 from ..config import Config
@@ -29,7 +27,6 @@ from ..store.repository import Repository
 from .cache import TTLCache
 
 _log = get_logger("knowfield.web")
-_TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 def _now_iso() -> str:
@@ -254,220 +251,18 @@ def create_app() -> FastAPI:
     @app.exception_handler(OpenAIError)
     async def _backend_error(request: Request, exc: OpenAIError):
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="error.html", context={"reason": str(exc)},
-            status_code=503)
+        return PlainTextResponse(f"後端暫時無法回應：{exc}", status_code=503)
 
     @app.get("/")
     async def home():
-        # re-platform（階段 27）：門面＝React SPA（/app）。dist 未 build 時退回舊 Jinja /chat。
-        _dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
-        return RedirectResponse("/app/" if _dist.is_dir() else "/chat", status_code=307)
+        # re-platform（階段 27 退場完成）：門面＝React SPA（/app）；舊 Jinja 已退役。
+        return RedirectResponse("/app/", status_code=307)
 
     @app.get("/ask")
     async def ask():
-        # spec 029：問答併進聊天——「對收進內容發問」的能力現在在 /chat（帶膜、能引用「你收藏的」）。
-        return RedirectResponse("/chat", status_code=302)
+        # 舊入口導向 SPA（問答併進聊天，帶膜、能引用「你收藏的」）。
+        return RedirectResponse("/app/", status_code=302)
 
-    @app.get("/ingest", response_class=HTMLResponse)
-    async def ingest_get(request: Request):
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={})
-
-    @app.post("/ingest", response_class=HTMLResponse)
-    async def ingest_post(request: Request, ref: str = Form(""),
-                          explainer: bool = Form(False)):
-        ref = ref.strip()
-        result = error = None
-        if ref:
-            try:
-                result = app.state.seed_ingest_factory(ref, explainer)
-            except (SourceUnavailable, OpenAIError) as e:   # 表單頁內攔，不噴 500
-                _log.error("web 種子 ingest 失敗", extra={"extra": {"reason": str(e)}})
-                error = str(e)
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
-            "ref": ref, "result": result, "error": error})
-
-    @app.post("/ingest/paste", response_class=HTMLResponse)
-    async def ingest_paste(request: Request):
-        """貼上收進（spec 030 US1＋spec 031）：html 非空＝rich-paste 抽正文＋圖片；clean=1＝LLM 清理。"""
-        # 手動 parse、拉高欄位上限（rich-paste 的 HTML 可能很大，預設 1MB 會爆）
-        form = await request.form(max_part_size=24 * 1024 * 1024)
-        text = str(form.get("text", "") or "")
-        title = str(form.get("title", "") or "")
-        html = str(form.get("html", "") or "")
-        clean = str(form.get("clean", "") or "")
-        source_url = str(form.get("source_url", "") or "")
-        note = str(form.get("note", "") or "")
-        at = str(form.get("ingested_at", "") or "").strip() or _now_iso()[:10]
-        content_result = error = None
-        if (text or "").strip() or (html or "").strip():
-            try:
-                content_result = app.state.content_ingest(
-                    "text", text=text, title=title, html=html, clean=(clean == "1"),
-                    source_url=source_url, note=note, ingested_at=at)
-            except (SourceUnavailable, OpenAIError) as e:
-                _log.error("貼上收進失敗", extra={"extra": {"reason": str(e)}})
-                error = str(e)
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
-            "content_result": content_result, "error": error})
-
-    @app.post("/ingest/url", response_class=HTMLResponse)
-    async def ingest_url(request: Request, url: str = Form(""), title: str = Form(""),
-                         note: str = Form(""), ingested_at: str = Form("")):
-        """收整篇網頁（spec 030 增量）：抓正文→markdown→切塊→存。best-effort。"""
-        content_result = error = None
-        at = (ingested_at or "").strip() or _now_iso()[:10]
-        if (url or "").strip():
-            try:
-                content_result = app.state.content_ingest("url", url=url, title=title,
-                                                          note=note, ingested_at=at)
-            except (SourceUnavailable, OpenAIError) as e:
-                _log.error("網頁收進失敗", extra={"extra": {"reason": str(e)}})
-                error = str(e)
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
-            "content_result": content_result, "error": error})
-
-    @app.post("/ingest/youtube", response_class=HTMLResponse)
-    async def ingest_youtube(request: Request, url: str = Form(""), title: str = Form("")):
-        """收 YouTube 逐字稿（spec 030 增量）：抓字幕→切塊→存。抓不到→友善（改用貼上）。"""
-        content_result = error = None
-        if (url or "").strip():
-            try:
-                content_result = app.state.content_ingest("youtube", url=url, title=title)
-            except (SourceUnavailable, OpenAIError) as e:
-                _log.error("YouTube 收進失敗", extra={"extra": {"reason": str(e)}})
-                error = str(e)
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
-            "content_result": content_result, "error": error})
-
-    @app.post("/ingest/pdf", response_class=HTMLResponse)
-    async def ingest_pdf(request: Request, url: str = Form(""), title: str = Form(""),
-                         file: UploadFile = File(None), note: str = Form(""),
-                         ingested_at: str = Form("")):
-        """PDF 收進（spec 030 US2）：轉檔→切塊→存成語料。>30 頁不崩、失敗 best-effort。"""
-        content_result = error = None
-        pdf_bytes = await file.read() if file is not None else None
-        pdf_url = (url or "").strip()
-        at = (ingested_at or "").strip() or _now_iso()[:10]
-        if pdf_bytes or pdf_url:
-            try:
-                content_result = app.state.content_ingest(
-                    "pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title,
-                    note=note, ingested_at=at)
-            except (SourceUnavailable, OpenAIError) as e:
-                _log.error("PDF 收進失敗", extra={"extra": {"reason": str(e)}})
-                error = str(e)
-        return _TEMPLATES.TemplateResponse(request=request, name="ingest.html", context={
-            "content_result": content_result, "error": error})
-
-    @app.get("/library", response_class=HTMLResponse)
-    async def library(request: Request):
-        """知識庫：按來源（同 url）歸一列（spec 031 US1）。"""
-        repo = app.state.repo_factory(app.state.config)
-        sources = repo.list_source_groups()
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="library.html", context={"sources": sources})
-
-    @app.get("/source", response_class=HTMLResponse)
-    async def source_detail(request: Request, u: str = Query(""), err: str = Query("")):
-        """來源詳情：把該來源的塊拼回、去重疊、render（spec 031 US2）。"""
-        from ..ingest.chunk import stitch_chunks
-        repo = app.state.repo_factory(app.state.config)
-        chunks = repo.get_source_chunks(u)
-        title = repo.source_title(u)
-        meta = repo.source_meta(u)
-        repo.close()
-        if not chunks:
-            return RedirectResponse("/library", status_code=303)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="source.html",
-            context={"title": title, "url": u, "markdown": stitch_chunks(chunks),
-                     "note": meta["note"], "ingested_at": meta["ingested_at"], "err": err})
-
-    @app.post("/source/distill")
-    async def source_distill(u: str = Form("")):
-        """整理成核心理解（spec 032）：對一份收進來源抽候選根因 → 存候選 → 導 /roots 由人檢視冊封。
-        只產候選、不冊封、不進地基（原則 6）；萃取失敗 best-effort 導回 /source（教訓 3）。"""
-        from urllib.parse import quote
-
-        from ..ingest.activate import distill_source
-        url = (u or "").strip()
-        if not url:
-            return RedirectResponse("/library", status_code=303)
-        try:
-            repo = app.state.repo_factory(app.state.config)
-            try:
-                cand = distill_source(repo, _extractor(), url, _now_iso())
-            finally:
-                repo.close()
-        except SourceUnavailable as e:
-            return RedirectResponse(f"/source?u={quote(url)}&err={quote(str(e))}",
-                                    status_code=303)
-        if cand is None:
-            return RedirectResponse(
-                f"/source?u={quote(url)}&err={quote('這份來源沒有足夠內容可整理出核心理解')}",
-                status_code=303)
-        return RedirectResponse(
-            f"/roots?msg={quote('已整理出候選核心理解，請檢視後收進你認同的')}",
-            status_code=303)
-
-    @app.post("/source/meta")
-    async def source_meta_edit(u: str = Form(""), note: str = Form(""),
-                               ingested_at: str = Form("")):
-        """編輯來源的收進原因＋日期（脈絡註記，不進 embedding/chat）。"""
-        if (u or "").strip():
-            repo = app.state.repo_factory(app.state.config)
-            repo.set_source_meta(u, note, ingested_at)
-            repo.close()
-        from urllib.parse import quote
-        return RedirectResponse(f"/source?u={quote(u)}", status_code=303)
-
-    @app.post("/library/remove")
-    async def library_remove(url: str = Form("")):
-        if (url or "").strip():
-            repo = app.state.repo_factory(app.state.config)
-            repo.delete_source(url)                 # 整份來源（所有塊）；每日流不動作
-            repo.close()
-        return RedirectResponse("/library", status_code=303)
-
-    @app.post("/library/reclassify")
-    async def library_reclassify(url: str = Form(""),
-                                 source_class: str = Form("ordinary")):
-        if (url or "").strip():
-            repo = app.state.repo_factory(app.state.config)
-            repo.set_source_class_by_url(url, source_class)  # 整份來源標解說文/改一般
-            repo.close()
-        return RedirectResponse("/library", status_code=303)
-
-    @app.get("/roots", response_class=HTMLResponse)
-    async def roots(request: Request, msg: str = ""):
-        repo = app.state.repo_factory(app.state.config)
-        candidates = repo.list_why_nodes("candidate")
-        anointed = repo.list_why_nodes("anointed")
-        provenance = repo.why_node_provenance()     # {why_node_id: conversation_id}（spec 023 由來連結）
-        source_provenance = repo.why_node_source_provenance()  # {wid: source_url}（spec 032 源→根因由來）
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="roots.html",
-            context={"candidates": candidates, "anointed": anointed, "msg": msg,
-                     "provenance": provenance, "source_provenance": source_provenance})
-
-    @app.post("/whynode/anoint")
-    async def whynode_anoint(id: int = Form(0), claim: str = Form("")):
-        if id:
-            repo = app.state.repo_factory(app.state.config)
-            repo.anoint_why_node(id, claim or None)    # 人冊封（可編輯）→ 正式吸引子（原則 5）
-            repo.close()
-        return RedirectResponse("/roots", status_code=303)
-
-    @app.post("/whynode/remove")
-    async def whynode_remove(id: int = Form(0)):
-        if id:
-            repo = app.state.repo_factory(app.state.config)
-            repo.delete_why_node(id)
-            repo.close()
-        return RedirectResponse("/roots", status_code=303)
 
     def _root_count():
         repo = app.state.repo_factory(app.state.config)
@@ -502,41 +297,6 @@ def create_app() -> FastAPI:
         gap = distill_gap(len(hist), lc, _NUDGE_MIN_TOTAL, _NUDGE_GAP)
         return {"from": gap[0], "to": gap[1]} if gap else None
 
-    @app.get("/chat", response_class=HTMLResponse)
-    async def chat_get(request: Request):
-        repo = app.state.repo_factory(app.state.config)
-        repo.purge_expired_temporary(_now_iso())        # 順手懶清（spec 028）
-        temps = [c for c in repo.list_conversations() if c.temporary]
-        repo.close()
-        recent = temps[0] if temps else None            # list_conversations 新到舊 → 最近暫存
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": [], "history_json": "[]", "root_count": _root_count(),
-                     "recent_temp": recent})
-
-    @app.post("/chat", response_class=HTMLResponse)
-    async def chat_post(request: Request, history: str = Form("[]"), message: str = Form(""),
-                        brainstorm: str = Form(""), last_captured: str = Form("0")):
-        """一輪對話：從你冊封的根因往下推、反逢迎的膜（原則 5/6）。對話不落庫、不自動改場。
-        brainstorm=1：純發想、不撒網找佐證（沙盒模式，principle 6）。"""
-        hist = _parse_history(history)
-        message = (message or "").strip()
-        err = None
-        if message:
-            try:
-                result = app.state.chat_factory(hist, message, brainstorm == "1")
-                text, sources = result if isinstance(result, tuple) else (result, [])
-                hist = hist + [{"role": "user", "content": message},
-                               {"role": "assistant", "content": text, "sources": sources}]
-            except (SourceUnavailable, OpenAIError) as e:        # 對話失敗→友善（教訓 3）
-                _log.error("場對話失敗", extra={"extra": {"reason": str(e)}})
-                hist = hist + [{"role": "user", "content": message}]
-                err = str(e)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "err": err, "root_count": _root_count(),
-                     "distill_nudge": _distill_nudge(hist, last_captured)})
 
     def _stream_gen(hist, message, bs):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。"""
@@ -584,47 +344,6 @@ def create_app() -> FastAPI:
             _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
             yield _sse({"type": "error", "text": str(e)})
 
-    @app.post("/chat/stream")
-    async def chat_stream(history: str = Form("[]"), message: str = Form(""),
-                          brainstorm: str = Form("")):
-        """串流版對話：分段進度＋逐 token 串流；只列被引用來源（沿用 _stream_gen）。"""
-        hist = _parse_history(history)
-        return StreamingResponse(
-            _stream_gen(hist, (message or "").strip(), brainstorm == "1"),
-            media_type="text/event-stream")
-
-    @app.post("/chat/branch", response_class=HTMLResponse)
-    async def chat_branch(request: Request, history: str = Form("[]"), draft: str = Form("")):
-        """從某句開新分支：另開一頁、載入 history 前綴＋把那句放回輸入框（原對話那頁不動）。"""
-        hist = _parse_history(history)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "draft": draft, "root_count": _root_count()})
-
-    @app.post("/chat/distill", response_class=HTMLResponse)
-    async def chat_distill(request: Request, history: str = Form("[]"),
-                           temp_id: str = Form(""), as_: str = Form("", alias="as")):
-        hist = _parse_history(history)
-        cands = err = None
-        try:
-            cands = app.state.distill_factory(hist)      # 一到多條（可能不同層次、標 already）
-        except (SourceUnavailable, OpenAIError) as e:
-            _log.error("蒸餾候選失敗", extra={"extra": {"reason": str(e)}})
-            err = str(e)
-        if as_ == "json":       # AJAX：原地渲染候選、不重載整頁（不跳離對話）
-            from fastapi.responses import JSONResponse
-            if err is not None:
-                return JSONResponse({"error": err}, status_code=502)
-            return JSONResponse({"candidates": [
-                {"claim": c.claim, "kind": c.kind, "ladder": c.ladder,
-                 "evidence_urls": c.evidence_urls, "already": c.already}
-                for c in (cands or [])]})
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": hist, "history_json": json.dumps(hist, ensure_ascii=False),
-                     "candidates": cands, "err": err, "root_count": _root_count(),
-                     "temp_id": temp_id})     # 傳遞暫存 id → 候選冊封時升永久（spec 028）
 
     def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id):
         """人閘門冊封（原則 5）：唯有人按此才寫 bedrock。冪等去重＋選用連對話由來（spec 023/028）。
@@ -661,34 +380,6 @@ def create_app() -> FastAPI:
         repo.close()
         return status, claim, msg
 
-    @app.post("/chat/anoint", response_class=HTMLResponse)
-    async def chat_anoint(request: Request, claim: str = Form(""),
-                          ladder: str = Form(""), evidence_urls: str = Form(""),
-                          save_convo: str = Form(""), history: str = Form("[]"),
-                          temp_id: str = Form(""), as_: str = Form("", alias="as")):
-        """人閘門：唯有此路由（人按）寫 bedrock（原則 5，沿用 _do_anoint）。"""
-        status, claim, msg = _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id)
-        if as_ == "json":       # AJAX：原地標記、不重載（不清空對話、不跳主頁）
-            from fastapi.responses import JSONResponse
-            return JSONResponse({"status": status, "claim": claim, "msg": msg})
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": [], "history_json": "[]", "anoint_msg": msg,
-                     "root_count": _root_count()})
-
-    @app.post("/chat/autosave")
-    async def chat_autosave(history: str = Form("[]"), temp_id: str = Form("")):
-        """自動暫存（spec 028）：每輪 upsert 一筆暫存、回 temp_id。best-effort——失敗回 null、不擋聊天。"""
-        from fastapi.responses import JSONResponse
-        messages = _parse_history(history)
-        try:
-            repo = app.state.repo_factory(app.state.config)
-            tid = repo.autosave_temporary(_temp_id(temp_id) or None, messages, _now_iso())
-            repo.close()
-        except Exception as e:  # noqa: BLE001 - autosave 不該擋聊天（教訓 3）
-            _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
-            tid = None
-        return JSONResponse({"temp_id": tid})
 
     # ══ /api：JSON/SSE 門面（re-platform 階段一，vision 階段 27）══
     # 共用上面的服務閉包（_stream_gen/_do_anoint/distill_factory/repo）——零邏輯重寫、行為天然一致。
@@ -749,6 +440,23 @@ def create_app() -> FastAPI:
             _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
             tid = None
         return _JSON({"temp_id": tid})
+
+    @app.post("/api/chat/save")
+    async def api_chat_save(request: Request):
+        """獨立存這段對話成永久（人閘門，spec 028）。有暫存→升永久同一筆；無→新建。空→不存。"""
+        b = await request.json()
+        messages = b.get("history") or []
+        if not messages:
+            return _JSON({"saved": False, "msg": "這段對話還是空的，沒有東西可存。"})
+        repo = app.state.repo_factory(app.state.config)
+        repo.purge_expired_temporary(_now_iso())
+        tid = _temp_id(str(b.get("temp_id") or ""))
+        if tid:                         # 有暫存→升永久同一筆＋生落點標題（不新增）
+            repo.promote_conversation(tid, _convo_title(messages))
+        else:
+            repo.save_conversation(_convo_title(messages), messages, None)
+        repo.close()
+        return _JSON({"saved": True, "msg": "已存下這段對話（可到『對話存檔』檢視）"})
 
     @app.post("/api/chat/export")
     async def api_chat_export(request: Request):
@@ -894,6 +602,14 @@ def create_app() -> FastAPI:
         at = (b.get("ingested_at") or "").strip() or _now_iso()[:10]
         return _ingest_result("url", url=url, title=b.get("title", ""),
                               note=b.get("note", ""), ingested_at=at)
+
+    @app.post("/api/ingest/youtube")
+    async def api_ingest_youtube(request: Request):
+        b = await request.json()
+        url = (b.get("url") or "").strip()
+        if not url:
+            return _JSON({"status": "empty", "count": 0})
+        return _ingest_result("youtube", url=url, title=b.get("title", ""))
 
     @app.post("/api/ingest/pdf")
     async def api_ingest_pdf(url: str = Form(""), title: str = Form(""),
@@ -1053,106 +769,6 @@ def create_app() -> FastAPI:
 
         app.mount("/app", _SpaStatic(directory=str(_DIST), html=True), name="spa")
 
-    @app.post("/conversations/{cid}/promote")
-    async def conversation_promote(cid: int):
-        """把暫存升為永久（spec 028，人按「轉永久」）：生落點標題、解除 TTL。"""
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        if conv is not None:
-            try:
-                t = (app.state.title_factory(conv.messages) or "").strip()
-            except Exception:  # noqa: BLE001
-                t = ""
-            repo.promote_conversation(cid, t or conv.title)
-        repo.close()
-        return RedirectResponse("/conversations", status_code=303)
-
-    @app.post("/chat/save", response_class=HTMLResponse)
-    async def chat_save(request: Request, history: str = Form("[]"), temp_id: str = Form("")):
-        """獨立存這段對話（spec 023，人閘門、原則 5）。有暫存→升永久同一筆（spec 028）。空對話→友善不存。"""
-        messages = _parse_history(history)
-        saved_msg = None
-        if messages:
-            repo = app.state.repo_factory(app.state.config)
-            repo.purge_expired_temporary(_now_iso())
-            tid = _temp_id(temp_id)
-            if tid:                         # 有暫存→升永久同一筆＋生落點標題（不新增）
-                repo.promote_conversation(tid, _convo_title(messages))
-            else:
-                repo.save_conversation(_convo_title(messages), messages, None)
-            repo.close()
-            saved_msg = "已存下這段對話（可到『對話存檔』檢視）"
-        else:
-            saved_msg = "這段對話還是空的，沒有東西可存。"
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": [], "history_json": "[]", "anoint_msg": saved_msg,
-                     "root_count": _root_count()})
-
-    @app.get("/conversations/dedupe", response_class=HTMLResponse)
-    async def dedupe_preview(request: Request):
-        """清理重複對話——預覽（唯讀、人閘門，原則 5）。算計畫、不動資料。"""
-        repo = app.state.repo_factory(app.state.config)
-        plan = repo.dedupe_plan()
-        repo.close()
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="dedupe.html",
-            context={"n_groups": plan.n_groups, "n_extra": plan.n_extra,
-                     "n_roots": plan.n_roots})
-
-    @app.post("/conversations/dedupe")
-    async def dedupe_apply(request: Request):
-        """清理重複對話——執行（人確認後）：同指紋併一份、根因重指、刪其餘（非破壞）。"""
-        repo = app.state.repo_factory(app.state.config)
-        summary = repo.apply_dedupe()
-        repo.close()
-        return RedirectResponse(
-            f"/conversations?cleaned=1&removed={summary['removed']}"
-            f"&repointed={summary['repointed']}", status_code=303)
-
-    @app.get("/conversations", response_class=HTMLResponse)
-    async def conversations_list(request: Request, cleaned: str = "", removed: str = "",
-                                 repointed: str = ""):
-        """存下的對話清單（唯讀；不入地基，原則 6）。cleaned=1 時顯示清理成功 flash。"""
-        repo = app.state.repo_factory(app.state.config)
-        repo.purge_expired_temporary(_now_iso())      # 懶清過期暫存（spec 028，不開背景）
-        convs = repo.list_conversations()
-        repo.close()
-        permanent = [c for c in convs if not c.temporary]
-        temporary = [c for c in convs if c.temporary]
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="conversations.html",
-            context={"conversations": permanent, "temporary": temporary,
-                     "cleaned": cleaned == "1", "removed": removed, "repointed": repointed})
-
-    @app.get("/conversations/{cid}", response_class=HTMLResponse)
-    async def conversation_view(request: Request, cid: int):
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        repo.close()
-        if conv is None:
-            return RedirectResponse("/conversations", status_code=303)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="conversation.html", context={"conv": conv})
-
-    @app.get("/conversations/{cid}/resume", response_class=HTMLResponse)
-    async def conversation_resume(request: Request, cid: int):
-        """以存下的對話接著聊：載進 live /chat（原存檔是快照、不動）；載進去後可從任一句編輯/開分支。"""
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        if conv is not None and conv.temporary:
-            repo.touch_conversation(cid, _now_iso())    # 接回暫存→重設計時（spec 028）
-        rc = len(repo.list_why_nodes("anointed"))
-        repo.close()
-        if conv is None:
-            return RedirectResponse("/conversations", status_code=303)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": conv.messages,
-                     "history_json": json.dumps(conv.messages, ensure_ascii=False),
-                     # 接回暫存→續聊 autosave 更新同一筆（永久的則不帶，續聊會另開暫存）
-                     "temp_id": cid if conv.temporary else "",
-                     "root_count": rc})
 
     # --- 匯出給 NotebookLM（spec 024）：純唯讀、只把沉澱物匯出，不注入回場（原則 6）---
     def _export_conversation(title: str, messages: list, as_: str) -> str:
@@ -1164,12 +780,6 @@ def create_app() -> FastAPI:
             return "\n".join(conversation_evidence_urls(messages))
         return conversation_to_markdown(title, messages)
 
-    @app.post("/chat/export")
-    async def chat_export(history: str = Form("[]"), title: str = Form(""),
-                          as_: str = Form("md", alias="as")):
-        """匯出當前（live）對話。history 由前端帶回；純唯讀、不落庫。"""
-        messages = _parse_history(history)
-        return PlainTextResponse(_export_conversation(title, messages, as_))
 
     @app.get("/conversations/{cid}/export")
     async def conversation_export(cid: int, as_: str = Query("md", alias="as"),
@@ -1185,69 +795,6 @@ def create_app() -> FastAPI:
             msgs = msgs[max(0, from_ - 1):to]
         return PlainTextResponse(_export_conversation(conv.title, msgs, as_))
 
-    @app.post("/conversations/{cid}/rename")
-    async def conversation_rename(cid: int, title: str = Form("")):
-        """手動改名（spec 027 US1，人閘門）。空標題→不改。"""
-        repo = app.state.repo_factory(app.state.config)
-        repo.rename_conversation(cid, title)
-        repo.close()
-        return RedirectResponse(f"/conversations/{cid}", status_code=303)
-
-    @app.post("/conversations/{cid}/retitle")
-    async def conversation_retitle(cid: int):
-        """重生自動標題（spec 027 US1，人按才做，反映落點）。失敗→不改、不崩。"""
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        if conv is not None:
-            try:
-                t = (app.state.title_factory(conv.messages) or "").strip()
-            except Exception as e:  # noqa: BLE001
-                _log.error("重生標題失敗", extra={"extra": {"reason": str(e)}})
-                t = ""
-            if t:
-                repo.rename_conversation(cid, t)
-        repo.close()
-        return RedirectResponse(f"/conversations/{cid}", status_code=303)
-
-    @app.post("/conversations/{cid}/segment", response_class=HTMLResponse)
-    async def conversation_segment(request: Request, cid: int):
-        """整理成章節（spec 027 US2，on-demand、不落庫）。失敗→整段一章、不崩。"""
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        repo.close()
-        if conv is None:
-            return RedirectResponse("/conversations", status_code=303)
-        try:
-            chapters = app.state.segment_factory(conv.messages)
-        except Exception as e:  # noqa: BLE001 - 切分失敗退整段
-            _log.error("章節切分失敗", extra={"extra": {"reason": str(e)}})
-            from ..chat.capture import normalize_chapters
-            chapters = normalize_chapters([], len(conv.messages))
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="conversation.html",
-            context={"conv": conv, "chapters": chapters})
-
-    @app.post("/conversations/{cid}/distill", response_class=HTMLResponse)
-    async def conversation_chapter_distill(request: Request, cid: int,
-                                           from_: int = Query(0, alias="from"),
-                                           to: int = Query(0)):
-        """整理某一章成重點（spec 027 US3）：切片→既有蒸餾→候選頁（人閘門、不自動冊封）。"""
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        repo.close()
-        if conv is None:
-            return RedirectResponse("/conversations", status_code=303)
-        slice_ = conv.messages[max(0, from_ - 1):to] if (from_ and to) else conv.messages
-        cands = err = None
-        try:
-            cands = app.state.distill_factory(slice_)
-        except (SourceUnavailable, OpenAIError) as e:
-            _log.error("整理章節失敗", extra={"extra": {"reason": str(e)}})
-            err = str(e)
-        return _TEMPLATES.TemplateResponse(
-            request=request, name="chat.html",
-            context={"messages": [], "history_json": json.dumps(slice_, ensure_ascii=False),
-                     "candidates": cands, "err": err, "root_count": _root_count()})
 
     @app.get("/roots/{wid}/export")
     async def root_export(wid: int, as_: str = Query("md", alias="as")):

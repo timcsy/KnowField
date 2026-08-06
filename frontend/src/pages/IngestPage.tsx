@@ -23,6 +23,7 @@ export default function IngestPage() {
   const [clean, setClean] = useState(false)
   // URL / PDF
   const [pageUrl, setPageUrl] = useState("")
+  const [ytUrl, setYtUrl] = useState("")
   const [pdfUrl, setPdfUrl] = useState("")
   const [pdfFile, setPdfFile] = useState<File | null>(null)
 
@@ -41,6 +42,9 @@ export default function IngestPage() {
   }
   async function urlPost(): Promise<Res> {
     return pages.ingestUrl({ url: pageUrl, note })
+  }
+  async function ytPost(): Promise<Res> {
+    return pages.ingestYoutube({ url: ytUrl })
   }
   async function pdfPost(): Promise<Res> {
     const fd = new FormData()
@@ -87,6 +91,14 @@ export default function IngestPage() {
         <div className="flex gap-2">
           <Input value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="貼網址（如 blog 文章）" className="flex-1" />
           <Button disabled={busy} onClick={() => run(urlPost)}>收進網頁</Button>
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">▶️ 收進 YouTube 逐字稿</h2>
+        <div className="flex gap-2">
+          <Input value={ytUrl} onChange={(e) => setYtUrl(e.target.value)} placeholder="貼 YouTube 網址（抓字幕；抓不到請改用貼上）" className="flex-1" />
+          <Button disabled={busy} onClick={() => run(ytPost)}>收進字幕</Button>
         </div>
       </section>
 

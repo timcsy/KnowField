@@ -1,6 +1,8 @@
-"""spec 028：暫時存檔（自動 upsert）＋TTL 懶清＋升永久（人閘門）＋不注入回場守衛。"""
+"""spec 028：暫時存檔（自動 upsert）＋TTL 懶清＋升永久（人閘門）＋不注入回場守衛。
 
-import json
+re-platform 退場（階段 27 里程碑五）：舊 Jinja 路由已退役，改走 /api（行為同一份服務閉包）。
+"""
+
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -22,13 +24,11 @@ def _iso(days_ago=0):
 class TestAutosave(unittest.TestCase):
     def test_upsert_one_row(self):                          # T005 逐輪 upsert 一筆
         db = temp_db()
-        app = build_app(db)
-        c = TestClient(app)
-        r1 = c.post("/chat/autosave", data={"history": json.dumps(_H1), "temp_id": ""})
-        tid = r1.json()["temp_id"]
+        c = TestClient(build_app(db))
+        tid = c.post("/api/chat/autosave", json={"history": _H1, "temp_id": None}).json()["temp_id"]
         self.assertTrue(tid)
-        c.post("/chat/autosave", data={"history": json.dumps(_H2), "temp_id": str(tid)})
-        c.post("/chat/autosave", data={"history": json.dumps(_H2), "temp_id": str(tid)})
+        c.post("/api/chat/autosave", json={"history": _H2, "temp_id": tid})
+        c.post("/api/chat/autosave", json={"history": _H2, "temp_id": tid})
         repo = Repository(db)
         convs = repo.list_conversations()
         self.assertEqual(len(convs), 1)                     # 只 1 筆
@@ -38,8 +38,7 @@ class TestAutosave(unittest.TestCase):
 
     def test_empty_no_save(self):                           # T005 空不存
         db = temp_db()
-        app = build_app(db)
-        r = TestClient(app).post("/chat/autosave", data={"history": "[]", "temp_id": ""})
+        r = TestClient(build_app(db)).post("/api/chat/autosave", json={"history": [], "temp_id": None})
         self.assertIsNone(r.json().get("temp_id"))
         self.assertEqual(len(Repository(db).list_conversations()), 0)
 
@@ -63,8 +62,7 @@ class TestLazyPurge(unittest.TestCase):
             " VALUES ('永久','[]',0,?,?)", (_iso(99), _iso(99)))
         repo.conn.commit()
         repo.close()
-        app = build_app(db)
-        TestClient(app).get("/conversations")               # 載入時懶清
+        TestClient(build_app(db)).get("/api/conversations")   # 載入時懶清
         titles = [c.title for c in Repository(db).list_conversations()]
         self.assertNotIn("過期暫存", titles)                # 過期暫存被刪
         self.assertIn("新暫存", titles)                     # 新暫存留
@@ -77,10 +75,8 @@ class TestPromote(unittest.TestCase):
         app = build_app(db)
         app.state.title_factory = lambda m: "落點標題"
         c = TestClient(app)
-        tid = c.post("/chat/autosave", data={"history": json.dumps(_H2),
-                                             "temp_id": ""}).json()["temp_id"]
-        c.post("/chat/save", data={"history": json.dumps(_H2), "temp_id": str(tid)},
-               follow_redirects=True)
+        tid = c.post("/api/chat/autosave", json={"history": _H2, "temp_id": None}).json()["temp_id"]
+        c.post("/api/chat/save", json={"history": _H2, "temp_id": tid})
         repo = Repository(db)
         convs = repo.list_conversations()
         self.assertEqual(len(convs), 1)                     # 不新增
@@ -93,9 +89,8 @@ class TestPromote(unittest.TestCase):
         app = build_app(db)
         app.state.title_factory = lambda m: "落點X"
         c = TestClient(app)
-        tid = c.post("/chat/autosave", data={"history": json.dumps(_H2),
-                                             "temp_id": ""}).json()["temp_id"]
-        c.post(f"/conversations/{tid}/promote", follow_redirects=True)
+        tid = c.post("/api/chat/autosave", json={"history": _H2, "temp_id": None}).json()["temp_id"]
+        c.post(f"/api/conversations/{tid}/promote")
         self.assertFalse(Repository(db).get_conversation(tid).temporary)
 
     def test_anoint_all_share_one_conversation(self):       # 全部精選：多條候選連同存→共用一份由來
@@ -103,12 +98,10 @@ class TestPromote(unittest.TestCase):
         app = build_app(db)
         app.state.title_factory = lambda m: "共用由來"
         c = TestClient(app)
-        tid = c.post("/chat/autosave", data={"history": json.dumps(_H2),
-                                             "temp_id": ""}).json()["temp_id"]
+        tid = c.post("/api/chat/autosave", json={"history": _H2, "temp_id": None}).json()["temp_id"]
         for claim in ("根因A", "根因B", "根因C"):             # 逐條精選（＝前端「全部精選」批次做的事）
-            c.post("/chat/anoint", data={"claim": claim, "ladder": "", "evidence_urls": "",
-                                         "save_convo": "1", "history": json.dumps(_H2),
-                                         "temp_id": str(tid)}, follow_redirects=True)
+            c.post("/api/chat/anoint", json={"claim": claim, "ladder": "", "evidence_urls": "",
+                                             "save_convo": True, "history": _H2, "temp_id": tid})
         repo = Repository(db)
         self.assertEqual(len(repo.list_conversations()), 1)         # 只一份對話（去重＋同筆升永久）
         anointed = repo.list_why_nodes("anointed")
@@ -123,11 +116,9 @@ class TestPromote(unittest.TestCase):
         app = build_app(db)
         app.state.title_factory = lambda m: "由來標題"
         c = TestClient(app)
-        tid = c.post("/chat/autosave", data={"history": json.dumps(_H2),
-                                             "temp_id": ""}).json()["temp_id"]
-        c.post("/chat/anoint", data={"claim": "根因A", "ladder": "", "evidence_urls": "",
-                                     "save_convo": "1", "history": json.dumps(_H2),
-                                     "temp_id": str(tid)}, follow_redirects=True)
+        tid = c.post("/api/chat/autosave", json={"history": _H2, "temp_id": None}).json()["temp_id"]
+        c.post("/api/chat/anoint", json={"claim": "根因A", "ladder": "", "evidence_urls": "",
+                                         "save_convo": True, "history": _H2, "temp_id": tid})
         repo = Repository(db)
         self.assertEqual(len(repo.list_conversations()), 1)          # 同一筆、不新增
         self.assertFalse(repo.get_conversation(tid).temporary)      # 升永久
@@ -139,10 +130,9 @@ class TestPromote(unittest.TestCase):
 class TestGuardNotInjected(unittest.TestCase):
     def test_temporary_not_in_field_prompt(self):           # T011 暫存不注入回場（原則 6）
         db = temp_db()
-        app = build_app(db)
         secret = "SECRET_FANTASY_暫存不該進場"
-        TestClient(app).post("/chat/autosave", data={
-            "history": json.dumps([{"role": "user", "content": secret}]), "temp_id": ""})
+        TestClient(build_app(db)).post("/api/chat/autosave", json={
+            "history": [{"role": "user", "content": secret}], "temp_id": None})
         from knowfield.chat.field_chat import build_field_system_prompt
         repo = Repository(db)
         roots = repo.list_why_nodes("anointed")

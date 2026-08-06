@@ -50,6 +50,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history, temp_id }),
     }).then(json),
+  save: (history: Message[], temp_id: number | null): Promise<{ saved: boolean; msg: string }> =>
+    fetch("/api/chat/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history, temp_id }),
+    }).then(json),
 }
 
 // ── 其餘頁（re-platform 里程碑二）──
@@ -113,6 +119,8 @@ export const pages = {
     post("/api/ingest/paste", b),
   ingestUrl: (b: { url: string; title?: string; note?: string; ingested_at?: string }) =>
     post("/api/ingest/url", b),
+  ingestYoutube: (b: { url: string; title?: string }): Promise<{ status: string; count: number; err?: string }> =>
+    post("/api/ingest/youtube", b),
   conversations: (): Promise<{ permanent: ConvRow[]; temporary: ConvRow[] }> =>
     fetch("/api/conversations").then(json),
   conversation: (id: number, resume = false): Promise<{

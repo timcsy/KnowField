@@ -119,12 +119,13 @@ class TestApiChat(unittest.TestCase):
         self.assertIn("temp_id", r)
 
 
-class TestStrangler(unittest.TestCase):
-    def test_old_jinja_chat_still_works(self):
-        """strangler：舊 Jinja /chat 在 re-platform 期間照跑（不破）。"""
-        r = TestClient(build_app(temp_db())).get("/chat")
-        self.assertEqual(r.status_code, 200)
-        self.assertIn("跟你的知識庫聊", r.text)
+class TestOldJinjaRetired(unittest.TestCase):
+    def test_old_jinja_chat_gone(self):
+        """退場（階段 27 里程碑五）：舊 Jinja /chat 已退役；門面全在 /app。"""
+        c = TestClient(build_app(temp_db()))
+        self.assertEqual(c.get("/chat").status_code, 404)
+        r = c.get("/", follow_redirects=False)
+        self.assertEqual(r.headers["location"], "/app/")
 
 
 @unittest.skipUnless(_DIST.is_dir(), "frontend 未 build（frontend/dist 不在）")

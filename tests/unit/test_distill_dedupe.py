@@ -4,7 +4,6 @@
 離線 stub 後端、零外呼可測（教訓 1）。
 """
 
-import json
 import unittest
 
 from fastapi.testclient import TestClient
@@ -54,39 +53,6 @@ class TestDistillMarksAlready(unittest.TestCase):
         by = {c.claim: c.already for c in cands}
         self.assertTrue(by["殘差用加法讓梯度直通"])     # 已收→標記
         self.assertFalse(by["全新的一條"])              # 新的→不標
-
-
-class TestAnointIdempotent(unittest.TestCase):
-    def test_same_claim_twice_one_root(self):       # 精選同主張兩次→只一條核心理解
-        app = build_app(temp_db())
-        c = TestClient(app)
-        for _ in range(2):
-            r = c.post("/chat/anoint", data={"claim": "殘差用加法讓梯度直通", "ladder": "",
-                                             "evidence_urls": "", "as": "json"})
-            self.assertEqual(r.status_code, 200)
-        second = c.post("/chat/anoint", data={"claim": " 殘差用加法讓梯度直通 ", "ladder": "",
-                                              "evidence_urls": "", "as": "json"})
-        self.assertEqual(second.json()["status"], "exists")     # 正規化後判為已存在
-        repo = Repository(app.state.config.db_path)
-        anointed = [n for n in repo.list_why_nodes("anointed")
-                    if norm_claim(n.claim) == norm_claim("殘差用加法讓梯度直通")]
-        repo.close()
-        self.assertEqual(len(anointed), 1)              # 不重複
-
-
-class TestDistillJson(unittest.TestCase):
-    def test_json_candidates_with_already(self):    # AJAX：回 JSON 候選、帶 already 旗標
-        app = build_app(temp_db())
-        app.state.distill_factory = lambda hist: __import__(
-            "knowfield.chat.field_chat", fromlist=["_parse_candidates"]
-        )._parse_candidates("主張：甲\n主張：乙")
-        c = TestClient(app)
-        r = c.post("/chat/distill", data={"history": json.dumps(_H), "as": "json"})
-        self.assertEqual(r.status_code, 200)
-        cands = r.json()["candidates"]
-        self.assertEqual([x["claim"] for x in cands], ["甲", "乙"])
-        self.assertIn("already", cands[0])
-
 
 if __name__ == "__main__":
     unittest.main()

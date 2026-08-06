@@ -108,6 +108,12 @@ export default function ChatPage() {
   const [flash, setFlash] = useState<string | null>(null)
   function toast(t: string) { setFlash(t); setTimeout(() => setFlash(null), 2200) }
 
+  async function saveConversation() {
+    const r = await api.save(messages, tempId.current)
+    if (r.saved) tempId.current = null   // 已升永久，續聊會另開暫存
+    toast(r.msg)
+  }
+
   async function copyChat(as: "md" | "urls") {
     const r = await fetch("/api/chat/export", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -231,6 +237,8 @@ export default function ChatPage() {
             <>
               <button onClick={distill} disabled={busy}
                       className="text-xs text-muted-foreground hover:underline">🧵 整理成重點</button>
+              <button onClick={saveConversation} disabled={busy}
+                      className="text-xs text-muted-foreground hover:underline">💾 存下這段</button>
               <button onClick={() => copyChat("md")}
                       className="text-xs text-muted-foreground hover:underline">📋 複製 Markdown</button>
               <button onClick={() => copyChat("urls")}

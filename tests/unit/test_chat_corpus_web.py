@@ -4,7 +4,6 @@
 守衛靈魂＝收進內容是「證言」、絕不進 build_field_system_prompt 的地基、不自動變核心理解（原則 6）。
 """
 
-import json
 import unittest
 from types import SimpleNamespace
 
@@ -86,21 +85,6 @@ class TestPurityGuard(unittest.TestCase):
         joined = "\n".join(m["content"] for m in msgs)
         self.assertIn(secret, joined)                       # 有出現（在證言塊）
         self.assertNotIn(secret, msgs[0]["content"])        # 但地基（system[0]）不含它
-
-
-class TestAskRetired(unittest.TestCase):
-    """US3：問答併入聊天、退場。"""
-
-    def test_ask_redirects_to_chat(self):                   # /ask → 302 /chat
-        c = TestClient(build_app(temp_db()))
-        r = c.get("/ask", follow_redirects=False)
-        self.assertEqual(r.status_code, 302)
-        self.assertEqual(r.headers["location"], "/chat")
-
-    def test_nav_has_no_ask(self):                          # 導覽不含「問答」入口
-        r = TestClient(build_app(temp_db())).get("/chat")
-        self.assertNotIn(">問答<", r.text)
-
 
 class TestBestEffort(unittest.TestCase):
     """US-polish：檢索失敗／無語料 → 聊天照跑，不 500（教訓 3）。"""

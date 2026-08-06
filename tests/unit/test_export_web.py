@@ -1,6 +1,5 @@
 """spec 024：NotebookLM 匯出端點——text/plain、md/urls、404、唯讀守衛（原則 6）。"""
 
-import json
 import unittest
 
 from fastapi.testclient import TestClient
@@ -21,10 +20,10 @@ def _now():
 
 
 class TestChatExport(unittest.TestCase):
-    def test_chat_export_md(self):                          # T005
+    def test_chat_export_md(self):                          # T005（re-platform：改走 /api）
         app = build_app(temp_db())
-        r = TestClient(app).post("/chat/export", data={
-            "history": json.dumps(_HIST), "as": "md", "title": "attention 由來"})
+        r = TestClient(app).post("/api/chat/export", json={
+            "history": _HIST, "as": "md", "title": "attention 由來"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.headers["content-type"].startswith("text/plain"))
         self.assertIn("# attention 由來", r.text)
@@ -33,14 +32,14 @@ class TestChatExport(unittest.TestCase):
 
     def test_chat_export_urls(self):                        # T010
         app = build_app(temp_db())
-        r = TestClient(app).post("/chat/export", data={
-            "history": json.dumps(_HIST), "as": "urls"})
+        r = TestClient(app).post("/api/chat/export", json={
+            "history": _HIST, "as": "urls"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.text.strip().splitlines(), ["https://a/1", "https://a/2"])
 
     def test_chat_export_empty_history_ok(self):            # T005 空不崩
         app = build_app(temp_db())
-        r = TestClient(app).post("/chat/export", data={"history": "[]", "as": "urls"})
+        r = TestClient(app).post("/api/chat/export", json={"history": [], "as": "urls"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.text.strip(), "")
 
@@ -122,8 +121,8 @@ class TestReadOnlyGuard(unittest.TestCase):
         client = TestClient(app)
         client.get("/conversations/1/export?as=md")
         client.get(f"/roots/{wid}/export?as=md")
-        client.post("/chat/export", data={"history": json.dumps([
-            {"role": "user", "content": secret}]), "as": "md"})
+        client.post("/api/chat/export", json={"history": [
+            {"role": "user", "content": secret}], "as": "md"})
 
         # 匯出後 DB 內容不變
         repo = Repository(db)
