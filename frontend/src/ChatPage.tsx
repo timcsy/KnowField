@@ -6,6 +6,9 @@ import { Sources, FoundExtra } from "@/components/Sources"
 import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
+
+type Chapter = { title: string; start: number; end: number }
 
 // 通知側欄（Layout 內）重載對話歷史
 const notifyConversations = () => window.dispatchEvent(new Event("kf-conversations-changed"))
@@ -22,6 +25,10 @@ export default function ChatPage() {
   const [candDone, setCandDone] = useState<Record<number, string>>({})
   const [saveConvo, setSaveConvo] = useState(false)
   const tempId = useRef<number | null>(null)
+  const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
+  const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
+  const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
+  const focusRef = useRef<HTMLDetailsElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [sp, setSp] = useSearchParams()
 
@@ -29,29 +36,47 @@ export default function ChatPage() {
     api.state().then((s) => setRootCount(s.root_count)).catch(() => {})
   }, [])
 
-  async function loadConversation(id: number) {
+  async function loadConversation(id: number, from = 0) {
     const c = await pages.conversation(id, true)
     if (!c.found) return
     setMessages(c.messages)
+    baseCount.current = c.messages.length
+    setFocusFrom(from)
     tempId.current = c.temporary ? c.id : null
     setCandidates(null); setStreaming(null); setStage(null)
+    // 載章節（持久化）：多章才折疊
+    pages.segment(id).then((r) =>
+      setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
-    setMessages([]); tempId.current = null
+    setMessages([]); tempId.current = null; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
   }
 
-  // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回存下的對話
+  // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回（?from&to＝核心理解定位）
   useEffect(() => {
     if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
     const rid = Number(sp.get("resume") || 0)
-    if (rid) loadConversation(rid).finally(() => { sp.delete("resume"); setSp(sp, { replace: true }) })
+    if (rid) {
+      const from = Number(sp.get("from") || 0)
+      loadConversation(rid, from).finally(() => {
+        sp.delete("resume"); sp.delete("from"); sp.delete("to"); setSp(sp, { replace: true })
+      })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sp, setSp])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streaming, stage])
+
+  // 核心理解定位進來→展開它出處的那一章、捲到它
+  useEffect(() => {
+    if (focusFrom && focusRef.current) {
+      focusRef.current.open = true
+      focusRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [chapters, focusFrom])
 
   async function send() {
     const msg = input.trim()
@@ -131,6 +156,22 @@ export default function ChatPage() {
   const empty = messages.length === 0 && streaming === null && stage === null
   const freshCands = (candidates || []).filter((c) => !c.already)
 
+  const renderMsg = (m: Message, i: number) =>
+    m.role === "user" ? (
+      <div key={i} className="group flex items-start justify-end gap-1">
+        <button onClick={() => editMessage(i)} title="從這句重問（這串會改）"
+                className="mt-1 text-xs opacity-0 transition hover:text-foreground group-hover:opacity-100">✏️</button>
+        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">{m.content}</div>
+      </div>
+    ) : (
+      <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
+        <Markdown text={m.content} prefix={`m${i}`} />
+        <Sources sources={m.sources || []} prefix={`m${i}`} />
+        <FoundExtra extra={m.found_extra || []} />
+      </div>
+    )
+  const lastCh = chapters && chapters.length > 1 ? chapters[chapters.length - 1] : null
+
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col px-4 py-3 md:px-8">
       <div className="shrink-0 pb-2">
@@ -151,22 +192,33 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="group flex items-start justify-end gap-1">
-              <button onClick={() => editMessage(i)} title="從這句重問（這串會改）"
-                      className="mt-1 text-xs opacity-0 transition hover:text-foreground group-hover:opacity-100">✏️</button>
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">
-                {m.content}
-              </div>
-            </div>
-          ) : (
-            <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
-              <Markdown text={m.content} prefix={`m${i}`} />
-              <Sources sources={m.sources || []} prefix={`m${i}`} />
-              <FoundExtra extra={m.found_extra || []} />
-            </div>
-          ),
+        {lastCh && chapters ? (
+          <>
+            {/* 舊訊息折疊成章節（除最後一章），預設收起；核心理解定位進來→展開出處章 */}
+            {chapters.slice(0, -1).map((ch, ci) => {
+              const isFocus = focusFrom > 0 && ch.start <= focusFrom && ch.end >= focusFrom
+              return (
+                <details key={`ch${ci}`} ref={isFocus ? focusRef : undefined}
+                         className={cn("group rounded-xl bg-card shadow-sm", isFocus && "ring-2 ring-primary/50")}>
+                  <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium hover:bg-muted/40">
+                    <span className="mr-1 text-muted-foreground group-open:hidden">▸</span>
+                    <span className="mr-1 hidden text-muted-foreground group-open:inline">▾</span>
+                    {ch.title}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">第 {ch.start}–{ch.end} 則</span>
+                    {isFocus && <span className="ml-2 text-xs font-normal text-primary">← 出處</span>}
+                  </summary>
+                  <div className="space-y-3 border-t px-4 py-3">
+                    {messages.slice(ch.start - 1, ch.end).map((m, j) => renderMsg(m, ch.start - 1 + j))}
+                  </div>
+                </details>
+              )
+            })}
+            {/* 最後一章 ＋ 續聊的新訊息：展開、線性（正常接著聊） */}
+            <div className="px-1 pt-1 text-xs text-muted-foreground">🔖 {lastCh.title}（最新，接著聊）</div>
+            {messages.slice(lastCh.start - 1).map((m, i) => renderMsg(m, lastCh.start - 1 + i))}
+          </>
+        ) : (
+          messages.map(renderMsg)
         )}
 
         {streaming !== null && (
