@@ -99,7 +99,7 @@ def create_app() -> FastAPI:
         repo = app.state.repo_factory(cfg)
         try:
             svc = ContentIngestService(repo, make_embedder(cfg), app.state.doc_converter,
-                                       chat_backend=_chat_backend())
+                                       chat_backend=_chat_backend(), media_dir=cfg.media_dir)
             note, at = kw.get("note", ""), kw.get("ingested_at", "")
             if kind == "text":
                 return svc.ingest_text(kw["text"], kw.get("title", ""),
@@ -822,6 +822,11 @@ def create_app() -> FastAPI:
             return PlainTextResponse("\n".join(dedup_urls(node.evidence_urls)))
         return PlainTextResponse(
             why_node_to_markdown(node.claim, node.ladder, node.evidence_urls))
+
+    # 收進圖片在地化：serve 下載的圖（放 SPA catch-all 之前；check_dir=False→目錄還沒建也不炸）
+    from fastapi.staticfiles import StaticFiles as _StaticFiles
+    app.mount("/media", _StaticFiles(directory=str(Path(app.state.config.media_dir).resolve()),
+                                     check_dir=False), name="media")
 
     # SPA 掛在 / 當 catch-all（放最後，讓上面所有實體路由先比對）：非檔案→fallback index.html
     if _DIST.is_dir():

@@ -43,6 +43,16 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("![一隻貓](https://pic.example/cat.jpg)", md)
         self.assertIn("![](https://cdn.example/dog.png)", md)   # // 補成 https:
 
+    def test_relative_image_resolved_with_base_url(self):
+        # 相對路徑圖片（多數部落格用法）：有 base_url→接成絕對；無 base_url→丟（無法解析）
+        html = ('<article><p>看圖：</p><img src="img/diagram.png" alt="示意圖">'
+                '<img src="../fig/chart.svg"></article>')
+        _, md = extract_article_markdown(html, base_url="https://blog.example/posts/2024-x/")
+        self.assertIn("![示意圖](https://blog.example/posts/2024-x/img/diagram.png)", md)
+        self.assertIn("(https://blog.example/posts/fig/chart.svg)", md)   # ../ 正確上溯
+        _, md2 = extract_article_markdown(html)                # 沒 base_url→相對圖丟（維持舊行為）
+        self.assertNotIn("diagram.png", md2)
+
     def test_equation_images_to_latex(self):
         # 知乎式公式圖：tex 在 URL 的 ?tex= 或 alt；行內數學留句中、獨立成 $$區塊$$
         html = ('<article><p>向量場 <img src="//www.zhihu.com/equation?tex=u_t%28x%29" '

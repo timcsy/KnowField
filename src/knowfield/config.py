@@ -42,6 +42,7 @@ class Config:
     embed_model: str = "text-embedding-3-small"
     ocr_model: str = "azure/mistral-document-ai-2512"   # PDF→markdown 文件轉檔（spec 030）
     article_lang: str = "繁體中文"      # 消化散文的輸出語言（預設繁中，可由 --lang 指定）
+    media_dir: str = "media"            # 收進圖片在地化的存放目錄（下載外連圖→本地 /media serve）
 
     # RAG 問答（spec 005）
     rag_top_k: int = 6                   # 取回條目數上限
@@ -85,6 +86,7 @@ class Config:
             embed_model=os.environ.get("KNOWFIELD_EMBED_MODEL", "text-embedding-3-small"),
             ocr_model=os.environ.get("KNOWFIELD_OCR_MODEL", "azure/mistral-document-ai-2512"),
             article_lang=os.environ.get("KNOWFIELD_LANG", "繁體中文"),
+            media_dir=os.environ.get("KNOWFIELD_MEDIA", "media"),
             rag_top_k=int(os.environ.get("KNOWFIELD_RAG_TOPK", "6")),
             # 門檻依 embedder 尺度校準（experience 教訓 4）：真實嵌入 cosine 帶高、離線雜湊帶低。
             # 真跑實測（text-embedding-3-small）：命中≈0.6、鬆散相關 0.1–0.25、無關問題≤0.22。

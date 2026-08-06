@@ -76,11 +76,13 @@ def store_chunks(repo, embedder, title: str, url: str, chunks: list[str],
 
 
 class ContentIngestService:
-    def __init__(self, repo, embedder, converter=None, chat_backend=None) -> None:
+    def __init__(self, repo, embedder, converter=None, chat_backend=None,
+                 media_dir: str = "") -> None:
         self.repo = repo
         self.embedder = embedder
         self.converter = converter        # DocConverter（PDF→markdown）；貼上不需要
         self.chat_backend = chat_backend  # 選用 LLM 清理（spec 031 US4）
+        self.media_dir = media_dir        # 非空＝下載外連圖到本地（否則圖維持外連 URL）
 
     def _resolve_title(self, given: str, text: str, extracted: str = "") -> str:
         """標題優先序：人給 > 文章原標題（h1/<title>）> 內文第一個標題 > AI 忠實抽 > 首行。"""
@@ -94,6 +96,9 @@ class ContentIngestService:
                          note: str = "", ingested_at: str = "") -> ContentIngestResult:
         if self.repo.seed_exists(url) is not None:        # 同來源已收→不重複增生
             return ContentIngestResult(status="exists", title=title)
+        if self.media_dir:                                # 外連圖→下載在地化（抓不到保留外連）
+            from .media import localize_images
+            md, _ = localize_images(md or "", self.media_dir)
         chunks = chunk_markdown(md or "")
         if not chunks:
             return ContentIngestResult(status="empty")
@@ -109,7 +114,7 @@ class ContentIngestService:
         etitle = ""
         if (html or "").strip():
             from .web import extract_article_markdown
-            etitle, md = extract_article_markdown(html)
+            etitle, md = extract_article_markdown(html, base_url=(source_url or "").strip())
             if md.strip():
                 text = md
         text = text or ""
@@ -131,7 +136,7 @@ class ContentIngestService:
         if not url:
             return ContentIngestResult(status="empty")
         html = (http_get or default_http_get)(url)          # 抓不到→SourceUnavailable（邊界攔）
-        extracted_title, md = extract_article_markdown(html)
+        extracted_title, md = extract_article_markdown(html, base_url=url)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, extracted_title)

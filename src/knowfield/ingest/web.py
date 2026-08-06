@@ -32,8 +32,9 @@ _BLOCK = _HEAD | {"p", "li", "blockquote"}
 
 
 class _ArticleMarkdown(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, base_url: str = "") -> None:
         super().__init__()
+        self.base = base_url       # 頁面網址：把相對圖片 src 接成絕對（否則相對圖被丟）
         self.title = ""            # <title> 標籤
         self.doc_h1 = ""           # 第一個 <h1>＝文章標題（全網慣例；常在 <header> 內，仍要擷取）
         self.blocks: list[str] = []
@@ -111,14 +112,17 @@ class _ArticleMarkdown(HTMLParser):
             if tex:
                 self._emit_tex(tex)
                 return
-            # 一般圖片：只收外連 URL（短）；data: base64（如截圖）會塞爆 embedding，先擋掉
-            if src and src.startswith(("http", "//")):
+            # 一般圖片：外連 URL 收；相對路徑靠 base_url 接成絕對；data: base64（截圖）會塞爆 embedding、擋掉
+            if src and not src.startswith("data:"):
                 if src.startswith("//"):
                     src = "https:" + src
-                self._flush()
-                if self.blocks and self.blocks[-1].endswith(f"]({src})"):
-                    return                        # 連續同圖去重（知乎 預覽圖+真圖）
-                self.blocks.append(f"![{(a.get('alt') or '').strip()}]({src})")
+                elif not src.startswith("http"):
+                    src = urllib.parse.urljoin(self.base, src) if self.base else ""  # 相對→絕對（需 base）
+                if src.startswith("http"):
+                    self._flush()
+                    if self.blocks and self.blocks[-1].endswith(f"]({src})"):
+                        return                    # 連續同圖去重（知乎 預覽圖+真圖）
+                    self.blocks.append(f"![{(a.get('alt') or '').strip()}]({src})")
             return
         a = dict(attrs)
         dtex = (a.get("data-tex") or a.get("data-formula") or "").strip()
@@ -171,9 +175,9 @@ class _ArticleMarkdown(HTMLParser):
             self._cur.append(data)
 
 
-def extract_article_markdown(html: str) -> tuple[str, str]:
-    """回 (title, markdown)。抽不到→("", "")；不崩（best-effort）。"""
-    p = _ArticleMarkdown()
+def extract_article_markdown(html: str, base_url: str = "") -> tuple[str, str]:
+    """回 (title, markdown)。抽不到→("", "")；不崩（best-effort）。base_url＝把相對圖片接成絕對。"""
+    p = _ArticleMarkdown(base_url)
     try:
         p.feed(html or "")
     except Exception:  # noqa: BLE001 - 壞 HTML 不該炸收進
