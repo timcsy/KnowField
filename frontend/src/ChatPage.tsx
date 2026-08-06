@@ -228,14 +228,14 @@ export default function ChatPage() {
   const showNudge = uncharted >= 8 && !nudgeDismissed && !busy && streaming === null
 
   return (
-    <div className="flex h-full justify-center gap-6 px-4 py-3">
-      {/* 章節大綱：聊天主欄左側的留白（大螢幕、有多章才出現）——點章跳到那章 */}
+    <div className="relative flex h-full px-4 py-3">
+      {/* 章節大綱：釘在主內容區最左邊（靠導覽側欄）；聊天欄仍置中。大螢幕、有多章才出現 */}
       {hasChapters && chapters && (
-        <aside className="hidden w-48 shrink-0 xl:block">
-          <div className="sticky top-3 space-y-0.5 pt-14">
+        <aside className="absolute left-1 top-14 hidden w-48 xl:block">
+          <div className="space-y-0.5">
             <div className="mb-1 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">本對話章節</div>
             {chapters.map((ch, ci) => (
-              <button key={ci} onClick={() => jumpToChapter(ci)}
+              <button key={ci} onClick={() => jumpToChapter(ci)} title={ch.title}
                       className={cn("block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted",
                         ci === openIdx ? "font-medium text-foreground" : "text-muted-foreground")}>
                 🔖 {ch.title}
@@ -245,7 +245,7 @@ export default function ChatPage() {
         </aside>
       )}
 
-      <div className="flex h-full w-full max-w-3xl flex-col">
+      <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
       <div className="shrink-0 pb-2">
         <h1 className="text-lg font-bold">🧠 跟你的知識庫聊</h1>
         <p className="text-xs text-muted-foreground">
