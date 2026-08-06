@@ -37,6 +37,8 @@ class WhyNode:
     created_at: str = ""
     ladder: list = field(default_factory=list)        # why 階梯：表面→bedrock（每層一句）
     kind: str = ""                                    # 認識論層次：已證實/推論/類比/猜想（vision 階段 28）
+    src_from: int = 0                                 # 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）
+    src_to: int = 0
 
 
 @dataclass

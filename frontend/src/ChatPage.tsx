@@ -97,6 +97,7 @@ export default function ChatPage() {
       claim: c.claim, kind: c.kind, ladder: c.ladder.join("\n"),
       evidence_urls: c.evidence_urls.join(", "),
       save_convo: saveConvo, history: messages, temp_id: tempId.current,
+      src_from: c.src_from, src_to: c.src_to,
     })
     setCandDone((d) => ({ ...d, [i]: r.status === "exists" ? "➖ 已收過（沒重複收）" : "✅ 已精選" }))
     if (r.status === "created") setRootCount((n) => n + 1)

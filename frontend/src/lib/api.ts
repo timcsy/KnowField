@@ -12,6 +12,8 @@ export type Candidate = {
   ladder: string[]
   evidence_urls: string[]
   already: boolean
+  src_from?: number       // 出處對話則數範圍（階段29第2階段）
+  src_to?: number
 }
 export type ChatState = {
   root_count: number
@@ -36,6 +38,8 @@ export const api = {
     save_convo?: boolean
     history?: Message[]
     temp_id?: number | null
+    src_from?: number
+    src_to?: number
   }): Promise<{ status: string; claim: string; msg: string | null }> =>
     fetch("/api/chat/anoint", {
       method: "POST",
@@ -68,6 +72,8 @@ export type WhyNode = {
   touchstones: { name: string; passed: boolean }[]
   fog_flag: boolean
   kind: string          // 認識論層次：已證實/推論/類比/猜想
+  src_from: number      // 出處對話則數範圍（階段29第2階段）
+  src_to: number
 }
 export type RootsData = {
   anointed: WhyNode[]

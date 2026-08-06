@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -48,6 +49,7 @@ _DISTILL = """把以下對話裡**值得長期留著的重點**整理出來—�
 - <為什麼，第一層>
 - <再往下一層>
 佐證：<相關網址，逗號分隔；沒有就留空>
+出處：<這條主要來自對話的第幾則（看每則開頭的 [n]），如 3-6；只有一則就寫 5；不確定就留空>
 只輸出這些區塊，不要別的話。"""
 
 
@@ -77,8 +79,10 @@ class CandidateDraft:
     claim: str = ""
     ladder: list[str] = field(default_factory=list)
     evidence_urls: list[str] = field(default_factory=list)
-    kind: str = ""          # 層次：能推導/證明 ｜ 觀察到的規律 ｜ 類比/發想
+    kind: str = ""          # 認識論層次：已證實/推論/類比/猜想（vision 階段 28）
     already: bool = False    # 這條的主張已在核心理解裡（精選時標「已收過」、不重複收）
+    src_from: int = 0        # 出處：對話第幾則（階段29第2階段，1-indexed；0=未知）
+    src_to: int = 0
 
 
 def build_field_system_prompt(roots) -> str:
@@ -129,6 +133,12 @@ def _parse_candidates(text: str) -> list[CandidateDraft]:
                 u = u.strip()
                 if u.startswith("http"):
                     cur.evidence_urls.append(u)
+        elif line.startswith("出處："):
+            in_ladder = False
+            nums = re.findall(r"\d+", line[len("出處："):])   # 階段29第2階段：出處則數範圍
+            if nums:
+                cur.src_from = int(nums[0])
+                cur.src_to = int(nums[-1])
         elif in_ladder and line.startswith("-"):
             item = line.lstrip("-").strip()
             if item:
@@ -279,7 +289,8 @@ class FieldChat:
 
     def distill(self, history: list[dict], roots) -> list[CandidateDraft]:
         """蒸餾出一到多條值得留的重點（可能不同層次）。已在核心理解（roots）的標 already。"""
-        convo = "\n".join(f"{m.get('role')}：{m.get('content')}" for m in history)
+        convo = "\n".join(f"[{i + 1}] {m.get('role')}：{m.get('content')}"
+                          for i, m in enumerate(history))   # 帶則號→AI 標出處（階段29第2階段）
         messages = [{"role": "system", "content": _DISTILL},
                     {"role": "user", "content": convo}]
         cands = _parse_candidates(self.backend.reply(messages))

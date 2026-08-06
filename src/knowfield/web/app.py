@@ -345,7 +345,8 @@ def create_app() -> FastAPI:
             yield _sse({"type": "error", "text": str(e)})
 
 
-    def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id, kind=""):
+    def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id, kind="",
+                   src_from=0, src_to=0):
         """人閘門冊封（原則 5）：唯有人按此才寫 bedrock。冪等去重＋選用連對話由來（spec 023/028）。
         回 (status, claim, msg)。/chat/anoint 與 /api/chat/anoint 共用（行為一份、天然一致）。"""
         from ..chat.capture import norm_claim
@@ -363,7 +364,8 @@ def create_app() -> FastAPI:
             status = "exists"
             msg = f"這條你已經收過了：「{claim[:40]}」（沒有重複新增）"
         else:
-            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps, kind=kind)
+            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps, kind=kind,
+                                    src_from=src_from, src_to=src_to)
             repo.anoint_why_node(wid)
             status = "created"
             msg = f"已存進你的知識庫：「{claim[:40]}」（可到『核心理解』頁檢視或刪除）"
@@ -414,7 +416,8 @@ def create_app() -> FastAPI:
             return _JSON({"error": str(e)}, status_code=502)
         return _JSON({"candidates": [
             {"claim": c.claim, "kind": c.kind, "ladder": c.ladder,
-             "evidence_urls": c.evidence_urls, "already": c.already}
+             "evidence_urls": c.evidence_urls, "already": c.already,
+             "src_from": getattr(c, "src_from", 0), "src_to": getattr(c, "src_to", 0)}
             for c in (cands or [])]})
 
     @app.post("/api/chat/anoint")
@@ -425,7 +428,8 @@ def create_app() -> FastAPI:
             body.get("claim", ""), body.get("ladder", ""), body.get("evidence_urls", ""),
             "1" if body.get("save_convo") else "",
             json.dumps(body.get("history") or [], ensure_ascii=False),
-            str(body.get("temp_id") or ""), body.get("kind", ""))
+            str(body.get("temp_id") or ""), body.get("kind", ""),
+            int(body.get("src_from") or 0), int(body.get("src_to") or 0))
         return _JSON({"status": status, "claim": claim, "msg": msg})
 
     @app.post("/api/chat/autosave")
@@ -477,7 +481,8 @@ def create_app() -> FastAPI:
         def _wn(w):
             return {"id": w.id, "claim": w.claim, "evidence_urls": w.evidence_urls,
                     "ladder": w.ladder, "touchstones": w.touchstones, "fog_flag": w.fog_flag,
-                    "kind": getattr(w, "kind", "")}
+                    "kind": getattr(w, "kind", ""),
+                    "src_from": getattr(w, "src_from", 0), "src_to": getattr(w, "src_to", 0)}
         return _JSON({"anointed": [_wn(w) for w in anointed],
                       "candidates": [_wn(w) for w in candidates],
                       "provenance": {str(k): v for k, v in prov.items()},

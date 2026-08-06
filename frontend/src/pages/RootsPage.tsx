@@ -47,7 +47,8 @@ export default function RootsPage() {
                   {src ? (
                     <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
                   ) : convo ? (
-                    <Link to={`/conversations/${convo}`} title="這條的出處：點開看當初那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
+                    <Link to={`/conversations/${convo}${w.src_from ? `?from=${w.src_from}&to=${w.src_to}` : ""}`}
+                          title="這條的出處：點開展開它來自的那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
                   ) : null}
                   {evidence.length > 0 && (
                     <button onClick={() => setOpenSrc(openSrc === w.id ? null : w.id)}

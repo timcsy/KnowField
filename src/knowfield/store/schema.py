@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     ladder TEXT DEFAULT '[]',          -- JSON：why 階梯（表面→bedrock，每層一句）
     fog_flag INTEGER DEFAULT 0,        -- 是否有霧詞（假根因旗標）
     kind TEXT DEFAULT '',              -- 認識論層次：已證實/推論/類比/猜想（distill 看上下文判，vision 階段 28）
+    src_from INTEGER DEFAULT 0,        -- 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）→由來精準定位
+    src_to INTEGER DEFAULT 0,
     status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
     source_entry_id INTEGER,           -- 來源種子 digest_entries.id
     created_at TEXT,                   -- 建立時間（呼叫端傳入）
@@ -155,6 +157,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # vision 階段 28：why_nodes 補 kind 欄（認識論層次；既有列＝空，不崩）
     if wn_cols and "kind" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN kind TEXT DEFAULT ''")
+    # 階段29第2階段：why_nodes 補出處則數範圍（既有列＝0=未知）
+    if wn_cols and "src_from" not in wn_cols:
+        conn.execute("ALTER TABLE why_nodes ADD COLUMN src_from INTEGER DEFAULT 0")
+        conn.execute("ALTER TABLE why_nodes ADD COLUMN src_to INTEGER DEFAULT 0")
     if wn_cols and "conversation_id" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN conversation_id INTEGER")
         # 一次性回填：既有 conversations.why_node_id → why_nodes.conversation_id（既有「← 由來」不斷）
