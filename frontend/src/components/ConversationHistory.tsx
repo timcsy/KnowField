@@ -44,17 +44,17 @@ export function ConversationHistory({
       )}
       {msg && <div className="rounded-md bg-muted px-2 py-1 text-xs">{msg}</div>}
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
         {perm.length === 0 && temp.length === 0 && (
           <p className="px-1 text-xs text-muted-foreground">還沒有對話。聊一段會自動暫存到這裡。</p>
         )}
         {perm.length > 0 && (
-          <Section title="永久">
+          <Section title="對話">
             {perm.map((c) => <Row key={c.id} c={c} active={c.id === currentId} onPick={pick} onChange={load} />)}
           </Section>
         )}
         {temp.length > 0 && (
-          <Section title="暫存（7 天沒碰會清）">
+          <Section title="暫存" hint="自動存、7 天沒碰會清；想留就 📌 轉永久">
             {temp.map((c) => <Row key={c.id} c={c} active={c.id === currentId} onPick={pick} onChange={load} temp />)}
           </Section>
         )}
@@ -63,11 +63,11 @@ export function ConversationHistory({
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-1 px-1 text-[11px] font-semibold uppercase text-muted-foreground">{title}</h3>
-      <div className="space-y-0.5">{children}</div>
+      <h3 title={hint} className="mb-0.5 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">{title}</h3>
+      <div>{children}</div>
     </section>
   )
 }
@@ -81,21 +81,20 @@ function Row({ c, active, onPick, onChange, temp }: {
   async function promote() { await pages.promoteConv(c.id); onChange() }
 
   if (renaming) return (
-    <div className="flex items-center gap-1 px-1 py-1">
+    <div className="flex items-center gap-1 px-1 py-0.5">
       <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-7" placeholder="改名…" autoFocus />
       <Button size="sm" onClick={rename}>存</Button>
     </div>
   )
+  // 單行、緊湊（各大 AI 聊天室手順）：只標題，metadata 收進 tooltip，hover 才出操作
   return (
-    <div className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-sidebar-accent ${active ? "bg-sidebar-accent" : ""}`}>
-      <button onClick={() => onPick(c.id)} className="min-w-0 flex-1 text-left" title="接著聊">
-        <div className="truncate text-sm">{c.title || "（未命名對話）"}</div>
-        <div className="text-[11px] text-muted-foreground">
-          {c.created_at.slice(0, 10)} · {c.count} 則
-          {c.why_node_id && <span className="ml-1">· 由來</span>}
-        </div>
+    <div className={`group flex items-center gap-0.5 rounded-lg px-2 py-1 hover:bg-sidebar-accent ${active ? "bg-sidebar-accent" : ""}`}>
+      <button onClick={() => onPick(c.id)}
+              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.why_node_id ? "·某條核心理解的由來" : ""}（點＝接著聊）`}
+              className="min-w-0 flex-1 truncate text-left text-sm">
+        {c.title || "（未命名對話）"}
       </button>
-      <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
         <Link to={`/conversations/${c.id}`} className="hover:text-foreground" title="唯讀檢視">檢視</Link>
         {temp && <button onClick={promote} className="hover:text-foreground" title="轉為永久保存">📌</button>}
         <button onClick={() => setRenaming(true)} className="hover:text-foreground" title="改名">✎</button>
