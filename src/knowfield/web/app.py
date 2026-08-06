@@ -253,15 +253,10 @@ def create_app() -> FastAPI:
         _log.error("web 後端失敗", extra={"extra": {"reason": str(exc)}})
         return PlainTextResponse(f"後端暫時無法回應：{exc}", status_code=503)
 
-    @app.get("/")
-    async def home():
-        # re-platform（階段 27 退場完成）：門面＝React SPA（/app）；舊 Jinja 已退役。
-        return RedirectResponse("/app/", status_code=307)
-
     @app.get("/ask")
     async def ask():
         # 舊入口導向 SPA（問答併進聊天，帶膜、能引用「你收藏的」）。
-        return RedirectResponse("/app/", status_code=302)
+        return RedirectResponse("/", status_code=302)
 
 
     def _root_count():
@@ -753,13 +748,13 @@ def create_app() -> FastAPI:
         repo.close()
         return _JSON({"ok": True, "removed": summary["removed"], "repointed": summary["repointed"]})
 
-    # ══ 服務 React SPA（掛 /app，strangler：舊 Jinja / 與 /chat 不動）══
+    # ══ 服務 React SPA（掛根 /；retire 完成、舊 Jinja 已退役，根路徑空出來給門面）══
     _DIST = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if _DIST.is_dir():
         from starlette.exceptions import HTTPException as _StarletteHTTPExc
         from fastapi.staticfiles import StaticFiles
 
-        @app.post("/app/share-target")
+        @app.post("/share-target")
         async def app_share_target(request: Request):
             """PWA Web Share Target（里程碑四）：手機分享網址/文字進來→收進→導回知識庫。"""
             form = await request.form()
@@ -774,7 +769,7 @@ def create_app() -> FastAPI:
                     _content_ingest("text", text=text, title=title, note="手機分享", ingested_at=at)
             except (SourceUnavailable, OpenAIError) as e:  # best-effort（教訓 3）
                 _log.error("手機分享收進失敗", extra={"extra": {"reason": str(e)}})
-            return RedirectResponse("/app/library", status_code=303)
+            return RedirectResponse("/sources", status_code=303)
 
         class _SpaStatic(StaticFiles):
             """服務 dist 靜態檔（含 manifest/sw/icon）；client 路由（非檔案）fallback 回 index.html。"""
@@ -786,7 +781,7 @@ def create_app() -> FastAPI:
                         return await super().get_response("index.html", scope)
                     raise
 
-        app.mount("/app", _SpaStatic(directory=str(_DIST), html=True), name="spa")
+        # mount 移到 create_app 最尾（所有 /api 與匯出路由都註冊完），否則掛在 / 會把它們吃掉。
 
 
     # --- 匯出給 NotebookLM（spec 024）：純唯讀、只把沉澱物匯出，不注入回場（原則 6）---
@@ -827,6 +822,10 @@ def create_app() -> FastAPI:
             return PlainTextResponse("\n".join(dedup_urls(node.evidence_urls)))
         return PlainTextResponse(
             why_node_to_markdown(node.claim, node.ladder, node.evidence_urls))
+
+    # SPA 掛在 / 當 catch-all（放最後，讓上面所有實體路由先比對）：非檔案→fallback index.html
+    if _DIST.is_dir():
+        app.mount("/", _SpaStatic(directory=str(_DIST), html=True), name="spa")
 
     return app
 

@@ -119,50 +119,41 @@ class TestApiChat(unittest.TestCase):
         self.assertIn("temp_id", r)
 
 
-class TestOldJinjaRetired(unittest.TestCase):
-    def test_old_jinja_chat_gone(self):
-        """退場（階段 27 里程碑五）：舊 Jinja /chat 已退役；門面全在 /app。"""
-        c = TestClient(build_app(temp_db()))
-        self.assertEqual(c.get("/chat").status_code, 404)
-        r = c.get("/", follow_redirects=False)
-        self.assertEqual(r.headers["location"], "/app/")
-
-
 @unittest.skipUnless(_DIST.is_dir(), "frontend 未 build（frontend/dist 不在）")
 class TestSpaServed(unittest.TestCase):
     def test_app_serves_spa_index(self):
-        """FastAPI 服務 React SPA 於 /app（含 client-route fallback）。"""
+        """FastAPI 服務 React SPA 於根 /（含 client-route fallback）。"""
         c = TestClient(build_app(temp_db()))
-        r = c.get("/app/")
+        r = c.get("/")
         self.assertEqual(r.status_code, 200)
         self.assertIn('id="root"', r.text)              # SPA 入口
-        r2 = c.get("/app/roots")                         # 前端路由可直接開/重整→fallback index
+        r2 = c.get("/roots")                             # 前端路由可直接開/重整→fallback index
         self.assertEqual(r2.status_code, 200)
         self.assertIn('id="root"', r2.text)
 
     def test_pwa_manifest_and_sw_served_not_html(self):
         """PWA：manifest/sw 是真檔（非 fallback 成 HTML），含 share_target。"""
         c = TestClient(build_app(temp_db()))
-        m = c.get("/app/manifest.webmanifest")
+        m = c.get("/manifest.webmanifest")
         self.assertEqual(m.status_code, 200)
         self.assertIn("share_target", m.text)            # 手機分享目標
-        self.assertEqual(c.get("/app/sw.js").status_code, 200)
+        self.assertEqual(c.get("/sw.js").status_code, 200)
 
-    def test_root_redirects_to_spa(self):
-        """門面＝React：GET / → /app/（dist 已 build）。"""
-        r = TestClient(build_app(temp_db())).get("/", follow_redirects=False)
-        self.assertEqual(r.status_code, 307)
-        self.assertEqual(r.headers["location"], "/app/")
+    def test_api_route_not_shadowed_by_spa_mount(self):
+        """SPA 掛在 / 當 catch-all，但實體路由（/api、匯出）先比對、不被吃掉。"""
+        c = TestClient(build_app(temp_db()))
+        self.assertEqual(c.get("/api/chat/state").status_code, 200)
+        self.assertEqual(c.get("/conversations/999999/export").status_code, 404)  # 真路由（非 index.html）
 
     def test_share_target_ingests_and_redirects(self):
-        """PWA Web Share Target：分享文字→收進→導回 /app/library（Android）。"""
+        """PWA Web Share Target：分享文字→收進→導回 /sources（Android）。"""
         db = temp_db()
         r = TestClient(build_app(db)).post(
-            "/app/share-target",
+            "/share-target",
             data={"text": "貓要吃貓糧與用貓砂很重要。" * 30, "title": "分享文"},
             follow_redirects=False)
         self.assertEqual(r.status_code, 303)
-        self.assertIn("/app/library", r.headers["location"])
+        self.assertIn("/sources", r.headers["location"])
         repo = Repository(db)
         self.assertGreaterEqual(len(repo.list_source_groups()), 1)   # 分享的收進了
         repo.close()

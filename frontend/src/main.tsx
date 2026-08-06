@@ -24,7 +24,7 @@ import ConversationsPage from "./pages/ConversationsPage"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter basename="/app">
+    <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<ChatPage />} />
@@ -36,6 +36,8 @@ createRoot(document.getElementById("root")!).render(
           {/* 舊 IA → 新 IA（對話＝聊天＋存檔、來源＝知識庫＋收進） */}
           <Route path="library" element={<Navigate to="/sources" replace />} />
           <Route path="ingest" element={<Navigate to="/sources" replace />} />
+          {/* 未知路徑（含舊 /chat、/app/*、手誤）→ 回首頁，不留白 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

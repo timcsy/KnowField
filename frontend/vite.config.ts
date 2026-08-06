@@ -6,8 +6,8 @@ import { VitePWA } from "vite-plugin-pwa"
 
 // https://vite.dev/config/
 export default defineConfig({
-  // FastAPI 把 SPA 掛在 /app（strangler：舊 Jinja / 與 /chat 不動）
-  base: "/app/",
+  // FastAPI 把 SPA 掛在根 /（retire 完成、舊 Jinja 已退役）
+  base: "/",
   plugins: [
     react(),
     tailwindcss(),
@@ -18,8 +18,8 @@ export default defineConfig({
         name: "KnowField — 反逢迎的知識副手",
         short_name: "KnowField",
         description: "站在你的知識場上、幫你挖到底、且不順著你說好聽話的當下副手。",
-        start_url: "/app/",
-        scope: "/app/",
+        start_url: "/",
+        scope: "/",
         display: "standalone",
         background_color: "#faf7f0",
         theme_color: "#1c1917",
@@ -29,7 +29,7 @@ export default defineConfig({
         ],
         // 手機分享網頁進 App（Android Web Share Target）
         share_target: {
-          action: "/app/share-target",
+          action: "/share-target",
           method: "POST",
           enctype: "multipart/form-data",
           params: { title: "title", text: "text", url: "url" },
