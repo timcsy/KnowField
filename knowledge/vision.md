@@ -762,7 +762,7 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] **膜分層**：核心理解＝地基（reason from）、收進資料＝**證言**（cite、比核心理解軟）；**守衛測：收進內容不進
   `build_field_system_prompt` 的地基、不自動變核心理解**（原則 6，`TestPurityGuard`）
 - [x] 檢索失敗→聊天照跑（best-effort，教訓 3）；沒收進任何東西→退回現況（只 核心理解＋web）（`TestBestEffort`）
-- [x] `/ask`→302 導 `/chat`、導覽「問答」退場（`TestAskRetired`）
+- [x] `/ask`→302 導聊天、導覽「問答」退場（原 `TestAskRetired`；階段 27 退場後 `/ask`→`/app/`、該測隨舊 Jinja 一併移除，見 `history/078`）
 - [x] 全繁中；核心零相依（檢索複用既有 embeddings、**無新表**）；測試 265→**271** 不回歸
 - [x] **out of scope 守住**：檢索調參 UI、跨文件多跳推理、PDF/影音進料（另階段）、收進自動變核心理解、CLI
 
@@ -826,7 +826,7 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - [x] 全繁中；核心零相依（萃取藏介面後＋離線 stub）；復用既有 `why_nodes`/corpus **無新表**；335→**345** 不回歸
 - [x] **out of scope 守住**：#3 引用頻率信號（缺追蹤＋馬太陷阱，另刀）、#4 沉降排序、#5 核心理解拓撲/收斂、密度自動分級、一鍵無摩擦升級
 
-## 階段 27：前端 re-platform 到 React ＋ shadcn/ui（＋PWA 分享、上線基座）
+## 階段 27：前端 re-platform 到 React ＋ shadcn/ui（＋PWA 分享、上線基座）— ✅ 全 5 里程碑完成（2026-08-06）
 
 > 決策轉向見 `history/075`（推翻 `draft/2026-07-23-部署與介面路線` 的「htmx>React」）。**why**：業界 AI 產品外觀＝shadcn/ui、
 > 要上線多租戶、要 PWA「手機分享網頁進 App」（Android）。**憲章 IV 複雜度理由已記 history/075；核心 Python 仍零相依，
@@ -843,10 +843,10 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 
 **里程碑（分階，逐一 promote 成 spec）：**
 - [x] **階段一 完成（2026-08-06，spec 033，355 測綠、零回歸；史 `history/076`）**：後端抽共用閉包（`_stream_gen`/`_do_anoint`）→ JSON/SSE `/api/chat/*`＋`/api/roots`（零邏輯重寫）；React `/chat`（側欄殼＋SSE 串流＋引用[n]錨點＋你收藏的＋整理→**人逐條精選**＋autosave）掛 `/app`；FastAPI 服務 `frontend/dist`＋SPA fallback。**守衛測**：純度（distill 不寫地基、唯 anoint 人閘門寫）＋strangler（舊 Jinja /chat 照跑）。**未竟（本階段內的 polish）**：答案 markdown/MathJax 渲染仍陽春（whitespace-pre-wrap＋[n]），留後續補齊。
-- [~] **階段二 核心完成（2026-08-06）**：roots/library/source/ingest/conversations **主頁面已遷 React**（react-router basename `/app`、shadcn、共用 Markdown＋數學選取複製）＋對應 `/api`；門面 `/` → `/app/`（React 成預設）。**次要功能未遷（阻擋退場）**：chat 匯出(複製 MD/來源)＋編輯/分支、ingest rich-paste(貼圖文)＋剪貼簿鈕、roots 複製鈕、conversation 單篇檢視＋章節、source 圖片 fallback。→ **退場前必須先補完這些，否則刪 Jinja＝刪掉還在用的功能。**
-- [ ] 階段三：web 測（驗 HTML）→ 改 API 測；核心邏輯測不動。（待階段二功能補完）
+- [x] **階段二 完成（2026-08-06，史 `history/077`＋`078`）**：roots/library/source/ingest/conversations 全遷 React（react-router basename `/app`、shadcn、共用 Markdown＋數學選取複製）＋對應 `/api`；門面 `/` → `/app/`（React 成預設）。**次要功能亦補齊**（退場前必補，否則刪 Jinja＝刪功能）：chat 匯出(複製 MD/來源)＋編輯訊息＋💾存下這段、conversation 單篇檢視＋章節＋重生標題、roots 複製鈕、ingest rich-paste＋YouTube 逐字稿、source/答案圖片 hotlink 失效 fallback。**接受的次要省略**：chat 分支(branch，SPA 成本高)、收尾 distill-nudge、章節逐章 distill——邊緣 UX，能以現有路徑達成同結果。
+- [x] **階段三 完成（2026-08-06，史 `history/078`）**：驗 HTML 的 web 測退場→改 `/api` 測（`test_api_chat`/`test_api_pages` 補齊 state/stream/distill/anoint 人閘門/roots/library/source/ingest/conversations/dedupe 覆蓋）；`test_temp_save_web`/`test_export_web` repoint `/api`（行為同一份服務閉包）；核心邏輯測不動。
 - [x] **階段四 完成（2026-08-06，358 測綠；史 `history/077`）**：`vite-plugin-pwa` manifest＋`share_target`(`/app/share-target`)、後端 SpaStatic 正確服務 manifest/sw/icon、分享收進→導回 library。Android 上線(HTTPS＋裝 PWA)即可分享進 App。
-- [ ] 階段五：全遷完 → 舊 Jinja 模板＋DaisyUI 退場（redeem-and-retire）。**阻擋中**：階段二次要功能未補完前不可退場（會失功能）。舊 Jinja 現為完整 fallback、照跑。
+- [x] **階段五 完成（2026-08-06，288 測綠、零回歸；史 `history/078`）**：舊 Jinja 模板（10 檔）＋DaisyUI（唯 base.html 載）＋其全部 HTML 路由（472 行）退役；`/`、`/ask`→`/app/`；OpenAIError handler→PlainText。保留全 helper/factory、`/api/*`、SPA 服務、三 export 端點。補回不掉功能：`/api/chat/save`、`/api/ingest/youtube`。redeem-and-retire 完成——React 成唯一門面。
 - [ ] **out of scope（本階段整體）**：auth/多租戶（見 `draft/共享的膜` A/B）、Next.js（否決）、iOS 分享（平台限制、使用者 Android）。
 
 > 設計依據：`draft/2026-07-23-部署與介面路線.md`（UI/部署路線，含被推翻段）、`history/075`。上線 auth 接 `draft/共享的膜與跨base聯邦` A/B。
