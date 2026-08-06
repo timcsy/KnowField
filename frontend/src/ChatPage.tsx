@@ -30,7 +30,7 @@ export default function ChatPage() {
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
   const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
   const [nudgeDismissed, setNudgeDismissed] = useState(false)        // 分章提醒關掉了
-  const openRef = useRef<HTMLDetailsElement>(null)   // 該預設展開的章（出處章 or 最後章）
+  const chapterRefs = useRef<(HTMLDetailsElement | null)[]>([])   // 各章 <details>，供大綱跳章＋預設展開
   const bottomRef = useRef<HTMLDivElement>(null)
   const [sp, setSp] = useSearchParams()
 
@@ -75,17 +75,19 @@ export default function ChatPage() {
 
   // 預設展開「該開的章」（出處章 or 最後章）；定位進來時還捲到它
   useEffect(() => {
-    if (openRef.current) {
-      openRef.current.open = true
-      if (focusFrom) openRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    const d = chapterRefs.current[openIdx]
+    if (d) {
+      d.open = true
+      if (focusFrom) d.scrollIntoView({ behavior: "smooth", block: "start" })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapters, focusFrom])
 
-  // 廣播本對話的章節目錄給左側側欄
-  useEffect(() => {
-    const ch = chapters && chapters.length > 1 ? chapters : null
-    window.dispatchEvent(new CustomEvent("kf-active-chapters", { detail: { id: tempId.current, chapters: ch } }))
-  }, [chapters])
+  // 大綱點章：展開那章＋捲到它
+  function jumpToChapter(ci: number) {
+    const d = chapterRefs.current[ci]
+    if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }) }
+  }
 
   async function send() {
     const msg = input.trim()
@@ -226,7 +228,24 @@ export default function ChatPage() {
   const showNudge = uncharted >= 8 && !nudgeDismissed && !busy && streaming === null
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col px-4 py-3 md:px-8">
+    <div className="flex h-full justify-center gap-6 px-4 py-3">
+      {/* 章節大綱：聊天主欄左側的留白（大螢幕、有多章才出現）——點章跳到那章 */}
+      {hasChapters && chapters && (
+        <aside className="hidden w-48 shrink-0 xl:block">
+          <div className="sticky top-3 space-y-0.5 pt-14">
+            <div className="mb-1 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">本對話章節</div>
+            {chapters.map((ch, ci) => (
+              <button key={ci} onClick={() => jumpToChapter(ci)}
+                      className={cn("block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted",
+                        ci === openIdx ? "font-medium text-foreground" : "text-muted-foreground")}>
+                🔖 {ch.title}
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
+
+      <div className="flex h-full w-full max-w-3xl flex-col">
       <div className="shrink-0 pb-2">
         <h1 className="text-lg font-bold">🧠 跟你的知識庫聊</h1>
         <p className="text-xs text-muted-foreground">
@@ -253,7 +272,7 @@ export default function ChatPage() {
             const msgs = isLast ? messages.slice(ch.start - 1) : messages.slice(ch.start - 1, ch.end)
             const endLabel = isLast ? messages.length : ch.end
             return (
-              <details key={`ch${ci}`} ref={ci === openIdx ? openRef : undefined}
+              <details key={`ch${ci}`} ref={(el) => { chapterRefs.current[ci] = el }}
                        className={cn("group rounded-xl bg-card shadow-sm", isFocus && "ring-2 ring-primary/50")}>
                 <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium hover:bg-muted/40">
                   <span className="mr-1 text-muted-foreground group-open:hidden">▸</span>
@@ -365,6 +384,7 @@ export default function ChatPage() {
           {flash}
         </div>
       )}
+      </div>
     </div>
   )
 }
