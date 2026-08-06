@@ -451,16 +451,16 @@ class Repository:
     # --- why-node 根因（spec 012） ---
     def add_why_node(self, claim: str, evidence_urls: list, touchstones: list,
                      fog_flag: bool, source_entry_id: int, created_at: str,
-                     ladder: list | None = None) -> int:
-        """新增候選 why-node（狀態=candidate），回 id。"""
+                     ladder: list | None = None, kind: str = "") -> int:
+        """新增候選 why-node（狀態=candidate），回 id。kind＝認識論層次（vision 階段 28）。"""
         import json as _json
         cur = self.conn.execute(
             "INSERT INTO why_nodes (claim, evidence_urls, touchstones, ladder, fog_flag,"
-            " status, source_entry_id, created_at) VALUES (?,?,?,?,?,'candidate',?,?)",
+            " kind, status, source_entry_id, created_at) VALUES (?,?,?,?,?,?,'candidate',?,?)",
             (claim, _json.dumps(evidence_urls, ensure_ascii=False),
              _json.dumps(touchstones, ensure_ascii=False),
              _json.dumps(ladder or [], ensure_ascii=False), 1 if fog_flag else 0,
-             source_entry_id, created_at))
+             kind, source_entry_id, created_at))
         self.conn.commit()
         return cur.lastrowid
 
@@ -483,7 +483,8 @@ class Repository:
                 ladder=_json.loads((r["ladder"] if "ladder" in r.keys() else "[]") or "[]"),
                 fog_flag=bool(r["fog_flag"]), status=r["status"],
                 source_entry_id=r["source_entry_id"] or 0,
-                created_at=r["created_at"] or ""))
+                created_at=r["created_at"] or "",
+                kind=(r["kind"] if "kind" in r.keys() else "") or ""))
         return out
 
     def anoint_why_node(self, wid: int, claim: str | None = None) -> bool:

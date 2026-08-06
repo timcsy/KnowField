@@ -1,0 +1,89 @@
+"""核心理解的認識論層次（kind）：distill 看上下文判→持久化→顯示→聊天用。
+4 檔：已證實／推論／類比／猜想（draft 2026-08-06、vision 階段 28）。離線注入、零外呼。"""
+
+import sqlite3
+import unittest
+
+from fastapi.testclient import TestClient
+
+from knowfield.store.repository import Repository
+from knowfield.store.schema import init_db
+from tests.web_helpers import build_app, temp_db
+
+
+class TestKindPersist(unittest.TestCase):
+    def test_add_and_list_kind(self):                      # 精選後不再丟失層級
+        db = temp_db()
+        repo = Repository(db)
+        wid = repo.add_why_node("殘差直通", [], [], False, 0, "2026", ladder=["a"], kind="推論")
+        repo.anoint_why_node(wid)
+        self.assertEqual(repo.list_why_nodes("anointed")[0].kind, "推論")
+        repo.close()
+
+    def test_default_kind_empty(self):                     # 沒標→空、不崩
+        db = temp_db()
+        repo = Repository(db)
+        repo.add_why_node("x", [], [], False, 0, "2026")
+        self.assertEqual(repo.list_why_nodes()[0].kind, "")
+        repo.close()
+
+
+class TestKindMigration(unittest.TestCase):
+    def test_old_db_gets_kind_column(self):                # 既有 db 補 kind 欄、不崩
+        db = temp_db()
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE why_nodes (id INTEGER PRIMARY KEY, claim TEXT,"
+                     " evidence_urls TEXT, touchstones TEXT, ladder TEXT, fog_flag INTEGER,"
+                     " status TEXT, source_entry_id INTEGER, created_at TEXT, conversation_id INTEGER)")
+        conn.execute("INSERT INTO why_nodes (claim, status) VALUES ('舊條','anointed')")
+        conn.commit(); conn.close()
+        conn = sqlite3.connect(db); init_db(conn); conn.close()   # migrate 補欄
+        repo = Repository(db)
+        self.assertEqual(repo.list_why_nodes("anointed")[0].kind, "")
+        repo.close()
+
+
+class TestDistillKind(unittest.TestCase):
+    def test_parse_kind(self):
+        from knowfield.chat.field_chat import _parse_candidates
+        c = _parse_candidates("主張：殘差用加法讓梯度直通\n類型：推論\n階梯：\n- 加法不擋梯度\n佐證：")[0]
+        self.assertEqual(c.kind, "推論")
+
+    def test_distill_prompt_has_four_categories(self):     # 對齊 4 檔
+        from knowfield.chat.field_chat import _DISTILL
+        for k in ["已證實", "推論", "類比", "猜想"]:
+            self.assertIn(k, _DISTILL)
+
+
+class TestAnointKind(unittest.TestCase):
+    def test_api_anoint_saves_kind(self):                  # 人閘門冊封帶層級
+        db = temp_db()
+        TestClient(build_app(db)).post(
+            "/api/chat/anoint", json={"claim": "殘差直通", "kind": "推論"})
+        repo = Repository(db)
+        self.assertEqual(repo.list_why_nodes("anointed")[0].kind, "推論")
+        repo.close()
+
+
+class TestRootsKind(unittest.TestCase):
+    def test_api_roots_returns_kind(self):
+        db = temp_db()
+        repo = Repository(db)
+        wid = repo.add_why_node("x", [], [], False, 0, "2026", kind="類比")
+        repo.anoint_why_node(wid); repo.close()
+        r = TestClient(build_app(db)).get("/api/roots").json()
+        self.assertEqual(r["anointed"][0]["kind"], "類比")
+
+
+class TestPromptKind(unittest.TestCase):
+    def test_system_prompt_shows_kind(self):               # 聊天時 AI 看得到層級
+        from types import SimpleNamespace
+
+        from knowfield.chat.field_chat import build_field_system_prompt
+        p = build_field_system_prompt(   # claim 不含層級詞→「猜想」只能來自 kind
+            [SimpleNamespace(claim="殘差用加法讓梯度直通", ladder=["a"], kind="猜想")])
+        self.assertIn("猜想", p)
+
+
+if __name__ == "__main__":
+    unittest.main()
