@@ -140,9 +140,11 @@
 .mathcopy-block { display: block; }
 /* 點一下公式即整塊選中（MathJax 渲染後無可拖曳選取的文字）→ Ctrl/⌘+C 複製成 Markdown LaTeX。
    user-select:all 讓單擊＝選中整塊；handler（installMathCopy）再把選取換成 data-tex（$..$/$$..$$）。 */
-.mathcopy { user-select: all; -webkit-user-select: all; }
+.mathcopy { user-select: all; -webkit-user-select: all; border-radius: 0.25rem; }
 .mathcopy::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
 .mathcopy *::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
+/* 雙擊反白的視覺回饋（公式無文字節點，原生 ::selection 畫不出來） */
+.mathcopy.is-selected { background: color-mix(in oklch, var(--primary) 22%, transparent); }
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
   color: var(--muted-foreground);

@@ -78,6 +78,15 @@ export function installMathCopy(): () => void {
     const r = document.createRange()
     r.selectNode(mc)
     sel.addRange(r)
+    // 公式無文字節點→瀏覽器 ::selection 高亮畫不出來，改自己上底色當視覺回饋
+    document.querySelectorAll(".mathcopy.is-selected").forEach((el) => el.classList.remove("is-selected"))
+    mc.classList.add("is-selected")
+    const clear = (ev: Event) => {
+      if (ev.type === "mousedown" && mathOf(ev.target as Node) === mc) return  // 再點同一條→不清
+      mc.classList.remove("is-selected")
+      document.removeEventListener("mousedown", clear, true)
+    }
+    document.addEventListener("mousedown", clear, true)
   }
   function onCopy(e: ClipboardEvent) {
     const sel = window.getSelection()
