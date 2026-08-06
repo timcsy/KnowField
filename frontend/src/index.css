@@ -138,6 +138,11 @@
 }
 .answer-md .cite:hover { text-decoration: underline; }
 .mathcopy-block { display: block; }
+/* 點一下公式即整塊選中（MathJax 渲染後無可拖曳選取的文字）→ Ctrl/⌘+C 複製成 Markdown LaTeX。
+   user-select:all 讓單擊＝選中整塊；handler（installMathCopy）再把選取換成 data-tex（$..$/$$..$$）。 */
+.mathcopy { user-select: all; -webkit-user-select: all; }
+.mathcopy::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
+.mathcopy *::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
   color: var(--muted-foreground);

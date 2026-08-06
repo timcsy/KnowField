@@ -27,7 +27,7 @@ export function renderHtml(text: string, prefix = "src"): string {
     const tag = isBlock ? "div" : "span"
     // span 內文＝原始分隔符（MathJax 渲染用）；data-tex＝正規化 Markdown（複製用）
     const dataTex = escHtml(toMarkdownMath(tex)).replace(/"/g, "&quot;")
-    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" data-tex="${dataTex}">${escHtml(tex)}</${tag}>`
+    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" title="點一下選取、Ctrl/⌘+C 複製 LaTeX" data-tex="${dataTex}">${escHtml(tex)}</${tag}>`
   })
   return html.replace(/\[(\d+)\]/g, (_m, n) => `<a href="#${prefix}-${n}" class="cite">[${n}]</a>`)
 }
