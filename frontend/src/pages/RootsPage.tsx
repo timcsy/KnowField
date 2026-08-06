@@ -58,6 +58,8 @@ export default function RootsPage() {
             {data.anointed.map((w) => {
               const src = data.source_provenance[String(w.id)]
               const convo = data.provenance[String(w.id)]
+              // 佐證只列可點的外部連結；內部來源識別碼（paste:/收進來源）由「📎 由來」指向，不重複、不無效
+              const evidence = w.evidence_urls.filter((u) => /^https?:\/\//.test(u))
               return (
                 <div key={w.id} className="group rounded-xl bg-card px-5 py-4 shadow-sm">
                   <p className="max-w-[42rem] text-[15px] leading-loose">💡 {w.claim}</p>
@@ -67,10 +69,10 @@ export default function RootsPage() {
                     ) : convo ? (
                       <Link to={`/conversations/${convo}`} title="這條的出處：點開看當初那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
                     ) : null}
-                    {w.evidence_urls.length > 0 && (
+                    {evidence.length > 0 && (
                       <button onClick={() => setOpenSrc(openSrc === w.id ? null : w.id)}
                               title="這條的外部佐證網址（AI 引用的來源）——點開看" className="hover:text-foreground hover:underline">
-                        🔗 佐證（{w.evidence_urls.length}）{openSrc === w.id ? " ▲" : " ▾"}
+                        🔗 佐證（{evidence.length}）{openSrc === w.id ? " ▲" : " ▾"}
                       </button>
                     )}
                     <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
@@ -78,9 +80,9 @@ export default function RootsPage() {
                       <button onClick={() => remove(w.id)} title="退回（聊天不再優先參考它）" className="hover:text-destructive">退回</button>
                     </span>
                   </div>
-                  {openSrc === w.id && w.evidence_urls.length > 0 && (
+                  {openSrc === w.id && evidence.length > 0 && (
                     <ul className="mt-2 space-y-1 border-t pt-2">
-                      {w.evidence_urls.map((u, i) => (
+                      {evidence.map((u, i) => (
                         <li key={i} className="text-xs">
                           <a href={u} target="_blank" rel="noopener" className="break-all text-primary hover:underline">🔗 {u}</a>
                         </li>
