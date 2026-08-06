@@ -37,10 +37,23 @@ export function Markdown({ text, prefix = "src" }: { text: string; prefix?: stri
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const mj = (window as unknown as {
-      MathJax?: { typesetPromise?(els: Element[]): Promise<void> }
-    }).MathJax
-    if (mj?.typesetPromise) mj.typesetPromise([el]).catch(() => {})
+    // MathJax 從 CDN async 載入，render 時常還沒 ready→首次不渲染；等它 ready 再 typeset。
+    const w = window as unknown as {
+      MathJax?: {
+        typesetPromise?(els: Element[]): Promise<void>
+        startup?: { promise?: Promise<unknown> }
+      }
+    }
+    const typeset = () => w.MathJax?.typesetPromise?.([el]).catch(() => {})
+    if (w.MathJax?.typesetPromise) typeset()
+    else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(typeset)
+    else {
+      let n = 0                              // MathJax script 都還沒執行→輪詢等（最多 10s）
+      const iv = setInterval(() => {
+        if (w.MathJax?.typesetPromise) { clearInterval(iv); typeset() }
+        else if (++n > 50) clearInterval(iv)
+      }, 200)
+    }
     // 圖 hotlink 失效→替代連結（不留破圖）
     el.querySelectorAll("img").forEach((im) => {
       im.addEventListener("error", () => {
