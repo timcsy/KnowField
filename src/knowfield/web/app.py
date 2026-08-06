@@ -537,61 +537,60 @@ def create_app() -> FastAPI:
                      "err": err, "root_count": _root_count(),
                      "distill_nudge": _distill_nudge(hist, last_captured)})
 
+    def _stream_gen(hist, message, bs):
+        """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。"""
+        from ..chat.field_chat import FieldChat
+        cfg = app.state.config
+        if not message:
+            yield _sse({"type": "done", "text": ""})
+            return
+        repo = app.state.repo_factory(cfg)
+        try:
+            roots = repo.list_why_nodes("anointed")
+        finally:
+            repo.close()
+        fc = FieldChat(_chat_backend())
+        try:
+            url_contents = _fetch_message_urls(message)
+            if url_contents:
+                yield _sse({"type": "stage", "text": "讀取你貼的網址…"})
+            if bs:
+                sources = []
+            else:
+                yield _sse({"type": "stage", "text": "找關鍵字…"})
+                q = fc.search_query(hist, message)
+                yield _sse({"type": "stage", "text": "撒網找佐證…"})
+                web = _chat_search(q)
+                yield _sse({"type": "stage", "text": "翻你收進的資料…"})
+                sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
+            yield _sse({"type": "stage", "text": "回答中…"})
+            full = ""
+            for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
+                                         max_history=cfg.chat_context_messages,
+                                         url_contents=url_contents):
+                full += delta
+                yield _sse({"type": "token", "text": delta})
+            cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
+            numbered = [{"n": i, "url": s.url, "title": s.title or s.url,
+                         "kind": getattr(s, "kind", "web")}
+                        for i, s in enumerate(sources, 1) if i in cited]
+            # 有撒到、但沒被引用的來源 → 折疊區「也找到（未直接引用）」（不進存檔）
+            extra = [{"n": i, "url": s.url, "title": s.title or s.url,
+                      "kind": getattr(s, "kind", "web")}
+                     for i, s in enumerate(sources, 1) if i not in cited]
+            yield _sse({"type": "done", "text": full, "sources": numbered, "found_extra": extra})
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
+            yield _sse({"type": "error", "text": str(e)})
+
     @app.post("/chat/stream")
     async def chat_stream(history: str = Form("[]"), message: str = Form(""),
                           brainstorm: str = Form("")):
-        """串流版對話：分段進度（找關鍵字→撒網→回答中）＋逐 token 串流；只列被引用來源。"""
-        from ..chat.field_chat import FieldChat
+        """串流版對話：分段進度＋逐 token 串流；只列被引用來源（沿用 _stream_gen）。"""
         hist = _parse_history(history)
-        message = (message or "").strip()
-        bs = brainstorm == "1"
-        cfg = app.state.config
-
-        def gen():
-            if not message:
-                yield _sse({"type": "done", "text": ""})
-                return
-            repo = app.state.repo_factory(cfg)
-            try:
-                roots = repo.list_why_nodes("anointed")
-            finally:
-                repo.close()
-            fc = FieldChat(_chat_backend())
-            try:
-                url_contents = _fetch_message_urls(message)
-                if url_contents:
-                    yield _sse({"type": "stage", "text": "讀取你貼的網址…"})
-                if bs:
-                    sources = []
-                else:
-                    yield _sse({"type": "stage", "text": "找關鍵字…"})
-                    q = fc.search_query(hist, message)
-                    yield _sse({"type": "stage", "text": "撒網找佐證…"})
-                    web = _chat_search(q)
-                    yield _sse({"type": "stage", "text": "翻你收進的資料…"})
-                    sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
-                yield _sse({"type": "stage", "text": "回答中…"})
-                full = ""
-                for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
-                                             max_history=cfg.chat_context_messages,
-                                             url_contents=url_contents):
-                    full += delta
-                    yield _sse({"type": "token", "text": delta})
-                cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
-                numbered = [{"n": i, "url": s.url, "title": s.title or s.url,
-                             "kind": getattr(s, "kind", "web")}
-                            for i, s in enumerate(sources, 1) if i in cited]
-                # 有撒到、但沒被引用的來源 → 收進折疊區「也找到（未直接引用）」（不進存檔）
-                extra = [{"n": i, "url": s.url, "title": s.title or s.url,
-                          "kind": getattr(s, "kind", "web")}
-                         for i, s in enumerate(sources, 1) if i not in cited]
-                yield _sse({"type": "done", "text": full, "sources": numbered,
-                            "found_extra": extra})
-            except (SourceUnavailable, OpenAIError) as e:
-                _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
-                yield _sse({"type": "error", "text": str(e)})
-
-        return StreamingResponse(gen(), media_type="text/event-stream")
+        return StreamingResponse(
+            _stream_gen(hist, (message or "").strip(), brainstorm == "1"),
+            media_type="text/event-stream")
 
     @app.post("/chat/branch", response_class=HTMLResponse)
     async def chat_branch(request: Request, history: str = Form("[]"), draft: str = Form("")):
@@ -626,46 +625,48 @@ def create_app() -> FastAPI:
                      "candidates": cands, "err": err, "root_count": _root_count(),
                      "temp_id": temp_id})     # 傳遞暫存 id → 候選冊封時升永久（spec 028）
 
+    def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id):
+        """人閘門冊封（原則 5）：唯有人按此才寫 bedrock。冪等去重＋選用連對話由來（spec 023/028）。
+        回 (status, claim, msg)。/chat/anoint 與 /api/chat/anoint 共用（行為一份、天然一致）。"""
+        from ..chat.capture import norm_claim
+        claim = (claim or "").strip()
+        if not claim:
+            return "empty", claim, None
+        steps = [s.strip() for s in (ladder or "").splitlines() if s.strip()]
+        urls = [u.strip() for u in (evidence_urls or "").replace("，", ",").replace("\n", ",").split(",")
+                if u.strip().startswith("http")]
+        repo = app.state.repo_factory(app.state.config)
+        existing = {norm_claim(r.claim): r.id for r in repo.list_why_nodes("anointed")}
+        key = norm_claim(claim)
+        if key in existing:                     # 已收過→不重複新增（原則 6 反囤積）
+            wid = existing[key]
+            status = "exists"
+            msg = f"這條你已經收過了：「{claim[:40]}」（沒有重複新增）"
+        else:
+            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
+            repo.anoint_why_node(wid)
+            status = "created"
+            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『核心理解』頁檢視或刪除）"
+        if save_convo == "1":                   # 連同這段對話存成由來（既有或新建都連）
+            messages = _parse_history(history)
+            if messages:
+                tid = _temp_id(temp_id)
+                if tid:                         # 有暫存→升永久同一筆＋連根因（spec 028，不新增）
+                    repo.promote_conversation(tid, _convo_title(messages), wid)
+                else:
+                    repo.save_conversation(_convo_title(messages), messages, wid)
+                if status == "created":
+                    msg += "，並存下這段對話當它的由來"
+        repo.close()
+        return status, claim, msg
+
     @app.post("/chat/anoint", response_class=HTMLResponse)
     async def chat_anoint(request: Request, claim: str = Form(""),
                           ladder: str = Form(""), evidence_urls: str = Form(""),
                           save_convo: str = Form(""), history: str = Form("[]"),
                           temp_id: str = Form(""), as_: str = Form("", alias="as")):
-        """人閘門：唯有此路由（人按）寫 bedrock（原則 5）。save_convo=1 連同存這段對話成由來（spec 023）。
-
-        冪等：主張正規化後已在核心理解→不重複新增（連由來到既有根因），避免收進同一條兩則。
-        """
-        from ..chat.capture import norm_claim
-        claim = (claim or "").strip()
-        msg = None
-        status = "empty"
-        if claim:
-            steps = [s.strip() for s in ladder.splitlines() if s.strip()]
-            urls = [u.strip() for u in evidence_urls.replace("，", ",").replace("\n", ",").split(",")
-                    if u.strip().startswith("http")]
-            repo = app.state.repo_factory(app.state.config)
-            existing = {norm_claim(r.claim): r.id for r in repo.list_why_nodes("anointed")}
-            key = norm_claim(claim)
-            if key in existing:                 # 已收過→不重複新增（原則 6 反囤積）
-                wid = existing[key]
-                status = "exists"
-                msg = f"這條你已經收過了：「{claim[:40]}」（沒有重複新增）"
-            else:
-                wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps)
-                repo.anoint_why_node(wid)
-                status = "created"
-                msg = f"已存進你的知識庫：「{claim[:40]}」（可到『核心理解』頁檢視或刪除）"
-            if save_convo == "1":               # 連同這段對話存成由來（連到根因，既有或新建都連）
-                messages = _parse_history(history)
-                if messages:
-                    tid = _temp_id(temp_id)
-                    if tid:                     # 有暫存→升永久同一筆＋連根因（spec 028，不新增）
-                        repo.promote_conversation(tid, _convo_title(messages), wid)
-                    else:
-                        repo.save_conversation(_convo_title(messages), messages, wid)
-                    if status == "created":
-                        msg += "，並存下這段對話當它的由來"
-            repo.close()
+        """人閘門：唯有此路由（人按）寫 bedrock（原則 5，沿用 _do_anoint）。"""
+        status, claim, msg = _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id)
         if as_ == "json":       # AJAX：原地標記、不重載（不清空對話、不跳主頁）
             from fastapi.responses import JSONResponse
             return JSONResponse({"status": status, "claim": claim, "msg": msg})
@@ -687,6 +688,94 @@ def create_app() -> FastAPI:
             _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
             tid = None
         return JSONResponse({"temp_id": tid})
+
+    # ══ /api：JSON/SSE 門面（re-platform 階段一，vision 階段 27）══
+    # 共用上面的服務閉包（_stream_gen/_do_anoint/distill_factory/repo）——零邏輯重寫、行為天然一致。
+    from fastapi.responses import JSONResponse as _JSON
+
+    @app.get("/api/chat/state")
+    async def api_chat_state():
+        repo = app.state.repo_factory(app.state.config)
+        repo.purge_expired_temporary(_now_iso())
+        temps = [c for c in repo.list_conversations() if c.temporary]
+        repo.close()
+        recent = temps[0] if temps else None
+        return _JSON({"root_count": _root_count(),
+                      "recent_temp": ({"id": recent.id, "title": recent.title,
+                                       "messages": recent.messages} if recent else None)})
+
+    @app.post("/api/chat/stream")
+    async def api_chat_stream(request: Request):
+        body = await request.json()
+        hist = body.get("history") or []
+        message = (body.get("message") or "").strip()
+        return StreamingResponse(_stream_gen(hist, message, bool(body.get("brainstorm"))),
+                                 media_type="text/event-stream")
+
+    @app.post("/api/chat/distill")
+    async def api_chat_distill(request: Request):
+        body = await request.json()
+        try:
+            cands = app.state.distill_factory(body.get("history") or [])
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("蒸餾候選失敗", extra={"extra": {"reason": str(e)}})
+            return _JSON({"error": str(e)}, status_code=502)
+        return _JSON({"candidates": [
+            {"claim": c.claim, "kind": c.kind, "ladder": c.ladder,
+             "evidence_urls": c.evidence_urls, "already": c.already}
+            for c in (cands or [])]})
+
+    @app.post("/api/chat/anoint")
+    async def api_chat_anoint(request: Request):
+        """人閘門冊封（沿用 _do_anoint；React 也只能經此寫地基）。"""
+        body = await request.json()
+        status, claim, msg = _do_anoint(
+            body.get("claim", ""), body.get("ladder", ""), body.get("evidence_urls", ""),
+            "1" if body.get("save_convo") else "",
+            json.dumps(body.get("history") or [], ensure_ascii=False),
+            str(body.get("temp_id") or ""))
+        return _JSON({"status": status, "claim": claim, "msg": msg})
+
+    @app.post("/api/chat/autosave")
+    async def api_chat_autosave(request: Request):
+        body = await request.json()
+        try:
+            repo = app.state.repo_factory(app.state.config)
+            tid = repo.autosave_temporary(_temp_id(str(body.get("temp_id") or "")) or None,
+                                          body.get("history") or [], _now_iso())
+            repo.close()
+        except Exception as e:  # noqa: BLE001 - autosave 不擋聊天（教訓 3）
+            _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
+            tid = None
+        return _JSON({"temp_id": tid})
+
+    @app.get("/api/roots")
+    async def api_roots():
+        repo = app.state.repo_factory(app.state.config)
+        anointed = repo.list_why_nodes("anointed")
+        candidates = repo.list_why_nodes("candidate")
+        prov = repo.why_node_provenance()
+        sprov = repo.why_node_source_provenance()
+        repo.close()
+
+        def _wn(w):
+            return {"id": w.id, "claim": w.claim, "evidence_urls": w.evidence_urls,
+                    "ladder": w.ladder, "touchstones": w.touchstones, "fog_flag": w.fog_flag}
+        return _JSON({"anointed": [_wn(w) for w in anointed],
+                      "candidates": [_wn(w) for w in candidates],
+                      "provenance": {str(k): v for k, v in prov.items()},
+                      "source_provenance": {str(k): v for k, v in sprov.items()}})
+
+    # ══ 服務 React SPA（掛 /app，strangler：舊 Jinja / 與 /chat 不動）══
+    _DIST = Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    if _DIST.is_dir():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/app/assets", StaticFiles(directory=str(_DIST / "assets")), name="spa-assets")
+
+        @app.get("/app", response_class=HTMLResponse)
+        @app.get("/app/{path:path}", response_class=HTMLResponse)
+        async def spa(path: str = ""):
+            return HTMLResponse((_DIST / "index.html").read_text(encoding="utf-8"))
 
     @app.post("/conversations/{cid}/promote")
     async def conversation_promote(cid: int):

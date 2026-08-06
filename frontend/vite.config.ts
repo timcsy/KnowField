@@ -5,6 +5,8 @@ import tailwindcss from "@tailwindcss/vite"
 
 // https://vite.dev/config/
 export default defineConfig({
+  // FastAPI 把 SPA 掛在 /app（strangler：舊 Jinja / 與 /chat 不動）
+  base: "/app/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

@@ -842,7 +842,7 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 -->
 
 **里程碑（分階，逐一 promote 成 spec）：**
-- [ ] **階段一：`/chat` 打樣 ＋ `/api` 基座**——後端抽 JSON `/api/chat/*`＋`/api/roots`（共用既有 service 不重寫邏輯）；React `/chat`（側欄殼＋串流＋引用＋整理/精選人閘門）；FastAPI 吐 dist。**Acceptance**：React /chat 行為與舊版一致（串流/引用[n]/你收藏的/人閘門精選/autosave）、膜與純度守衛不變、舊 Jinja /chat 照跑。
+- [x] **階段一 完成（2026-08-06，spec 033，355 測綠、零回歸；史 `history/076`）**：後端抽共用閉包（`_stream_gen`/`_do_anoint`）→ JSON/SSE `/api/chat/*`＋`/api/roots`（零邏輯重寫）；React `/chat`（側欄殼＋SSE 串流＋引用[n]錨點＋你收藏的＋整理→**人逐條精選**＋autosave）掛 `/app`；FastAPI 服務 `frontend/dist`＋SPA fallback。**守衛測**：純度（distill 不寫地基、唯 anoint 人閘門寫）＋strangler（舊 Jinja /chat 照跑）。**未竟（本階段內的 polish）**：答案 markdown/MathJax 渲染仍陽春（whitespace-pre-wrap＋[n]），留後續補齊。
 - [ ] 階段二：逐頁遷 roots → library → source → ingest → conversations（每頁一 PR，舊頁照跑）。
 - [ ] 階段三：web 測（驗 HTML）→ 改 API 測；核心邏輯測不動。
 - [ ] 階段四：PWA＋`vite-plugin-pwa` manifest `share_target`＋後端 `/api/ingest/share`（Android 手機分享進 App）。
