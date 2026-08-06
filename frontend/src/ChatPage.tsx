@@ -7,6 +7,7 @@ import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { GitBranch, Pencil } from "lucide-react"
 
 type Chapter = { title: string; start: number; end: number }
 
@@ -160,15 +161,28 @@ export default function ChatPage() {
     setCandidates(null); setStreaming(null); setStage(null)
     toast("已從這裡開分支——接著聊會存成新對話，原對話不動")
   }
+  // 從某則問句開分支：那句放回輸入框、截斷到它之前、變新對話（原對話不動）——像 ChatGPT/Gemini
+  function branchFromMsg(i: number) {
+    setInput(messages[i]?.content || "")
+    setMessages(messages.slice(0, i))
+    tempId.current = null; baseCount.current = 0
+    setChapters(null); setFocusFrom(0)
+    setCandidates(null); setStreaming(null); setStage(null)
+    toast("已開分支——原對話不動，可改問法接著聊")
+  }
 
   const empty = messages.length === 0 && streaming === null && stage === null
   const freshCands = (candidates || []).filter((c) => !c.already)
 
   const renderMsg = (m: Message, i: number) =>
     m.role === "user" ? (
-      <div key={i} className="group flex items-start justify-end gap-1">
-        <button onClick={() => editMessage(i)} title="從這句重問（這串會改）"
-                className="mt-1 text-xs opacity-0 transition hover:text-foreground group-hover:opacity-100">✏️</button>
+      <div key={i} className="group flex items-start justify-end gap-1.5">
+        <div className="mt-2 flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">
+          <button onClick={() => branchFromMsg(i)} title="從這句開分支（原對話不動、另開一串）"
+                  className="text-muted-foreground hover:text-primary"><GitBranch className="size-3.5" /></button>
+          <button onClick={() => editMessage(i)} title="從這句重問（改這串）"
+                  className="text-muted-foreground hover:text-foreground"><Pencil className="size-3.5" /></button>
+        </div>
         <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">{m.content}</div>
       </div>
     ) : (
@@ -228,8 +242,9 @@ export default function ChatPage() {
                     <span className="ml-2 text-xs font-normal text-muted-foreground">（最新，接著聊）</span>
                   ) : (
                     <button onClick={(e) => { e.preventDefault(); branchFrom(ch.end) }}
-                            title="從這章末尾岔出新對話續聊（原對話不動）"
-                            className="ml-2 text-xs font-normal text-muted-foreground hover:text-primary hover:underline">↪ 從這章分支續聊</button>
+                            title="從這章末尾開分支續聊（原對話不動、另開一串）"
+                            className="ml-2 inline-flex items-center gap-0.5 text-xs font-normal text-muted-foreground hover:text-primary">
+                      <GitBranch className="size-3" /> 分支</button>
                   )}
                 </summary>
                 <div className="space-y-3 border-t px-4 py-3">
