@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 const NAV = [
-  { label: "💬 對話", to: "/" },
+  { label: "💬 對話", to: "/conversations" },
   { label: "💡 核心理解", to: "/roots" },
   { label: "📚 來源", to: "/sources" },
 ]
@@ -28,7 +28,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   }, [])
 
   const isActive = (to: string) =>
-    to === "/" ? pathname === "/" || pathname.startsWith("/conversations")
+    to === "/conversations" ? pathname === "/" || pathname.startsWith("/conversations")
       : to === "/sources" ? pathname.startsWith("/source")
       : pathname.startsWith(to)
 

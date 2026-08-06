@@ -20,6 +20,7 @@ import RootsPage from "./pages/RootsPage"
 import SourcesPage from "./pages/SourcesPage"
 import SourcePage from "./pages/SourcePage"
 import ConversationViewPage from "./pages/ConversationViewPage"
+import ConversationsPage from "./pages/ConversationsPage"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -30,11 +31,11 @@ createRoot(document.getElementById("root")!).render(
           <Route path="roots" element={<RootsPage />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="source" element={<SourcePage />} />
+          <Route path="conversations" element={<ConversationsPage />} />
           <Route path="conversations/:id" element={<ConversationViewPage />} />
           {/* 舊 IA → 新 IA（對話＝聊天＋存檔、來源＝知識庫＋收進） */}
           <Route path="library" element={<Navigate to="/sources" replace />} />
           <Route path="ingest" element={<Navigate to="/sources" replace />} />
-          <Route path="conversations" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
