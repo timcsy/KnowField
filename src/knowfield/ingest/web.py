@@ -9,8 +9,50 @@ stdlib HTMLParser、零相依、離線可測。抽 <title> ＋標題(h1-6)/段�
 from __future__ import annotations
 
 import re
+import unicodedata
 import urllib.parse
 from html.parser import HTMLParser
+
+_INVISIBLE = {0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x2060, 0xFEFF, 0x00AD}  # 零寬/方向/BOM/軟連字
+
+
+def _clean_chars(s: str) -> str:
+    """清掉莫名其妙的隱形/控制字元（零寬空格、BOM、軟連字、其他格式類）；NBSP→一般空白。"""
+    if not s:
+        return s
+    out = []
+    for ch in s:
+        o = ord(ch)
+        if o in _INVISIBLE:
+            continue
+        if o == 0x00A0:                       # 不斷行空白→一般空白
+            out.append(" ")
+            continue
+        cat = unicodedata.category(ch)
+        if cat == "Cf" or (cat == "Cc" and ch not in "\n\t"):
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _normalize_headings(blocks: list[str], title: str) -> list[str]:
+    """標題層次正規化（分錯層次的確定性修法）：① 移除與文章標題重複的 heading；
+    ② 剩下的層級重映射成「從 ## 起、連續」——ycc 的 h3 起跳提到頂層、lilianweng 跟標題同級的
+    h1 sections 降到 ## 在標題下、arxiv 的 h2 起維持。頁面標題另外顯示，本文一律從 ## 起。"""
+    tnorm = " ".join((title or "").split()).strip()
+    heads = [(i, len(m.group(1)), m.group(2).strip())
+             for i, b in enumerate(blocks)
+             for m in [re.match(r"^(#{1,6}) (.+)$", b)] if m]
+    drop = {i for i, _lvl, txt in heads if tnorm and " ".join(txt.split()) == tnorm}
+    levels = sorted({lvl for i, lvl, _t in heads if i not in drop})
+    remap = {lvl: min(2 + k, 6) for k, lvl in enumerate(levels)}
+    out = []
+    for i, b in enumerate(blocks):
+        if i in drop:
+            continue
+        m = re.match(r"^(#{1,6}) (.+)$", b)
+        out.append(f"{'#' * remap[len(m.group(1))]} {m.group(2)}" if m and len(m.group(1)) in remap else b)
+    return out
 
 
 _ARXIV = re.compile(r"^https?://arxiv\.org/(?:abs|pdf)/(\d+\.\d+)(?:v\d+)?/?$", re.I)
@@ -242,5 +284,6 @@ def extract_article_markdown(html: str, base_url: str = "") -> tuple[str, str]:
     p.blocks = _merge_math_blocks(p.blocks)
     # 標題優先文章 h1（乾淨、無站名後綴），退回 <title> 標籤
     title = " ".join((p.doc_h1 or p.title).split()).strip()
-    md = "\n\n".join(p.blocks).strip()
-    return title, md
+    p.blocks = _normalize_headings(p.blocks, title)     # 標題層次正規化（修分錯層次）
+    md = _clean_chars("\n\n".join(p.blocks).strip())    # 清隱形/控制字元
+    return _clean_chars(title), md

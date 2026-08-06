@@ -2,7 +2,10 @@
 
 import unittest
 
-from knowfield.ingest.web import extract_article_markdown, normalize_ingest_url, _merge_math_blocks
+from knowfield.ingest.web import (
+    extract_article_markdown, normalize_ingest_url, _merge_math_blocks,
+    _normalize_headings, _clean_chars,
+)
 
 _HTML = """<html><head><title>我的文章 - 部落格</title></head><body>
 <nav>首頁 關於 聯絡</nav>
@@ -20,7 +23,7 @@ class TestExtractArticle(unittest.TestCase):
     def test_markdown_structure(self):
         title, md = extract_article_markdown(_HTML)
         self.assertEqual(title, "大標題")     # 文章 h1＝標題（勝過帶站名後綴的 <title>）
-        self.assertIn("# 大標題", md)
+        self.assertNotIn("# 大標題", md)      # 標題另外顯示、不在內文重複（層次正規化）
         self.assertIn("## 小節一", md)
         self.assertIn("- 要點一很重要要記得", md)
         self.assertIn("第一段內容", md)
@@ -122,6 +125,24 @@ class TestExtractArticle(unittest.TestCase):
                 '<figcaption>圖一</figcaption></figure></article>')
         _, md = extract_article_markdown(html)
         self.assertIn("![示意圖](https://pic.example/diagram.png)", md)  # 圖沒被 figure 吞、取到真網址
+
+
+class TestHeadingNormalize(unittest.TestCase):
+    def test_deep_start_lifted_to_h2(self):
+        # ycc 式：內文從 h3 起跳（無 h1/h2）→ 提到 ## 起、連續
+        out = _normalize_headings(["### 認識X", "內文", "#### 子節", "##### Next articles"], "某文標題")
+        self.assertEqual(out[0], "## 認識X")               # h3→h2
+        self.assertEqual(out[2], "### 子節")                # h4→h3
+        self.assertEqual(out[3], "#### Next articles")      # h5→h4
+
+    def test_title_duplicate_dropped_and_h1_sections_demoted(self):
+        # lilianweng 式：標題重複的 heading 移除；跟標題同級的 h1 sections 降到 ## 在標題下
+        out = _normalize_headings(["# 擴散模型", "前言", "# 條件生成", "## 子節"], "擴散模型")
+        self.assertNotIn("# 擴散模型", out)                 # 與標題重複→移除
+        self.assertEqual(out, ["前言", "## 條件生成", "### 子節"])
+
+    def test_clean_chars_strips_invisible(self):
+        self.assertEqual(_clean_chars("a\u200bb\u00a0c\ufeff"), "ab c")  # 零寬移除、NBSP→空白、BOM移除
 
 
 class TestMergeMathBlocks(unittest.TestCase):
