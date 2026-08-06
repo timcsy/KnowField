@@ -77,7 +77,9 @@ class TestSourceDistillWeb(unittest.TestCase):
         wid = repo.list_why_nodes("candidate")[0].id
         repo.close()
         c.post("/whynode/anoint", data={"id": wid})
-        self.assertIn("由來（你收進的來源）", c.get("/roots").text)
+        html = c.get("/roots").text
+        self.assertIn("📎 由來", html)                       # 源→根因由來標記（精簡文案）
+        self.assertIn("/source?u=", html)                    # 且連回該來源
 
     def test_extract_failure_best_effort_no_500(self):
         db = temp_db()

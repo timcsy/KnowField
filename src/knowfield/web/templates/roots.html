@@ -23,7 +23,7 @@
             <div class="flex items-start gap-2">
               <span class="badge badge-sm badge-warning badge-outline shrink-0">候選</span>
               <div class="min-w-0 flex-1">
-                <div class="font-medium">💡 {{ w.claim }}</div>
+                <div class="leading-loose">💡 {{ w.claim }}</div>
                 {% if w.ladder %}
                   <ol class="text-xs text-base-content/70 mt-2 mb-1 border-l-2 border-base-300 pl-3 space-y-0.5">
                     {% for step in w.ladder %}
@@ -72,40 +72,30 @@
   {# ── 已冊封（正式吸引子，問答最重）── #}
   <h2 class="font-semibold text-base-content/70 mt-2 mb-2">你精選的核心理解</h2>
   {% if anointed %}
-    <div class="card bg-base-100 shadow-sm">
-      <ul class="divide-y divide-base-200">
+    <div class="space-y-2">
         {% for w in anointed %}
-          <li class="flex items-start justify-between gap-3 px-5 py-3">
+          <div class="group flex items-start justify-between gap-3 bg-base-100 rounded-xl kf-card px-5 py-4">
             <div class="min-w-0">
-              <div class="font-medium">💡 {{ w.claim }}</div>
-              <div class="text-xs text-base-content/60 mt-0.5">
-                {% for u in w.evidence_urls %}
-                  <a href="{{ u }}" target="_blank" rel="noopener" class="link link-primary break-all">{{ u }}</a>{% if not loop.last %}、{% endif %}
-                {% endfor %}
-              </div>
-              {% if provenance and w.id in provenance %}
-                <a href="/conversations/{{ provenance[w.id] }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（當初怎麼想到的對話）</a>
-              {% endif %}
-              {% if source_provenance and w.id in source_provenance %}
-                <a href="/source?u={{ source_provenance[w.id] | urlencode }}" class="link link-hover text-xs text-secondary mt-0.5 inline-block">← 由來（你收進的來源）</a>
-              {% endif %}
-              <div class="mt-1 flex gap-1 flex-wrap">
-                <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/roots/{{ w.id }}/export?as=md')"
-                        title="複製這條核心理解 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
-                <button type="button" class="btn btn-ghost btn-xs"
-                        onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條核心理解沒有來源網址'})"
-                        title="複製這條核心理解的來源網址">🔗 複製來源網址</button>
+              <p class="text-[15px] leading-[2] tracking-[.01em] max-w-[42rem]">💡 {{ w.claim }}</p>
+              <div class="mt-2 flex items-center gap-4 text-xs text-base-content/45">
+                {% if source_provenance and w.id in source_provenance %}
+                  <a href="/source?u={{ source_provenance[w.id] | urlencode }}" class="hover:text-base-content/80">📎 由來</a>
+                {% elif provenance and w.id in provenance %}
+                  <a href="/conversations/{{ provenance[w.id] }}" class="hover:text-base-content/80">💬 由來</a>
+                {% endif %}
+                <span class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition">
+                  <button type="button" class="hover:text-base-content/80" onclick="copyExport('/roots/{{ w.id }}/export?as=md')" title="複製 Markdown，貼進 NotebookLM">📋 複製</button>
+                  <button type="button" class="hover:text-base-content/80" onclick="copyExport('/roots/{{ w.id }}/export?as=urls', {empty:'這條核心理解沒有來源網址'})" title="複製來源網址">🔗 來源</button>
+                </span>
               </div>
             </div>
-            <form action="/whynode/remove" method="post" class="shrink-0"
+            <form action="/whynode/remove" method="post" class="shrink-0 opacity-0 group-hover:opacity-100 transition"
                   onsubmit="return confirm('移除這條核心理解？（聊天將不再優先參考它）');">
               <input type="hidden" name="id" value="{{ w.id }}">
               <button class="btn btn-ghost btn-xs text-error">退回</button>
             </form>
-          </li>
+          </div>
         {% endfor %}
-      </ul>
     </div>
   {% else %}
     <p class="text-sm text-base-content/50">還沒有精選的核心理解。精選後，聊天會最優先參考它。</p>

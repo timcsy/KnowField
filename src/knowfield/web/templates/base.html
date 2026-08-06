@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" data-theme="nord">
+<html lang="zh-Hant" data-theme="cupcake">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>(function(){try{var t=localStorage.getItem('kf-theme');if(t==='cupcake'||t==='dim'){document.documentElement.setAttribute('data-theme',t);}else if(t){localStorage.removeItem('kf-theme');}}catch(e){}})();</script>
   <title>{% block title %}KnowField{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -34,39 +35,97 @@
     .answer-md tbody tr:nth-child(even) td { background: rgba(0,0,0,.025); }
     /* 維基式引用上標連結 */
     .answer-md .cite { font-size: .72em; vertical-align: super; text-decoration: none;
-                       color: #2563eb; padding: 0 .1em; }
-    .answer-md .cite:hover { text-decoration: underline; }
+                       color: inherit; opacity: .5; padding: 0 .1em; }
+    .answer-md .cite:hover { text-decoration: underline; opacity: .8; }
     .src-item { scroll-margin-top: 5rem; transition: background .3s; }
-    .src-item:target { background: rgba(37,99,235,.14); border-radius: 5px; }
+    .src-item:target { background: rgba(0,0,0,.06); border-radius: 5px; }
     /* 可複製的數學式（複製即回傳含 $ / $$ 的 LaTeX 原始碼） */
     .mathcopy { cursor: copy; border-radius: 3px; transition: background .3s; }
-    .mathcopy:hover { background: rgba(37,99,235,.10); }
+    .mathcopy:hover { background: rgba(0,0,0,.05); }
     .mathcopy-block { display: block; }
+    /* 側欄 active：中性灰、不上主色（貼 ChatGPT/Claude 的低彩感） */
+    .menu li > a.active, .menu li > a.active:hover, .menu li > a:active {
+      background-color: hsl(var(--b3)) !important; color: hsl(var(--bc)) !important; font-weight: 600; }
+    /* 自訂暖色低彩調色盤（貼 Claude 的舒服感）：覆蓋 cupcake 的 DaisyUI 變數 */
+    [data-theme="cupcake"] {
+      --b1: 44 40% 98%;   /* 紙面：卡片/側欄，暖白（提亮，跟背景拉開） */
+      --b2: 40 30% 90%;   /* 頁背景，暖奶油（壓深，讓卡片更跳） */
+      --b3: 39 26% 86%;   /* 使用者氣泡/hover，暖灰 */
+      --bc: 30 14% 22%;   /* 文字，暖深灰（非純黑，柔和） */
+      --n:  28 16% 26%;   /* neutral＝送出鈕，暖深 */
+      --nc: 44 36% 96%;
+      --p:  16 48% 52%;   /* 主色（少用）＝沉穩陶土，非藍 */
+      --pc: 44 36% 97%;
+      --in: 205 30% 45%; --su: 145 30% 40%; --wa: 40 60% 48%; --er: 8 55% 52%;  /* 資訊/成功/警示/錯誤都降飽和 */
+    }
+    /* 邊框極淡（跟氣泡脫鉤）：所有結構線只用文字色的 ~9% 透明，柔和不跳 */
+    .border-base-300 { border-color: hsl(var(--bc) / 0.09) !important; }
+    .border-base-200 { border-color: hsl(var(--bc) / 0.06) !important; }
+    /* 柔和暖陰影：卡片浮起來、不用邊框（比 DaisyUI 冷灰陰影暖、明顯一點） */
+    .kf-card { box-shadow: 0 1px 2px hsl(var(--bc) / .07), 0 3px 8px hsl(var(--bc) / .08); }
   </style>
 </head>
-<body class="min-h-screen bg-base-200 text-base-content">
-  <div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
-    <div class="max-w-3xl mx-auto w-full px-3 flex flex-wrap items-center gap-2">
-      <a href="/chat" class="btn btn-ghost text-xl px-2">🧠 KnowField</a>
-      <div class="hidden sm:flex ml-auto">
-        <a href="/chat" class="btn btn-ghost btn-sm">跟知識聊</a>
-        <a href="/roots" class="btn btn-ghost btn-sm">核心理解</a>
-        <a href="/conversations" class="btn btn-ghost btn-sm">對話存檔</a>
-        <a href="/ingest" class="btn btn-ghost btn-sm">收進</a>
-        <a href="/library" class="btn btn-ghost btn-sm">知識庫</a>
-      </div>
+<body class="bg-base-200 text-base-content">
+  {% set path = request.url.path if request else '' %}
+  <div class="drawer lg:drawer-open">
+    <input id="nav-drawer" type="checkbox" class="drawer-toggle" />
+
+    <div class="drawer-content flex flex-col min-h-screen">
+      <!-- 手機頂列（桌機隱藏，桌機走左側常駐欄） -->
+      <header class="lg:hidden sticky top-0 z-30 flex items-center gap-2 h-14 px-3 bg-base-100/95 backdrop-blur">
+        <label for="nav-drawer" class="btn btn-ghost btn-sm btn-square" aria-label="開啟選單">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </label>
+        <a href="/chat" class="font-semibold">🧠 KnowField</a>
+      </header>
+
+      <main class="flex-1 flex flex-col w-full max-w-4xl mx-auto px-5 sm:px-8 py-6">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+
+    <!-- 左側欄：桌機常駐、手機抽屜（市場慣例殼） -->
+    <div class="drawer-side z-40">
+      <label for="nav-drawer" class="drawer-overlay" aria-label="關閉選單"></label>
+      <aside class="w-64 min-h-full bg-base-100 flex flex-col">
+        <a href="/chat" class="flex items-center gap-2 h-14 px-4 text-lg font-bold">
+          <span>🧠</span><span>KnowField</span>
+        </a>
+        <ul class="menu gap-0.5 px-2 py-3 flex-1 text-[15px]">
+          <li><a href="/chat"          class="{{ 'active' if path.startswith('/chat') else '' }}">💬 跟知識聊</a></li>
+          <li><a href="/roots"         class="{{ 'active' if path.startswith('/roots') else '' }}">💡 核心理解</a></li>
+          <li><a href="/library"       class="{{ 'active' if path.startswith('/library') or path.startswith('/source') else '' }}">📚 知識庫</a></li>
+          <li><a href="/ingest"        class="{{ 'active' if path.startswith('/ingest') else '' }}">➕ 收進</a></li>
+          <li><a href="/conversations" class="{{ 'active' if path.startswith('/conversation') else '' }}">🗂 對話存檔</a></li>
+        </ul>
+        <div class="p-3">
+          <button type="button" onclick="toggleTheme()" class="btn btn-ghost btn-sm w-full justify-start gap-2">
+            <span id="theme-icon">🌙</span><span id="theme-label">深色</span>
+          </button>
+          <p class="text-[11px] text-base-content/40 px-1 mt-2 leading-relaxed">消化到底，隨時可回溯。</p>
+        </div>
+      </aside>
     </div>
   </div>
 
-  <main class="max-w-3xl mx-auto px-3 sm:px-4 py-6">
-    {% block content %}{% endblock %}
-  </main>
-
-  <footer class="footer footer-center p-6 text-base-content/50 text-xs">
-    <aside><p>KnowField — 消化到底，隨時可回溯。</p></aside>
-  </footer>
-
   <div id="toast" class="toast toast-end z-50" style="display:none"></div>
+
+  <script>
+    // 淺/深主題切換（corporate ↔ dim），localStorage 記住；FOUC 由 <head> 內聯腳本先套。
+    function toggleTheme(){
+      var d = document.documentElement, next = d.getAttribute('data-theme') === 'dim' ? 'cupcake' : 'dim';
+      d.setAttribute('data-theme', next);
+      try { localStorage.setItem('kf-theme', next); } catch(e){}
+      _updTheme();
+    }
+    function _updTheme(){
+      var dark = document.documentElement.getAttribute('data-theme') === 'dim';
+      var i = document.getElementById('theme-icon'), l = document.getElementById('theme-label');
+      if (i) i.textContent = dark ? '☀️' : '🌙';
+      if (l) l.textContent = dark ? '淺色' : '深色';
+    }
+    document.addEventListener('DOMContentLoaded', _updTheme);
+  </script>
 
   <script>
     // 共用：向匯出端點取純文字 → 複製到剪貼簿 → toast 提示（spec 024，複製給 NotebookLM）。

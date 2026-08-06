@@ -1,104 +1,148 @@
 {% extends "base.html" %}
 {% block title %}跟你的知識庫聊 — KnowField{% endblock %}
 {% block content %}
-  <div class="flex items-center gap-2 mb-1">
-    <h1 class="text-2xl font-bold">🧠 跟你的知識庫聊</h1>
-    <span class="text-sm text-base-content/60">從你存下的 {{ root_count }} 條核心理解出發，有話直說、不順著你講好聽話</span>
-  </div>
-  <p class="text-xs text-base-content/50 mb-4">
-    聊得越多、存得越多，這裡就越懂你在想什麼。它只會**建議**你把哪條想法存起來，存不存由你決定。
-  </p>
+  <div class="flex flex-col flex-1 min-h-0">
 
-  {% if anoint_msg %}<div class="alert alert-success mb-4"><span>✅ {{ anoint_msg }}</span></div>{% endif %}
-  {% if err %}<div class="alert alert-error mb-4"><span>❌ {{ err }}</span></div>{% endif %}
-
-  {% if root_count == 0 %}
-    <div class="alert mb-4"><span class="opacity-70">🌱 你的知識庫還空——先到「核心理解」頁精選幾條，聊起來才會從你的想法出發。也可以先隨意聊。</span></div>
-  {% endif %}
-
-  {% if recent_temp and not messages %}
-    <div class="alert mb-4">
-      <span>💾 上次還沒存的對話還在（「{{ recent_temp.title }}」）——
-        <a href="/conversations/{{ recent_temp.id }}/resume" class="link font-semibold">接回繼續聊</a>？
-        （沒碰的話 7 天後會自動清除）</span>
+    {# 精簡標題列 #}
+    <div class="shrink-0 flex flex-wrap items-baseline gap-x-2 pb-2">
+      <h1 class="text-lg font-bold flex items-center gap-2">🧠 跟你的知識庫聊</h1>
+      <p class="text-xs text-base-content/50">從你存下的 {{ root_count }} 條核心理解出發，有話直說、不順著你講好聽話。</p>
     </div>
-  {% endif %}
 
-  <div id="messages" class="space-y-4 mb-5">
-    {% if messages %}
-      {% for m in messages %}
-        {% if m.role == "user" %}
-          <div class="flex justify-end">
-            <div class="bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
-          </div>
+    {% if anoint_msg %}<div class="alert alert-success mt-3 shrink-0"><span>✅ {{ anoint_msg }}</span></div>{% endif %}
+    {% if err %}<div class="alert alert-error mt-3 shrink-0"><span>❌ {{ err }}</span></div>{% endif %}
+
+    {# 空狀態問候（sibling；有訊息時 server 不渲染，送出時 JS 移除）#}
+    {% if not messages %}
+      <div id="empty-state" class="shrink-0 flex flex-col items-center text-center gap-3 pt-12 pb-6">
+        <div class="text-5xl opacity-80">🧠</div>
+        {% if root_count == 0 %}
+          <p class="text-sm text-base-content/50 max-w-sm leading-relaxed">你的知識庫還空——先到「<a href="/roots" class="link link-primary">核心理解</a>」精選幾條，聊起來會從你的想法出發。也可以先隨意聊。</p>
         {% else %}
-          {% set p = 'm' ~ loop.index %}
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
-              {% if m.sources %}
-                <div class="text-sm pt-2 border-t border-base-200 mt-1">
-                  <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
-                  <ul class="space-y-0.5">
-                    {% for s in m.sources %}
-                      <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
-                        <span class="badge badge-xs badge-outline">{{ s.n }}</span>
-                        {% if s.kind == 'corpus' %}<span class="badge badge-xs badge-secondary">📎 你收藏的</span>{% endif %}
-                        <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
-                      </li>
-                    {% endfor %}
-                  </ul>
-                </div>
-              {% endif %}
-            </div>
-          </div>
+          <p class="text-sm text-base-content/50 max-w-sm leading-relaxed">丟一個想法、一個「為什麼 X 要這樣」，或接著上一句往下問。<br>它有話直說，不順著你講好聽話。</p>
         {% endif %}
-      {% endfor %}
+        {% if recent_temp %}
+          <p class="text-xs text-base-content/50">💾 上次還沒存的對話還在（「{{ recent_temp.title }}」）——
+            <a href="/conversations/{{ recent_temp.id }}/resume" class="link link-primary font-semibold">接回繼續聊</a>（7 天後自動清除）</p>
+        {% endif %}
+      </div>
     {% endif %}
+
+    {# 訊息區：撐滿、往下長（頁面捲動、輸入框吸底）#}
+    <div id="messages" class="flex-1 space-y-4 py-4">
+      {% if messages %}
+        {% for m in messages %}
+          {% if m.role == "user" %}
+            <div class="flex justify-end">
+              <div class="bg-base-300 text-base-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[85%] whitespace-pre-wrap">{{ m.content }}</div>
+            </div>
+          {% else %}
+            {% set p = 'm' ~ loop.index %}
+            <div class="card bg-base-100 shadow-sm">
+              <div class="card-body p-4">
+                <div class="md-render answer-md leading-relaxed text-[15px]" data-src-prefix="{{ p }}-src">{{ m.content }}</div>
+                {% if m.sources %}
+                  <div class="text-sm pt-2 border-t border-base-200 mt-1">
+                    <div class="font-semibold text-base-content/60 mb-1 text-xs">來源</div>
+                    <ul class="space-y-0.5">
+                      {% for s in m.sources %}
+                        <li id="{{ p }}-src-{{ s.n }}" class="src-item px-1 py-0.5 text-[13px]">
+                          <span class="badge badge-xs badge-outline">{{ s.n }}</span>
+                          {% if s.kind == 'corpus' %}<span class="badge badge-xs badge-secondary">📎 你收藏的</span>{% endif %}
+                          <a href="{{ s.url }}" target="_blank" rel="noopener" class="link link-primary">{{ s.title }}</a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    {% if distill_nudge %}
+      <div class="alert alert-warning mb-3 shrink-0" id="distill-nudge">
+        <span>🧵 自上次整理後又聊了一大段（約第 {{ distill_nudge.from }}–{{ distill_nudge.to }} 句）還沒整理——
+          <b>尾段常是最原創的地方</b>。要不要現在
+          <button type="button" class="link link-hover font-semibold" onclick="triggerDistill()">整理成重點</button>？</span>
+      </div>
+    {% endif %}
+
+    {# 整理出的候選：JS 開時由 renderCandidates 原地填這裡（不重載、不跳離對話）#}
+    <div id="candidate-panel" class="my-3 hidden shrink-0"></div>
+
+    {# 無 JS fallback：整頁 POST /chat/distill 時伺服器端渲染（已收過的標灰、不重複精選）#}
+    {% if candidates %}
+      <noscript>
+        <div class="my-4">
+          <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要精選的</h2>
+          {% for c in candidates %}
+            {% if c.already %}
+              <div class="text-xs opacity-50 py-1">✓ 已在核心理解：{{ c.claim }}</div>
+            {% else %}
+              <form action="/chat/anoint" method="post" class="card bg-base-100 border border-primary/20 p-3 mb-2 space-y-2">
+                {% if c.kind %}<span class="badge badge-sm w-fit">{{ c.kind }}</span>{% endif %}
+                <input name="claim" value="{{ c.claim }}" class="input input-bordered input-sm w-full">
+                <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full">{{ c.ladder | join('\n') }}</textarea>
+                <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}" class="input input-bordered input-sm w-full" placeholder="來源網址（可空）">
+                <input type="hidden" name="history" value='{{ history_json }}'>
+                <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
+                <label class="label cursor-pointer justify-start gap-2 py-0">
+                  <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
+                  <span class="label-text text-xs">連同這段對話存成「由來」</span>
+                </label>
+                <button class="btn btn-primary btn-sm">精選這條</button>
+              </form>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </noscript>
+    {% endif %}
+
+    {# 輸入區：吸底（頁面捲動時黏在視窗底）#}
+    <div class="shrink-0 sticky bottom-0 bg-base-200 pt-2 pb-1 -mx-5 sm:-mx-8 px-5 sm:px-8">
+      <form id="chat-form" action="/chat" method="post" onsubmit="return chatBusy(this)">
+        <input type="hidden" name="history" value='{{ history_json }}'>
+        <input type="hidden" name="last_captured" id="last-captured" value="0">
+        <div class="flex items-end gap-2 bg-base-100 border border-base-300 rounded-2xl px-3 py-1.5 shadow-sm focus-within:border-primary/60 transition-colors">
+          <textarea name="message" rows="1" autofocus
+                    class="flex-1 bg-transparent outline-none resize-none text-[15px] leading-relaxed py-1.5 max-h-40"
+                    placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…">{{ draft or '' }}</textarea>
+          <button class="btn btn-neutral btn-sm btn-circle shrink-0" title="送出" aria-label="送出">↑</button>
+        </div>
+        <label class="label cursor-pointer justify-start gap-2 py-1 w-fit">
+          <input type="checkbox" name="brainstorm" value="1" class="checkbox checkbox-xs">
+          <span class="label-text text-xs text-base-content/60">🧠 腦力激盪（這輪純聊、不找資料）</span>
+        </label>
+      </form>
+
+      {# 動作列：永遠在 DOM，串流建立的對話也顯示；無訊息時隱藏（依 client history 由 JS 切換）#}
+      <div id="chat-actions" class="flex gap-2 flex-wrap pb-1 {% if not messages %}hidden{% endif %}">
+        {# JS 開：submit 被攔成 AJAX（原地渲染候選、不重載）；JS 關：整頁 POST fallback #}
+        <form id="distill-form" action="/chat/distill" method="post">
+          <input type="hidden" name="history" value='{{ history_json }}'>
+          <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
+          <button class="btn btn-outline btn-xs">🧵 整理成重點</button>
+        </form>
+        <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
+          <input type="hidden" name="history" value='{{ history_json }}'>
+          <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
+          <button class="btn btn-ghost btn-xs">💾 存這段對話</button>
+        </form>
+        <button type="button" class="btn btn-ghost btn-xs" onclick="copyChat('md')"
+                title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
+        <button type="button" class="btn btn-ghost btn-xs" onclick="copyChat('urls')"
+                title="複製被引用的來源網址，貼進 NotebookLM 當網址來源">🔗 複製來源網址</button>
+      </div>
+    </div>
   </div>
 
-  {% if distill_nudge %}
-    <div class="alert alert-warning mb-4" id="distill-nudge">
-      <span>🧵 自上次整理後又聊了一大段（約第 {{ distill_nudge.from }}–{{ distill_nudge.to }} 句）還沒整理——
-        <b>尾段常是最原創的地方</b>。要不要現在
-        <button type="button" class="link link-hover font-semibold" onclick="triggerDistill()">整理成重點</button>？
-        （忽略也行，不會自動存）</span>
-    </div>
-  {% endif %}
-
-  <form id="chat-form" action="/chat" method="post" class="mb-2" onsubmit="return chatBusy(this)">
-    <input type="hidden" name="history" value='{{ history_json }}'>
-    <input type="hidden" name="last_captured" id="last-captured" value="0">
-    <textarea name="message" rows="2" autofocus
-              class="textarea textarea-bordered w-full mb-2"
-              placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…">{{ draft or '' }}</textarea>
-    <div class="flex items-center gap-3">
-      <button class="btn btn-primary btn-sm">送出</button>
-      <label class="label cursor-pointer gap-2 py-0">
-        <input type="checkbox" name="brainstorm" value="1" class="checkbox checkbox-sm">
-        <span class="label-text text-sm">🧠 腦力激盪（這輪純聊、不找資料）</span>
-      </label>
-    </div>
-  </form>
-
-  {# 動作列：永遠在 DOM，串流建立的對話也顯示；無訊息時隱藏（依 client history 由 JS 切換）#}
-  <div id="chat-actions" class="flex gap-2 flex-wrap {% if not messages %}hidden{% endif %}">
-    {# JS 開：submit 被攔成 AJAX（原地渲染候選、不重載）；JS 關：整頁 POST fallback #}
-    <form id="distill-form" action="/chat/distill" method="post">
-      <input type="hidden" name="history" value='{{ history_json }}'>
-      <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
-      <button class="btn btn-outline btn-sm">🧵 整理成重點</button>
-    </form>
-    <form action="/chat/save" method="post" onsubmit="return busy(this, '存檔中…')">
-      <input type="hidden" name="history" value='{{ history_json }}'>
-      <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
-      <button class="btn btn-ghost btn-sm">💾 存這段對話</button>
-    </form>
-    <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('md')"
-            title="複製整段對話 Markdown，貼進 NotebookLM 當文字來源">📋 複製 Markdown</button>
-    <button type="button" class="btn btn-ghost btn-sm" onclick="copyChat('urls')"
-            title="複製被引用的來源網址，貼進 NotebookLM 當網址來源">🔗 複製來源網址</button>
+  <div id="busy" class="hidden fixed inset-x-0 bottom-28 flex justify-center z-40 pointer-events-none">
+    <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
   </div>
+
   <script>
     // 匯出當前對話給 NotebookLM（spec 024）：讀 **live** history（syncHidden 已同步到隱藏欄）。
     function copyChat(as) {
@@ -110,41 +154,6 @@
         empty: as === 'urls' ? '這段對話沒有被引用的來源網址' : '這段對話還是空的' });
     }
   </script>
-
-  <div id="busy" class="hidden fixed inset-x-0 bottom-6 flex justify-center z-40">
-    <div class="alert w-auto shadow-lg"><span class="loading loading-dots loading-sm"></span><span id="busy-msg">思考中…</span></div>
-  </div>
-
-  {# 整理出的候選：JS 開時由 renderCandidates 原地填這裡（不重載、不跳離對話）#}
-  <div id="candidate-panel" class="my-4 hidden"></div>
-
-  {# 無 JS fallback：整頁 POST /chat/distill 時伺服器端渲染（已收過的標灰、不重複精選）#}
-  {% if candidates %}
-    <noscript>
-      <div class="my-4">
-        <h2 class="font-semibold text-sm mb-2">整理出這幾條——挑要精選的</h2>
-        {% for c in candidates %}
-          {% if c.already %}
-            <div class="text-xs opacity-50 py-1">✓ 已在核心理解：{{ c.claim }}</div>
-          {% else %}
-            <form action="/chat/anoint" method="post" class="card bg-base-100 border border-primary/20 p-3 mb-2 space-y-2">
-              {% if c.kind %}<span class="badge badge-sm w-fit">{{ c.kind }}</span>{% endif %}
-              <input name="claim" value="{{ c.claim }}" class="input input-bordered input-sm w-full">
-              <textarea name="ladder" rows="2" class="textarea textarea-bordered textarea-sm w-full">{{ c.ladder | join('\n') }}</textarea>
-              <input name="evidence_urls" value="{{ c.evidence_urls | join(', ') }}" class="input input-bordered input-sm w-full" placeholder="來源網址（可空）">
-              <input type="hidden" name="history" value='{{ history_json }}'>
-              <input type="hidden" name="temp_id" value='{{ temp_id or "" }}'>
-              <label class="label cursor-pointer justify-start gap-2 py-0">
-                <input type="checkbox" name="save_convo" value="1" class="checkbox checkbox-xs">
-                <span class="label-text text-xs">連同這段對話存成「由來」</span>
-              </label>
-              <button class="btn btn-primary btn-sm">精選這條</button>
-            </form>
-          {% endif %}
-        {% endfor %}
-      </div>
-    </noscript>
-  {% endif %}
 
   <script>
     // 整理→精選：全程原地 AJAX（不重載、不跳離對話）。候選由 /chat/distill?as=json 取回、client 渲染。
@@ -383,7 +392,7 @@
         branch.addEventListener('click', function () { branchAt(i); });
         tools.appendChild(edit); tools.appendChild(branch);
         var b = document.createElement('div');
-        b.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
+        b.className = 'bg-base-300 text-base-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
         b.textContent = m.content;
         wrap.appendChild(tools); wrap.appendChild(b); return wrap;
       }
@@ -456,17 +465,18 @@
         document.querySelectorAll('.md-render').forEach(renderMd);
         return;
       }
-      renderConversation();
+      if (history.length) renderConversation();   // 空對話時保留 server 的問候空狀態
 
       form.addEventListener('submit', function (e) {
         var msg = (ta().value || '').trim();
         if (!msg) { e.preventDefault(); return; }
         e.preventDefault();
+        var es = document.getElementById('empty-state'); if (es) es.remove();   // 首次送出→移除問候空狀態
         var bs = form.querySelector('input[name=brainstorm]').checked;
         var btn = form.querySelector('button'); btn.disabled = true;
         var u = document.createElement('div'); u.className = 'flex justify-end';
         var ub = document.createElement('div');
-        ub.className = 'bg-primary text-primary-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
+        ub.className = 'bg-base-300 text-base-content rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] whitespace-pre-wrap';
         ub.textContent = msg; u.appendChild(ub); box.appendChild(u);
         var card = document.createElement('div'); card.className = 'card bg-base-100 shadow-sm';
         card.innerHTML = '<div class="card-body p-4"><div class="answer-md leading-relaxed text-[15px]"></div></div>';
