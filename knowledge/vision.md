@@ -851,6 +851,18 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 
 > 設計依據：`draft/2026-07-23-部署與介面路線.md`（UI/部署路線，含被推翻段）、`history/075`。上線 auth 接 `draft/共享的膜與跨base聯邦` A/B。
 
+## 階段 28：核心理解的認識論層次（kind）— ✅ 完成（2026-08-06）
+
+> 設計源 `draft/2026-08-06-核心理解的認識論層次`（已反流）、史 `history/080`。
+
+- [x] **完成（2026-08-06，`test_epistemic_kind` 8 測、全套 296 綠、零回歸）**：核心理解標
+  **認識論層次**——distill **看對話上下文誠實判可信度**，4 檔：🔬已證實／🧩推論／🌉類比／💭猜想。
+  複用既有 `_DISTILL`「類型」機制（早已在判，只是精選後沒持久化）→ `why_nodes` 加 `kind` 欄＋migration、
+  `add_why_node`/`list_why_nodes`/`WhyNode`／api anoint/roots 帶 kind；前端 `KindBadge` 顯示；
+  **聊天用**：`build_field_system_prompt` 每條帶「［層級］」＋指引「類比／猜想別當定論、已證實／推論才據以斷言」
+  （反逢迎於自身）。守衛：distill 判＝AI 提案、精選＝人閘門保存（原則 5）；不自動進地基（原則 6）不變。
+- [ ] **未竟（次要）**：source distill 候選 kind（`rootcause.Candidate` 未帶）、人手動改層級、kind 影響 grounding 權重（刻意先不做，別過度）。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
