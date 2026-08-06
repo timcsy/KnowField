@@ -1,17 +1,18 @@
 """收進圖片在地化：把 markdown 裡的外連圖片下載到本地 media/、改寫成本地路徑（/media/<hash>.<ext>）。
 
 best-effort：抓不到的圖**保留原外連 URL**（不擋收進，教訓 3）。圖片只影響顯示、不進 embedding
-（存的是短路徑不是 base64）。data: 內嵌圖在抽取階段已擋（web.py）。
+（存的是短路徑不是 base64）。也處理 PDF OCR 內嵌的 data: 圖（解碼存檔、改寫路徑）。
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 import urllib.request
 from pathlib import Path
 
-# 只在地化 http(s) 外連圖；OCR 產的本地參照（img-0.jpeg）等非 http 的略過
-_IMG = re.compile(r"!\[([^\]]*)\]\((https?://[^)\s]+)\)")
+# 在地化 http(s) 外連圖，以及 PDF OCR 回的 data:image;base64 內嵌圖（base64 無 ) 或空白，安全）
+_IMG = re.compile(r"!\[([^\]]*)\]\((https?://[^)\s]+|data:image/[^)\s]+)\)")
 _CTYPE_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
     "image/svg+xml": "svg", "image/webp": "webp", "image/avif": "avif",
@@ -34,6 +35,13 @@ def _ext(url: str, ctype: str) -> str:
     return tail if tail in _EXT_OK else "img"
 
 
+def _decode_data_uri(uri: str) -> tuple[bytes, str, str]:
+    """data:image/jpeg;base64,XXXX → (bytes, 副檔名, base64字串)。base64 當內容雜湊、同圖去重。"""
+    header, _, b64 = uri.partition(",")
+    mime = header[5:].split(";")[0].strip().lower()      # "image/jpeg"
+    return base64.b64decode(b64), _CTYPE_EXT.get(mime, "img"), b64
+
+
 def localize_images(md: str, media_dir: str, fetch=fetch_image_bytes,
                     url_prefix: str = "/media") -> tuple[str, int]:
     """下載 md 內每張外連圖到 media_dir、改寫成 <url_prefix>/<hash>.<ext>。回 (新md, 成功數)。
@@ -50,10 +58,16 @@ def localize_images(md: str, media_dir: str, fetch=fetch_image_bytes,
         if url in cache:
             return f"![{alt}]({cache[url]})"
         try:
-            data, ctype = fetch(url)
+            if url.startswith("data:"):               # PDF OCR 內嵌圖：解碼、不走網路
+                data, ext, b64 = _decode_data_uri(url)
+                key = hashlib.sha1(b64.encode("utf-8")).hexdigest()[:16]
+            else:                                      # http(s) 外連圖：下載
+                data, ctype = fetch(url)
+                ext = _ext(url, ctype)
+                key = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
             if not data:
                 raise ValueError("空回應")
-            name = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16] + "." + _ext(url, ctype)
+            name = f"{key}.{ext}"
             d.mkdir(parents=True, exist_ok=True)
             (d / name).write_bytes(data)
             local = f"{url_prefix}/{name}"

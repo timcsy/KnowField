@@ -208,6 +208,31 @@ class TestIngestPdf(unittest.TestCase):
         self.assertEqual(len(repo.list_corpus_entries()), 0)   # 半殘不寫
         repo.close()
 
+    def test_inline_page_images_replaces_placeholder(self):
+        from knowfield.ingest.convert import _inline_page_images
+        pages = [{"markdown": "見 ![img-0.jpeg](img-0.jpeg) 圖",
+                  "images": [{"id": "img-0.jpeg", "image_base64": "data:image/png;base64,AAA"}]}]
+        md = _inline_page_images(pages)
+        self.assertIn("![img-0.jpeg](data:image/png;base64,AAA)", md)   # 佔位→data URI
+        self.assertNotIn("](img-0.jpeg)", md)
+
+    def test_pdf_ocr_image_localized_to_media(self):
+        import base64
+        import tempfile
+        from pathlib import Path
+        b64 = base64.b64encode(b"JPGDATA").decode()
+        md = f"# 論文\n見圖 ![img-0.jpeg](data:image/jpeg;base64,{b64})"
+        with tempfile.TemporaryDirectory() as mdir:
+            repo = Repository(temp_db())
+            svc = ContentIngestService(repo, StubEmbedder(),
+                                       converter=StubConverter(md), media_dir=mdir)
+            svc.ingest_pdf(pdf_url="https://x/paper.pdf", title="論文")
+            bodies = "\n".join(e.body or "" for e in repo.list_corpus_entries())
+            self.assertRegex(bodies, r"/media/[0-9a-f]{16}\.jpg")   # 圖在地化
+            self.assertNotIn("base64", bodies)                       # data URI 沒留在內文
+            self.assertEqual(len(list(Path(mdir).iterdir())), 1)     # 圖真的落地
+            repo.close()
+
 
 if __name__ == "__main__":
     unittest.main()

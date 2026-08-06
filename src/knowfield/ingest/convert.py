@@ -22,6 +22,20 @@ from ..sources.base import SourceUnavailable
 _MAX_PAGES = 30            # Azure Mistral Document AI 單份頁數上限（實測）
 
 
+def _inline_page_images(pages: list[dict]) -> str:
+    """把 OCR 每頁的圖 base64 內嵌回 markdown 佔位（`![img-0.jpeg](img-0.jpeg)` → data URI），
+    交給下游 media.localize_images 存檔在地化。佔位在正文對的位置→圖位置精準。純函式、可測。"""
+    out: list[str] = []
+    for p in pages:
+        md = p.get("markdown", "") or ""
+        for im in p.get("images", []) or []:
+            iid, b64 = im.get("id"), im.get("image_base64")
+            if iid and b64:                       # b64 已是完整 data URI（data:image/...;base64,..）
+                md = md.replace(f"]({iid})", f"]({b64})")
+        out.append(md)
+    return "\n\n---\n\n".join(out)
+
+
 class DocConverter(Protocol):
     def to_markdown(self, pdf_bytes: bytes | None = None,
                     pdf_url: str | None = None) -> str: ...
@@ -36,7 +50,7 @@ class MistralDocConverter:
         self.model = getattr(config, "ocr_model", "azure/mistral-document-ai-2512")
 
     def _ocr(self, document: dict, pages: list[int] | None = None) -> str:
-        body = {"model": self.model, "document": document, "include_image_base64": False}
+        body = {"model": self.model, "document": document, "include_image_base64": True}
         if pages is not None:
             body["pages"] = pages
         req = urllib.request.Request(
@@ -48,7 +62,7 @@ class MistralDocConverter:
                 data = json.loads(r.read())
         except Exception as e:  # noqa: BLE001 - 轉檔失敗→邊界攔（教訓 3）
             raise SourceUnavailable(f"文件轉檔失敗：{type(e).__name__}") from e
-        return "\n\n---\n\n".join(p.get("markdown", "") for p in data.get("pages", []))
+        return _inline_page_images(data.get("pages", []))
 
     def to_markdown(self, pdf_bytes: bytes | None = None,
                     pdf_url: str | None = None) -> str:

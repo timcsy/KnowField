@@ -47,6 +47,19 @@ class TestLocalizeImages(unittest.TestCase):
             self.assertEqual(calls["https://x/same.gif"], 1)  # 同 url 只抓一次
             self.assertEqual(n, 1)
 
+    def test_data_uri_image_decoded_and_saved(self):
+        # PDF OCR 內嵌圖：data:image;base64 → 解碼存檔、改寫 /media（不走網路）
+        import base64
+        b64 = base64.b64encode(b"PNGBYTES").decode()
+        with tempfile.TemporaryDirectory() as d:
+            md = f"見圖 ![圖1](data:image/png;base64,{b64}) 說明"
+            out, n = localize_images(md, d)          # data: 不需注入 fetch
+            self.assertEqual(n, 1)
+            self.assertRegex(out, r"!\[圖1\]\(/media/[0-9a-f]{16}\.png\)")
+            files = list(Path(d).iterdir())
+            self.assertEqual(len(files), 1)
+            self.assertEqual(files[0].read_bytes(), b"PNGBYTES")   # 真的解碼落地
+
     def test_no_images_unchanged(self):
         with tempfile.TemporaryDirectory() as d:
             md = "純文字沒有圖片。data:image 也不碰。"
