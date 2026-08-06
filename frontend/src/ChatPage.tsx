@@ -105,6 +105,24 @@ export default function ChatPage() {
     if (r.status === "created") setRootCount((n) => n + 1)
   }
 
+  const [flash, setFlash] = useState<string | null>(null)
+  function toast(t: string) { setFlash(t); setTimeout(() => setFlash(null), 2200) }
+
+  async function copyChat(as: "md" | "urls") {
+    const r = await fetch("/api/chat/export", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: messages, as }),
+    })
+    const text = await r.text()
+    if (!text.trim()) { toast(as === "urls" ? "這段沒有被引用的來源網址" : "對話還是空的"); return }
+    try { await navigator.clipboard.writeText(text); toast("已複製，可貼進 NotebookLM") }
+    catch { toast("這個瀏覽器不允許自動複製") }
+  }
+  function editMessage(i: number) {
+    setInput(messages[i]?.content || "")
+    setMessages(messages.slice(0, i))   // 從這句重問（這串會改）
+  }
+
   const empty = messages.length === 0 && streaming === null && stage === null
   const freshCands = (candidates || []).filter((c) => !c.already)
 
@@ -130,7 +148,9 @@ export default function ChatPage() {
 
         {messages.map((m, i) =>
           m.role === "user" ? (
-            <div key={i} className="flex justify-end">
+            <div key={i} className="group flex items-start justify-end gap-1">
+              <button onClick={() => editMessage(i)} title="從這句重問（這串會改）"
+                      className="mt-1 text-xs opacity-0 transition hover:text-foreground group-hover:opacity-100">✏️</button>
               <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">
                 {m.content}
               </div>
@@ -208,11 +228,23 @@ export default function ChatPage() {
             🧠 腦力激盪（這輪純聊、不找資料）
           </label>
           {messages.length > 0 && (
-            <button onClick={distill} disabled={busy}
-                    className="text-xs text-muted-foreground hover:underline">🧵 整理成重點</button>
+            <>
+              <button onClick={distill} disabled={busy}
+                      className="text-xs text-muted-foreground hover:underline">🧵 整理成重點</button>
+              <button onClick={() => copyChat("md")}
+                      className="text-xs text-muted-foreground hover:underline">📋 複製 Markdown</button>
+              <button onClick={() => copyChat("urls")}
+                      className="text-xs text-muted-foreground hover:underline">🔗 複製來源</button>
+            </>
           )}
         </div>
       </div>
+
+      {flash && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg">
+          {flash}
+        </div>
+      )}
     </div>
   )
 }

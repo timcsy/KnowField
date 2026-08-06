@@ -750,6 +750,13 @@ def create_app() -> FastAPI:
             tid = None
         return _JSON({"temp_id": tid})
 
+    @app.post("/api/chat/export")
+    async def api_chat_export(request: Request):
+        """匯出當前對話給 NotebookLM（as=md/urls）。純唯讀、不落庫（原則 6）。"""
+        b = await request.json()
+        return PlainTextResponse(
+            _export_conversation(b.get("title", ""), b.get("history") or [], b.get("as") or "md"))
+
     @app.get("/api/roots")
     async def api_roots():
         repo = app.state.repo_factory(app.state.config)

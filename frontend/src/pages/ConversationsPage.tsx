@@ -68,7 +68,8 @@ function Row({ c, onChange, temp }: { c: ConvRow; onChange: () => void; temp?: b
   return (
     <div className="group rounded-xl bg-card px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <Link to={`/?resume=${c.id}`} className="font-medium hover:underline">{c.title || "（未命名對話）"}</Link>
+        <Link to={`/conversations/${c.id}`} className="font-medium hover:underline">{c.title || "（未命名對話）"}</Link>
+        <Link to={`/?resume=${c.id}`} className="text-xs text-primary hover:underline">接著聊</Link>
         {temp && <Button size="sm" variant="ghost" onClick={promote} title="轉為永久保存">📌 轉永久</Button>}
         {renaming ? (
           <span className="ml-auto flex items-center gap-1">

@@ -18,6 +18,10 @@ export default function RootsPage() {
     await pages.whynodeRemove(id)
     load()
   }
+  async function copyRoot(id: number, as: "md" | "urls") {
+    const t = await (await fetch(`/roots/${id}/export?as=${as}`)).text()
+    if (t.trim()) { try { await navigator.clipboard.writeText(t) } catch { /* 無剪貼簿權限 */ } }
+  }
 
   if (!data) return <p className="text-sm text-muted-foreground">載入中…</p>
   return (
@@ -62,12 +66,11 @@ export default function RootsPage() {
                     ) : convo ? (
                       <span>💬 由來</span>
                     ) : null}
-                    <button
-                      onClick={() => remove(w.id)}
-                      className="opacity-0 transition hover:text-destructive group-hover:opacity-100"
-                    >
-                      退回
-                    </button>
+                    <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
+                      <button onClick={() => copyRoot(w.id, "md")} className="hover:text-foreground">📋 複製</button>
+                      <button onClick={() => copyRoot(w.id, "urls")} className="hover:text-foreground">🔗 來源</button>
+                      <button onClick={() => remove(w.id)} className="hover:text-destructive">退回</button>
+                    </span>
                   </div>
                 </div>
               )

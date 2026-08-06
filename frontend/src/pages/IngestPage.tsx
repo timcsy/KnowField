@@ -1,8 +1,7 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { pages } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 
 type Res = { status: string; count: number; err?: string }
 
@@ -16,8 +15,8 @@ function flashText(r: Res): string {
 export default function IngestPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  // 貼上
-  const [text, setText] = useState("")
+  // 貼上（rich-paste：contenteditable 收 HTML＋圖片）
+  const pasteRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState("")
   const [sourceUrl, setSourceUrl] = useState("")
   const [note, setNote] = useState("")
@@ -34,7 +33,11 @@ export default function IngestPage() {
   }
 
   async function pastePost(): Promise<Res> {
-    return pages.ingestPaste({ text, title, source_url: sourceUrl, note, clean })
+    const el = pasteRef.current
+    return pages.ingestPaste({
+      text: el?.innerText || "", html: el?.innerHTML || "",
+      title, source_url: sourceUrl, note, clean,
+    })
   }
   async function urlPost(): Promise<Res> {
     return pages.ingestUrl({ url: pageUrl, note })
@@ -63,8 +66,13 @@ export default function IngestPage() {
           <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="原網址（可選）" className="flex-1" />
         </div>
         <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="收進原因／脈絡（可選）" />
-        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8}
-                  placeholder="把內容貼進來——你可以先刪掉不要的雜訊，再收進。" />
+        <div
+          ref={pasteRef}
+          contentEditable
+          suppressContentEditableWarning
+          data-placeholder="把內容貼進來（含圖片、格式）——可先刪掉不要的雜訊，再收進。"
+          className="min-h-40 rounded-md border bg-card p-3 text-[15px] leading-relaxed outline-none [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded"
+        />
         <div className="flex items-center gap-3">
           <Button disabled={busy} onClick={() => run(pastePost)}>收進這段</Button>
           <label className="flex items-center gap-1 text-xs text-muted-foreground">

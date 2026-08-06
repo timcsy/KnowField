@@ -9,6 +9,7 @@ import LibraryPage from "./pages/LibraryPage"
 import SourcePage from "./pages/SourcePage"
 import IngestPage from "./pages/IngestPage"
 import ConversationsPage from "./pages/ConversationsPage"
+import ConversationViewPage from "./pages/ConversationViewPage"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="source" element={<SourcePage />} />
           <Route path="ingest" element={<IngestPage />} />
           <Route path="conversations" element={<ConversationsPage />} />
+          <Route path="conversations/:id" element={<ConversationViewPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
