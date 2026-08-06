@@ -7,7 +7,7 @@ import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { GitBranch, Pencil } from "lucide-react"
+import { Copy, GitBranch, Pencil } from "lucide-react"
 
 type Chapter = { title: string; start: number; end: number }
 
@@ -161,14 +161,9 @@ export default function ChatPage() {
     setCandidates(null); setStreaming(null); setStage(null)
     toast("已從這裡開分支——接著聊會存成新對話，原對話不動")
   }
-  // 從某則問句開分支：那句放回輸入框、截斷到它之前、變新對話（原對話不動）——像 ChatGPT/Gemini
-  function branchFromMsg(i: number) {
-    setInput(messages[i]?.content || "")
-    setMessages(messages.slice(0, i))
-    tempId.current = null; baseCount.current = 0
-    setChapters(null); setFocusFrom(0)
-    setCandidates(null); setStreaming(null); setStage(null)
-    toast("已開分支——原對話不動，可改問法接著聊")
+  async function copyMsg(text: string) {
+    try { await navigator.clipboard.writeText(text); toast("已複製這則") }
+    catch { toast("這個瀏覽器不允許自動複製") }
   }
 
   const empty = messages.length === 0 && streaming === null && stage === null
@@ -176,20 +171,25 @@ export default function ChatPage() {
 
   const renderMsg = (m: Message, i: number) =>
     m.role === "user" ? (
-      <div key={i} className="group flex items-start justify-end gap-1.5">
-        <div className="mt-2 flex shrink-0 gap-1.5 opacity-0 transition group-hover:opacity-100">
-          <button onClick={() => branchFromMsg(i)} title="從這句開分支（原對話不動、另開一串）"
-                  className="text-muted-foreground hover:text-primary"><GitBranch className="size-3.5" /></button>
-          <button onClick={() => editMessage(i)} title="從這句重問（改這串）"
-                  className="text-muted-foreground hover:text-foreground"><Pencil className="size-3.5" /></button>
-        </div>
+      <div key={i} className="group flex flex-col items-end gap-0.5">
         <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">{m.content}</div>
+        <button onClick={() => editMessage(i)} title="編輯這句重問（改這串）"
+                className="pr-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100">
+          <Pencil className="size-3.5" />
+        </button>
       </div>
     ) : (
-      <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
-        <Markdown text={m.content} prefix={`m${i}`} />
-        <Sources sources={m.sources || []} prefix={`m${i}`} />
-        <FoundExtra extra={m.found_extra || []} />
+      <div key={i} className="group">
+        <div className="rounded-xl bg-card px-4 py-3 shadow-sm">
+          <Markdown text={m.content} prefix={`m${i}`} />
+          <Sources sources={m.sources || []} prefix={`m${i}`} />
+          <FoundExtra extra={m.found_extra || []} />
+        </div>
+        {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、分支 */}
+        <div className="mt-1 flex gap-3 pl-1 text-muted-foreground opacity-0 transition group-hover:opacity-100">
+          <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
+          <button onClick={() => branchFrom(i + 1)} title="從這裡開分支（原對話不動、另開一串接著聊）" className="hover:text-primary"><GitBranch className="size-3.5" /></button>
+        </div>
       </div>
     )
   const hasChapters = !!(chapters && chapters.length > 1)
@@ -238,14 +238,7 @@ export default function ChatPage() {
                   {ch.title}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">第 {ch.start}–{endLabel} 則</span>
                   {isFocus && <span className="ml-2 text-xs font-normal text-primary">← 出處</span>}
-                  {isLast ? (
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">（最新，接著聊）</span>
-                  ) : (
-                    <button onClick={(e) => { e.preventDefault(); branchFrom(ch.end) }}
-                            title="從這章末尾開分支續聊（原對話不動、另開一串）"
-                            className="ml-2 inline-flex items-center gap-0.5 text-xs font-normal text-muted-foreground hover:text-primary">
-                      <GitBranch className="size-3" /> 分支</button>
-                  )}
+                  {isLast && <span className="ml-2 text-xs font-normal text-muted-foreground">（最新，接著聊）</span>}
                 </summary>
                 <div className="space-y-3 border-t px-4 py-3">
                   {msgs.map((m, j) => renderMsg(m, ch.start - 1 + j))}
