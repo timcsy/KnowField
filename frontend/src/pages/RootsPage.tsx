@@ -62,14 +62,14 @@ export default function RootsPage() {
                   <p className="max-w-[42rem] text-[15px] leading-loose">💡 {w.claim}</p>
                   <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
                     {src ? (
-                      <Link to={`/source?u=${encodeURIComponent(src)}`} className="hover:text-foreground hover:underline">📎 由來</Link>
+                      <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
                     ) : convo ? (
-                      <Link to={`/conversations/${convo}`} className="hover:text-foreground hover:underline">💬 由來</Link>
+                      <Link to={`/conversations/${convo}`} title="這條的出處：點開看當初那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
                     ) : null}
                     <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
-                      <button onClick={() => copyRoot(w.id, "md")} className="hover:text-foreground">📋 複製</button>
-                      <button onClick={() => copyRoot(w.id, "urls")} className="hover:text-foreground">🔗 來源</button>
-                      <button onClick={() => remove(w.id)} className="hover:text-destructive">退回</button>
+                      <button onClick={() => copyRoot(w.id, "md")} title="複製這條重點（Markdown）" className="hover:text-foreground">📋 複製</button>
+                      <button onClick={() => copyRoot(w.id, "urls")} title="複製這條的佐證網址（AI 引用的外部來源）" className="hover:text-foreground">🔗 佐證</button>
+                      <button onClick={() => remove(w.id)} title="退回（聊天不再優先參考它）" className="hover:text-destructive">退回</button>
                     </span>
                   </div>
                 </div>
