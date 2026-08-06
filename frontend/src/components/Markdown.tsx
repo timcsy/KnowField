@@ -12,6 +12,29 @@ function toMarkdownMath(tex: string): string {
 
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
+// 內容變化後 debounce typeset 整頁（比逐元件 typesetPromise([el]) 可靠——
+// 後者在 resume/re-render 的時序下會錯過；整頁 typeset 就是手動觸發也 work 的那招）。
+let _typesetTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleTypeset() {
+  const w = window as unknown as {
+    MathJax?: { typesetPromise?(): Promise<void>; startup?: { promise?: Promise<unknown> } }
+  }
+  if (_typesetTimer) clearTimeout(_typesetTimer)
+  _typesetTimer = setTimeout(() => {
+    _typesetTimer = null
+    const run = () => w.MathJax?.typesetPromise?.().catch(() => {})
+    if (w.MathJax?.typesetPromise) run()                              // 已 ready
+    else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(run)  // 載入中
+    else {                                                           // script 還沒執行→輪詢等（10s）
+      let n = 0
+      const iv = setInterval(() => {
+        if (w.MathJax?.typesetPromise) { clearInterval(iv); run() }
+        else if (++n > 50) clearInterval(iv)
+      }, 200)
+    }
+  }, 80)
+}
+
 // 答案/原文 → HTML：math 抽出佔位 → marked 渲染 → 還原成 .mathcopy(帶 data-tex) → [n] 變引用錨點。
 export function renderHtml(text: string, prefix = "src"): string {
   const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
@@ -37,23 +60,7 @@ export function Markdown({ text, prefix = "src" }: { text: string; prefix?: stri
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // MathJax 從 CDN async 載入，render 時常還沒 ready→首次不渲染；等它 ready 再 typeset。
-    const w = window as unknown as {
-      MathJax?: {
-        typesetPromise?(els: Element[]): Promise<void>
-        startup?: { promise?: Promise<unknown> }
-      }
-    }
-    const typeset = () => w.MathJax?.typesetPromise?.([el]).catch(() => {})
-    if (w.MathJax?.typesetPromise) typeset()
-    else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(typeset)
-    else {
-      let n = 0                              // MathJax script 都還沒執行→輪詢等（最多 10s）
-      const iv = setInterval(() => {
-        if (w.MathJax?.typesetPromise) { clearInterval(iv); typeset() }
-        else if (++n > 50) clearInterval(iv)
-      }, 200)
-    }
+    scheduleTypeset()   // MathJax：內容變化後 debounce typeset 整頁
     // 圖 hotlink 失效→替代連結（不留破圖）
     el.querySelectorAll("img").forEach((im) => {
       im.addEventListener("error", () => {
