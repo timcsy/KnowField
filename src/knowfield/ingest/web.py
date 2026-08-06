@@ -13,6 +13,20 @@ import urllib.parse
 from html.parser import HTMLParser
 
 
+_ARXIV = re.compile(r"^https?://arxiv\.org/(?:abs|pdf)/(\d+\.\d+)(?:v\d+)?/?$", re.I)
+
+
+def normalize_ingest_url(url: str) -> tuple[str, str]:
+    """回 (fetch_url, store_url)。arxiv abs/pdf → 抓 HTML 版（有 figure 圖＋乾淨數學；OCR 端點拿不到
+    圖像素），但**存回正規 /abs**（由來/去重穩定）。其他網址原樣。"""
+    u = (url or "").strip()
+    m = _ARXIV.match(u)
+    if m:
+        aid = m.group(1)
+        return f"https://arxiv.org/html/{aid}", f"https://arxiv.org/abs/{aid}"
+    return u, u
+
+
 def _img_tex(src: str, a: dict) -> str:
     """公式圖片→LaTeX：知乎等把數學存成 `equation?tex=...` 圖或 data-tex/alt。抽不到→""。"""
     dt = (a.get("data-tex") or "").strip()

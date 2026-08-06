@@ -131,16 +131,17 @@ class ContentIngestService:
                    note: str = "", ingested_at: str = "") -> ContentIngestResult:
         """收整篇網頁（開放文章/Blog）：抓 HTML→抽正文 markdown→切塊→存。best-effort。"""
         from ..seed.fetch import default_http_get
-        from .web import extract_article_markdown
+        from .web import extract_article_markdown, normalize_ingest_url
         url = (url or "").strip()
         if not url:
             return ContentIngestResult(status="empty")
-        html = (http_get or default_http_get)(url)          # 抓不到→SourceUnavailable（邊界攔）
-        extracted_title, md = extract_article_markdown(html, base_url=url)
+        fetch_url, store_url = normalize_ingest_url(url)     # arxiv abs/pdf→抓 HTML 版、存回 /abs
+        html = (http_get or default_http_get)(fetch_url)    # 抓不到→SourceUnavailable（邊界攔）
+        extracted_title, md = extract_article_markdown(html, base_url=fetch_url)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, extracted_title)
-        return self._ingest_markdown(md, title, url, note=note, ingested_at=ingested_at)
+        return self._ingest_markdown(md, title, store_url, note=note, ingested_at=ingested_at)
 
     def ingest_youtube(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
         """收 YouTube 逐字稿：抓字幕→切塊→存。抓不到字幕→SourceUnavailable（改用貼上）。"""

@@ -2,7 +2,7 @@
 
 import unittest
 
-from knowfield.ingest.web import extract_article_markdown
+from knowfield.ingest.web import extract_article_markdown, normalize_ingest_url
 
 _HTML = """<html><head><title>我的文章 - 部落格</title></head><body>
 <nav>首頁 關於 聯絡</nav>
@@ -122,6 +122,23 @@ class TestExtractArticle(unittest.TestCase):
                 '<figcaption>圖一</figcaption></figure></article>')
         _, md = extract_article_markdown(html)
         self.assertIn("![示意圖](https://pic.example/diagram.png)", md)  # 圖沒被 figure 吞、取到真網址
+
+
+class TestNormalizeIngestUrl(unittest.TestCase):
+    def test_arxiv_abs_and_pdf_route_to_html_store_abs(self):
+        self.assertEqual(
+            normalize_ingest_url("https://arxiv.org/abs/1706.03762"),
+            ("https://arxiv.org/html/1706.03762", "https://arxiv.org/abs/1706.03762"))
+        self.assertEqual(                                    # pdf 也一樣
+            normalize_ingest_url("https://arxiv.org/pdf/1706.03762"),
+            ("https://arxiv.org/html/1706.03762", "https://arxiv.org/abs/1706.03762"))
+        self.assertEqual(                                    # 版本號剝掉→正規 /abs
+            normalize_ingest_url("https://arxiv.org/abs/1706.03762v7")[1],
+            "https://arxiv.org/abs/1706.03762")
+
+    def test_non_arxiv_passthrough(self):
+        self.assertEqual(normalize_ingest_url("https://blog.x/post"),
+                         ("https://blog.x/post", "https://blog.x/post"))
 
 
 if __name__ == "__main__":

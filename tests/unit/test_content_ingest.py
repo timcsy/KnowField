@@ -143,6 +143,21 @@ class TestIngestUrl(unittest.TestCase):
         self.assertEqual(len(repo.list_corpus_entries()), 0)
         repo.close()
 
+    def test_arxiv_abs_fetches_html_but_stores_abs(self):
+        # arxiv 特殊處理：抓 HTML 版（有 figure 圖），但存回 /abs（由來/去重穩定）
+        fetched = {}
+
+        def http_get(u):
+            fetched["url"] = u
+            return self._HTML
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        svc.ingest_url("https://arxiv.org/abs/1706.03762", http_get=http_get)
+        self.assertEqual(fetched["url"], "https://arxiv.org/html/1706.03762")     # 抓 HTML 版
+        self.assertIsNotNone(repo.seed_exists("https://arxiv.org/abs/1706.03762"))  # 存回 /abs
+        self.assertIsNone(repo.seed_exists("https://arxiv.org/html/1706.03762"))
+        repo.close()
+
 
 class TestIngestYoutube(unittest.TestCase):
     _WATCH = ('"title":"養貓指南"'
