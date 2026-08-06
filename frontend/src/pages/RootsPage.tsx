@@ -62,9 +62,9 @@ export default function RootsPage() {
                   <p className="max-w-[42rem] text-[15px] leading-loose">💡 {w.claim}</p>
                   <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
                     {src ? (
-                      <Link to={`/source?u=${encodeURIComponent(src)}`} className="hover:text-foreground">📎 由來</Link>
+                      <Link to={`/source?u=${encodeURIComponent(src)}`} className="hover:text-foreground hover:underline">📎 由來</Link>
                     ) : convo ? (
-                      <span>💬 由來</span>
+                      <Link to={`/conversations/${convo}`} className="hover:text-foreground hover:underline">💬 由來</Link>
                     ) : null}
                     <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
                       <button onClick={() => copyRoot(w.id, "md")} className="hover:text-foreground">📋 複製</button>
