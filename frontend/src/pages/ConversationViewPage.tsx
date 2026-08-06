@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { pages, type Message } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
+import { Sources, FoundExtra } from "@/components/Sources"
 
 export default function ConversationViewPage() {
   const { id } = useParams()
@@ -65,6 +66,8 @@ export default function ConversationViewPage() {
           ) : (
             <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
               <Markdown text={m.content} prefix={`c${i}`} />
+              <Sources sources={m.sources || []} prefix={`c${i}`} />
+              <FoundExtra extra={m.found_extra || []} />
             </div>
           ),
         )}

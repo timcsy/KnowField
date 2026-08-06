@@ -1,27 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { api, pages, streamChat, type Candidate, type Message, type Source } from "@/lib/api"
+import { api, pages, streamChat, type Candidate, type Message } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
+import { Sources, FoundExtra } from "@/components/Sources"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-
-function Sources({ sources, prefix }: { sources: Source[]; prefix: string }) {
-  if (!sources.length) return null
-  return (
-    <div className="mt-2 space-y-0.5 border-t pt-2 text-xs">
-      <div className="font-medium text-muted-foreground">來源</div>
-      {sources.map((s) => (
-        <div key={s.n} id={`${prefix}-${s.n}`} className="scroll-mt-16">
-          <span className="text-muted-foreground">[{s.n}]</span>{" "}
-          {s.kind === "corpus" && <Badge variant="secondary" className="mr-1">📎 你收藏的</Badge>}
-          <a href={s.url} target="_blank" rel="noopener"
-             className="break-all text-primary hover:underline">{s.title}</a>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -165,6 +148,7 @@ export default function ChatPage() {
             <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
               <Markdown text={m.content} prefix={`m${i}`} />
               <Sources sources={m.sources || []} prefix={`m${i}`} />
+              <FoundExtra extra={m.found_extra || []} />
             </div>
           ),
         )}

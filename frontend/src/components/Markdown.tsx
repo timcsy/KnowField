@@ -1,5 +1,17 @@
 import { useEffect, useRef } from "react"
 
+// 把各種數學分隔符正規化成 Markdown 習慣（供複製）：\(..\)→$..$、\[..\]→$$..$$、$/$$ 保留。
+function toMarkdownMath(tex: string): string {
+  const t = tex.trim()
+  if (t.startsWith("$$") && t.endsWith("$$")) return t
+  if (t.startsWith("\\[") && t.endsWith("\\]")) return "$$" + t.slice(2, -2).trim() + "$$"
+  if (t.startsWith("\\(") && t.endsWith("\\)")) return "$" + t.slice(2, -2).trim() + "$"
+  if (t.startsWith("$") && t.endsWith("$")) return t
+  return t
+}
+
+const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
 // 答案/原文 → HTML：math 抽出佔位 → marked 渲染 → 還原成 .mathcopy(帶 data-tex) → [n] 變引用錨點。
 export function renderHtml(text: string, prefix = "src"): string {
   const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
@@ -11,10 +23,11 @@ export function renderHtml(text: string, prefix = "src"): string {
   let html = marked ? marked.parse(t) : t.replace(/\n/g, "<br>")
   html = html.replace(/@@M(\d+)@@/g, (_m, i) => {
     const tex = math[+i]
-    const esc = tex.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     const isBlock = /^\$\$|^\\\[/.test(tex)
     const tag = isBlock ? "div" : "span"
-    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" data-tex="${esc.replace(/"/g, "&quot;")}">${esc}</${tag}>`
+    // span 內文＝原始分隔符（MathJax 渲染用）；data-tex＝正規化 Markdown（複製用）
+    const dataTex = escHtml(toMarkdownMath(tex)).replace(/"/g, "&quot;")
+    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" data-tex="${dataTex}">${escHtml(tex)}</${tag}>`
   })
   return html.replace(/\[(\d+)\]/g, (_m, n) => `<a href="#${prefix}-${n}" class="cite">[${n}]</a>`)
 }
