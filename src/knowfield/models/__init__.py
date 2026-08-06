@@ -170,3 +170,4 @@ class Conversation:
     created_at: str = ""
     temporary: bool = False                         # spec 028：暫存(True)/永久(False)
     last_activity_at: str = ""                       # spec 028：最後活動時間（TTL 起算）
+    chapters: list = field(default_factory=list)     # 階段29：切好的章節 [{title,start,end}]，持久化避免重切

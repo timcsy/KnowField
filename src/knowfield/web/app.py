@@ -706,21 +706,29 @@ def create_app() -> FastAPI:
         return _JSON({"ok": True, "title": title})
 
     @app.get("/api/conversations/{cid}/segment")
-    async def api_conversation_segment(cid: int):
-        """整理成章節（spec 027 US2，on-demand、不落庫）。失敗→整段一章、不崩。"""
+    async def api_conversation_segment(cid: int, refresh: int = Query(0)):
+        """整理成章節（階段29：**持久化**避免每次重切）。切過→直接讀；refresh=1 或訊息長出→重切。
+        失敗→整段一章、不崩。"""
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
-        repo.close()
         if conv is None:
+            repo.close()
             return _JSON({"found": False}, status_code=404)
+        # 已切過且未過時（涵蓋到最後一則）→ 直接讀
+        covered = conv.chapters and max((c.get("end", 0) for c in conv.chapters), default=0) >= len(conv.messages)
+        if conv.chapters and covered and not refresh:
+            repo.close()
+            return _JSON({"found": True, "chapters": conv.chapters})
         try:
-            chapters = app.state.segment_factory(conv.messages)
+            raw = app.state.segment_factory(conv.messages)
         except Exception as e:  # noqa: BLE001
             _log.error("章節切分失敗", extra={"extra": {"reason": str(e)}})
-            chapters = [{"title": "全部", "start": 1, "end": len(conv.messages)}]
-        return _JSON({"found": True, "chapters": [
-            {"title": ch.get("title", ""), "start": ch.get("start", 0), "end": ch.get("end", 0)}
-            for ch in chapters]})
+            raw = [{"title": "全部", "start": 1, "end": len(conv.messages)}]
+        chapters = [{"title": ch.get("title", ""), "start": ch.get("start", 0), "end": ch.get("end", 0)}
+                    for ch in raw]
+        repo.set_conversation_chapters(cid, chapters)
+        repo.close()
+        return _JSON({"found": True, "chapters": chapters})
 
     @app.get("/api/conversations-dedupe/preview")
     async def api_dedupe_preview():

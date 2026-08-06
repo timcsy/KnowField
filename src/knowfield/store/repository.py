@@ -546,9 +546,18 @@ class Repository:
             why_node_id=r["why_node_id"], created_at=r["created_at"] or "",
             temporary=bool(r["temporary"]) if "temporary" in keys else False,
             last_activity_at=(r["last_activity_at"] if "last_activity_at" in keys else "")
-            or (r["created_at"] or ""))
+            or (r["created_at"] or ""),
+            chapters=json.loads((r["chapters"] if "chapters" in keys else "[]") or "[]"))
 
-    _CONV_COLS = "id, title, messages, why_node_id, created_at, temporary, last_activity_at"
+    def set_conversation_chapters(self, cid: int, chapters: list) -> None:
+        """存切好的章節（階段29 持久化，避免每次檢視重切）。"""
+        self.conn.execute(
+            "UPDATE conversations SET chapters=? WHERE id=?",
+            (json.dumps(chapters, ensure_ascii=False), cid))
+        self.conn.commit()
+
+    _CONV_COLS = ("id, title, messages, why_node_id, created_at, temporary,"
+                  " last_activity_at, chapters")
 
     def list_conversations(self) -> list:
         rows = self.conn.execute(

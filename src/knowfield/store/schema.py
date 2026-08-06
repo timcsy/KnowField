@@ -105,7 +105,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     why_node_id INTEGER,               -- 可空：連到的核心理解；無 FK（刪根因→對話變獨立、不崩）
     created_at TEXT,
     temporary INTEGER DEFAULT 0,       -- spec 028：0=永久 / 1=暫存（閒置 TTL 後懶清）
-    last_activity_at TEXT              -- spec 028：最後活動時間（TTL 起算）
+    last_activity_at TEXT,             -- spec 028：最後活動時間（TTL 起算）
+    chapters TEXT DEFAULT '[]'         -- 階段29：切好的章節 JSON [{title,start,end}]，持久化避免重切
 );
 """
 
@@ -183,3 +184,6 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE conversations ADD COLUMN last_activity_at TEXT")
         conn.execute(     # 既有存檔＝永久，last_activity 回填 created_at（一次性、冪等）
             "UPDATE conversations SET last_activity_at=created_at WHERE last_activity_at IS NULL")
+    # 階段29：conversations 補 chapters 欄（切好的章節；既有列＝空、首次檢視時切）
+    if conv_cols and "chapters" not in conv_cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN chapters TEXT DEFAULT '[]'")
