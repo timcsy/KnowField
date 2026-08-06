@@ -4,17 +4,68 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 
-// 把 [n] 換成可點錨點；其餘保留原文（含換行）。溯源靠結構、不靠模型自律（原則 3）。
-function renderContent(text: string, prefix: string) {
-  return text.split(/(\[\d+\])/g).map((p, i) => {
-    const m = p.match(/^\[(\d+)\]$/)
-    if (m)
-      return (
-        <a key={i} href={`#${prefix}-${m[1]}`}
-           className="align-super text-[0.7em] text-primary no-underline hover:underline">[{m[1]}]</a>
-      )
-    return <span key={i}>{p}</span>
+// 答案文字 → HTML：math 抽出佔位 → marked 渲染 → 還原成 .mathcopy(帶 data-tex) → [n] 變引用錨點。
+// 溯源靠結構、不靠模型自律（原則 3）。marked/MathJax 由 index.html 全域載入。
+function renderHtml(text: string, prefix: string): string {
+  const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
+  const math: string[] = []
+  const t = text.replace(
+    /\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+    (m) => { math.push(m); return `@@M${math.length - 1}@@` },
+  )
+  let html = marked ? marked.parse(t) : t.replace(/\n/g, "<br>")
+  html = html.replace(/@@M(\d+)@@/g, (_m, i) => {
+    const tex = math[+i]
+    const esc = tex.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    const isBlock = /^\$\$|^\\\[/.test(tex)
+    const tag = isBlock ? "div" : "span"
+    return `<${tag} class="mathcopy${isBlock ? " mathcopy-block" : ""}" data-tex="${esc.replace(/"/g, "&quot;")}">${esc}</${tag}>`
   })
+  return html.replace(/\[(\d+)\]/g, (_m, n) => `<a href="#${prefix}-${n}" class="cite">[${n}]</a>`)
+}
+
+function MessageBody({ text, prefix }: { text: string; prefix: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const mj = (window as unknown as { MathJax?: { typesetPromise?(els: Element[]): Promise<void> } }).MathJax
+    if (ref.current && mj?.typesetPromise) mj.typesetPromise([ref.current]).catch(() => {})
+  }, [text])
+  return (
+    <div ref={ref} className="answer-md text-[15px] leading-relaxed"
+         dangerouslySetInnerHTML={{ __html: renderHtml(text, prefix) }} />
+  )
+}
+
+// 選取數學 → Ctrl/⌘+C 複製到 LaTeX 原始碼（含 $）。刻意不做「點公式就複製」（使用者要求）。
+function installMathCopy(): () => void {
+  const mathOf = (n: Node | null): Element | null => {
+    if (!n) return null
+    const el = n.nodeType === 1 ? (n as Element) : n.parentElement
+    return el ? el.closest(".mathcopy") : null
+  }
+  function onCopy(e: ClipboardEvent) {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !e.clipboardData) return
+    const frag = sel.getRangeAt(0).cloneContents()
+    const maths = frag.querySelectorAll(".mathcopy")
+    if (maths.length === 0) {
+      const a = mathOf(sel.anchorNode)
+      if (a && a === mathOf(sel.focusNode)) {   // 選取整個落在單一數學元素內
+        e.clipboardData.setData("text/plain", a.getAttribute("data-tex") || "")
+        e.preventDefault()
+      }
+      return
+    }
+    maths.forEach((m) => {
+      const tex = m.getAttribute("data-tex") || ""
+      const block = m.classList.contains("mathcopy-block")
+      m.replaceWith(document.createTextNode(block ? `\n${tex}\n` : tex))
+    })
+    e.clipboardData.setData("text/plain", frag.textContent || "")
+    e.preventDefault()
+  }
+  document.addEventListener("copy", onCopy)
+  return () => document.removeEventListener("copy", onCopy)
 }
 
 function Sources({ sources, prefix }: { sources: Source[]; prefix: string }) {
@@ -51,6 +102,7 @@ export default function ChatPage() {
   useEffect(() => {
     api.state().then((s) => setRootCount(s.root_count)).catch(() => {})
   }, [])
+  useEffect(() => installMathCopy(), [])   // 選取數學→Ctrl/⌘+C 得 LaTeX（不點公式）
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streaming, stage])
@@ -144,9 +196,7 @@ export default function ChatPage() {
             </div>
           ) : (
             <div key={i} className="rounded-xl bg-card px-4 py-3 shadow-sm">
-              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">
-                {renderContent(m.content, `m${i}`)}
-              </div>
+              <MessageBody text={m.content} prefix={`m${i}`} />
               <Sources sources={m.sources || []} prefix={`m${i}`} />
             </div>
           ),

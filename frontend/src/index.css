@@ -109,3 +109,32 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* 答案 markdown 渲染（marked）＋引用上標＋數學（MathJax）。
+   數學複製走「選取＋Ctrl/⌘+C 回傳 LaTeX」——刻意不加點擊/游標 affordance（使用者不要點公式就複製）。 */
+.answer-md p { margin: 0.5rem 0; }
+.answer-md ul { list-style: disc; margin: 0.4rem 0 0.4rem 1.5rem; }
+.answer-md ol { list-style: decimal; margin: 0.4rem 0 0.4rem 1.5rem; }
+.answer-md li { margin: 0.2rem 0; }
+.answer-md strong { font-weight: 600; }
+.answer-md h1, .answer-md h2, .answer-md h3 { font-weight: 700; margin: 0.7rem 0 0.3rem; }
+.answer-md code {
+  background: color-mix(in oklch, currentColor 8%, transparent);
+  padding: 0 0.25rem; border-radius: 3px; font-size: 0.9em;
+}
+.answer-md a { text-decoration: underline; }
+.answer-md table {
+  border-collapse: collapse; margin: 0.7rem 0; display: block;
+  overflow-x: auto; max-width: 100%; font-size: 0.93em;
+}
+.answer-md th, .answer-md td {
+  border: 1px solid color-mix(in oklch, currentColor 20%, transparent);
+  padding: 0.35rem 0.65rem; text-align: left; vertical-align: top;
+}
+.answer-md th { background: color-mix(in oklch, currentColor 6%, transparent); font-weight: 600; }
+.answer-md .cite {
+  font-size: 0.72em; vertical-align: super; text-decoration: none;
+  color: var(--primary); padding: 0 0.1em;
+}
+.answer-md .cite:hover { text-decoration: underline; }
+.mathcopy-block { display: block; }
