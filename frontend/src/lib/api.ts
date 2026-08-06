@@ -49,7 +49,7 @@ export const api = {
   autosave: (
     history: Message[],
     temp_id: number | null,
-  ): Promise<{ temp_id: number | null }> =>
+  ): Promise<{ temp_id: number | null; title: string | null }> =>
     fetch("/api/chat/autosave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

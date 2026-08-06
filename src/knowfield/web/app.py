@@ -435,15 +435,19 @@ def create_app() -> FastAPI:
     @app.post("/api/chat/autosave")
     async def api_chat_autosave(request: Request):
         body = await request.json()
+        title = None
         try:
             repo = app.state.repo_factory(app.state.config)
             tid = repo.autosave_temporary(_temp_id(str(body.get("temp_id") or "")) or None,
                                           body.get("history") or [], _now_iso())
+            if tid:                        # 回落點標題，讓聊天頁抬頭即時顯示對話名
+                c = repo.get_conversation(int(tid))
+                title = c.title if c else None
             repo.close()
         except Exception as e:  # noqa: BLE001 - autosave 不擋聊天（教訓 3）
             _log.error("自動暫存失敗", extra={"extra": {"reason": str(e)}})
             tid = None
-        return _JSON({"temp_id": tid})
+        return _JSON({"temp_id": tid, "title": title})
 
     @app.post("/api/chat/save")
     async def api_chat_save(request: Request):

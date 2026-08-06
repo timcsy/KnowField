@@ -25,6 +25,7 @@ export default function ChatPage() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [candDone, setCandDone] = useState<Record<number, string>>({})
   const [saveConvo, setSaveConvo] = useState(false)
+  const [convTitle, setConvTitle] = useState("")   // 本對話落點標題（抬頭顯示）
   const tempId = useRef<number | null>(null)
   const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
@@ -42,6 +43,7 @@ export default function ChatPage() {
     const c = await pages.conversation(id, true)
     if (!c.found) return
     setMessages(c.messages)
+    setConvTitle(c.title || "")
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
     tempId.current = c.temporary ? c.id : null
@@ -52,7 +54,7 @@ export default function ChatPage() {
   }
   function newChat() {
     setMessages([]); tempId.current = null; setChapters(null); baseCount.current = 0; setFocusFrom(0)
-    setNudgeDismissed(false)
+    setConvTitle(""); setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
   }
 
@@ -111,7 +113,9 @@ export default function ChatPage() {
           { role: "assistant", content: text || full, sources, found_extra: extra }]
         setMessages(next); setStreaming(null); setStage(null)
         api.autosave(next, tempId.current).then((r) => {
-          tempId.current = r.temp_id; notifyConversations()
+          tempId.current = r.temp_id
+          if (r.title) setConvTitle(r.title)
+          notifyConversations()
         }).catch(() => {})
       },
     })
@@ -167,7 +171,7 @@ export default function ChatPage() {
   function branchFrom(upToMsg: number) {
     setMessages(messages.slice(0, upToMsg))
     tempId.current = null; baseCount.current = 0
-    setChapters(null); setFocusFrom(0)
+    setChapters(null); setFocusFrom(0); setConvTitle("")
     setCandidates(null); setStreaming(null); setStage(null)
     toast("已從這裡開分支——接著聊會存成新對話，原對話不動")
   }
@@ -247,7 +251,9 @@ export default function ChatPage() {
 
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
       <div className="shrink-0 pb-2">
-        <h1 className="text-lg font-bold">🧠 跟你的知識庫聊</h1>
+        <h1 className="truncate text-lg font-bold" title={convTitle || undefined}>
+          {convTitle ? `💬 ${convTitle}` : "🧠 跟你的知識庫聊"}
+        </h1>
         <p className="text-xs text-muted-foreground">
           從你存下的 {rootCount} 條核心理解出發，有話直說、不順著你講好聽話。
         </p>
