@@ -50,6 +50,15 @@ class TestChunkMarkdown(unittest.TestCase):
         self.assertIn("```", holding[0].rstrip()[-3:] if holding[0].rstrip().endswith("```") else holding[0])
         self.assertEqual(holding[0].count("x = 1"), 200)  # 沒被切掉
 
+    def test_inline_math_not_split(self):
+        # 行內 $..$ 不被切在中間（否則 stitch 的空行插進數學、前端 $ 配對連鎖崩壞）
+        math = "$\\mathrm{LayerNorm}(x+\\mathrm{Sublayer}(x))$"
+        md = "甲" * 385 + " " + math + " " + "乙" * 385   # 數學落在 ~400 切點附近
+        chunks = chunk_markdown(md, target=400, overlap=40)
+        self.assertTrue(any(math in c for c in chunks),   # 完整數學落在某一塊、沒被切半
+                        f"行內數學被切半：{[c[-40:] for c in chunks]}")
+        self.assertTrue(all(len(c) <= 400 for c in chunks))
+
     def test_table_not_split(self):
         rows = "\n".join(f"| 列{i} | 值{i} |" for i in range(80))
         table = "| 欄A | 欄B |\n| --- | --- |\n" + rows

@@ -14,6 +14,18 @@ import re
 
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
 _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_INLINE_MATH = re.compile(r"\$[^$\n]+?\$")
+
+
+def _snap_out_of_math(text: str, lo: int, pos: int) -> int:
+    """把切點 pos 移出行內 $..$ 中間（退到該數學之前，整條數學留給下一塊）——否則切半＋stitch
+    的 \\n\\n 會插進行內數學、前端 $ 配對連鎖崩壞。數學本身比 target 還長→只好原位硬切。"""
+    for m in _INLINE_MATH.finditer(text):
+        if m.start() >= pos:
+            break
+        if m.start() < pos < m.end():
+            return m.start() if m.start() > lo else pos
+    return pos
 
 
 def _segment(md: str) -> list[dict]:
@@ -136,11 +148,16 @@ def chunk_markdown(md: str, target: int = 400, overlap: int = 40) -> list[str]:
             push()
         start = 0                                       # 按字元切這段 prose（帶重疊）
         while start < len(text):
-            cur = text[start:start + target]
-            if start + target < len(text):
-                push()
-                start += max(1, target - overlap)
-            else:
-                start += target                         # 最後一片留在 cur
+            end = min(start + target, len(text))
+            if end < len(text):
+                end = _snap_out_of_math(text, start, end)   # 別切在行內數學中間
+                if end <= start:                            # 數學比 target 長→硬切避免死迴圈
+                    end = min(start + target, len(text))
+            cur = text[start:end]
+            if end >= len(text):
+                break                                       # 最後一片留在 cur（迴圈外 push）
+            push()
+            nxt = _snap_out_of_math(text, start, max(start + 1, end - overlap))  # 重疊起點也不切數學
+            start = nxt if nxt > start else end
     push()
     return chunks

@@ -39,8 +39,9 @@ function scheduleTypeset() {
 export function renderHtml(text: string, prefix = "src"): string {
   const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
   const math: string[] = []
+  // 行內 $..$ 容許單一換行（但不跨空行/段落）——否則含換行的行內數學漏抓、留下落單 $ 造成後續配對連鎖崩壞
   const t = text.replace(
-    /\$\$[\s\S]+?\$\$|\$[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
+    /\$\$[\s\S]+?\$\$|\$(?:[^\n$]|\n(?!\n))+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
     (m) => { math.push(m); return `@@M${math.length - 1}@@` },
   )
   let html = marked ? marked.parse(t) : t.replace(/\n/g, "<br>")

@@ -67,6 +67,7 @@ class _ArticleMarkdown(HTMLParser):
         if not tex:
             return
         if self._mode is not None:            # 段落內→行內數學（句子不斷）
+            tex = " ".join(tex.split())       # 壓成單行：行內含換行會讓前端 $..$ 配對連鎖崩壞
             self._cur.append(f" ${tex}$ ")
         else:                                 # 獨立→區塊公式
             self._flush()
@@ -189,6 +190,40 @@ class _ArticleMarkdown(HTMLParser):
             self._cur.append(data)
 
 
+_REL_START = re.compile(
+    r"^\s*(?:\\displaystyle\s*)?(?:=|\\le|\\ge|\\leq|\\geq|\\approx|\\equiv|\\sim|\\propto|<|>|\\to|\\Rightarrow|\\subseteq|\\in|\\cdot|\\times|\\pm|\+|-)")
+
+
+def _merge_math_blocks(blocks: list[str]) -> list[str]:
+    """連續的區塊公式（arxiv LaTeXML 把對齊式拆成多個 <math>）合併成單一 \\begin{aligned}：
+    修對齊跑版，也消掉連續 $$（否則被切塊/stitch 誤判、砍掉分隔符連鎖崩壞）。關係符號開頭的塊→接上一列。"""
+    out: list[str] = []
+    i = 0
+    while i < len(blocks):
+        if blocks[i].startswith("$$") and blocks[i].rstrip().endswith("$$"):
+            run: list[str] = []
+            while i < len(blocks) and blocks[i].startswith("$$") and blocks[i].rstrip().endswith("$$"):
+                inner = re.sub(r"^\\displaystyle\s*", "", blocks[i].strip()[2:-2].strip())
+                if inner:
+                    run.append(inner)
+                i += 1
+            if len(run) <= 1:
+                out.append(f"$$\n{run[0]}\n$$" if run else "")
+            else:
+                rows: list[str] = []
+                for part in run:
+                    if rows and _REL_START.match(part):     # 關係符號開頭→接上一列（對齊點在 &）
+                        rows[-1] = rows[-1] + " &" + part
+                    else:
+                        rows.append(part)
+                body = " \\\\\n".join(rows)
+                out.append(f"$$\n\\begin{{aligned}}\n{body}\n\\end{{aligned}}\n$$")
+        else:
+            out.append(blocks[i])
+            i += 1
+    return [b for b in out if b]
+
+
 def extract_article_markdown(html: str, base_url: str = "") -> tuple[str, str]:
     """回 (title, markdown)。抽不到→("", "")；不崩（best-effort）。base_url＝把相對圖片接成絕對。"""
     p = _ArticleMarkdown(base_url)
@@ -197,6 +232,7 @@ def extract_article_markdown(html: str, base_url: str = "") -> tuple[str, str]:
     except Exception:  # noqa: BLE001 - 壞 HTML 不該炸收進
         pass
     p._flush()
+    p.blocks = _merge_math_blocks(p.blocks)
     # 標題優先文章 h1（乾淨、無站名後綴），退回 <title> 標籤
     title = " ".join((p.doc_h1 or p.title).split()).strip()
     md = "\n\n".join(p.blocks).strip()

@@ -2,7 +2,7 @@
 
 import unittest
 
-from knowfield.ingest.web import extract_article_markdown, normalize_ingest_url
+from knowfield.ingest.web import extract_article_markdown, normalize_ingest_url, _merge_math_blocks
 
 _HTML = """<html><head><title>我的文章 - 部落格</title></head><body>
 <nav>首頁 關於 聯絡</nav>
@@ -122,6 +122,22 @@ class TestExtractArticle(unittest.TestCase):
                 '<figcaption>圖一</figcaption></figure></article>')
         _, md = extract_article_markdown(html)
         self.assertIn("![示意圖](https://pic.example/diagram.png)", md)  # 圖沒被 figure 吞、取到真網址
+
+
+class TestMergeMathBlocks(unittest.TestCase):
+    def test_merges_consecutive_into_aligned(self):
+        # arxiv 把對齊式拆成多個 $$；合併成單一 \begin{aligned}（修跑版＋消連續 $$）
+        blocks = ["文字", "$$\n\\displaystyle A(x)\n$$", "$$\n\\displaystyle =B(x)\n$$", "後文"]
+        out = _merge_math_blocks(blocks)
+        math = [b for b in out if "$$" in b]
+        self.assertEqual(len(math), 1)                       # 兩塊→一塊
+        self.assertEqual(math[0].count("$$"), 2)             # 單一對 $$
+        self.assertIn("\\begin{aligned}", math[0])
+        self.assertIn("A(x) &=B(x)", math[0])                # 關係符號開頭→接上一列（對齊）
+        self.assertNotIn("\\displaystyle", math[0])          # 去掉 \displaystyle
+
+    def test_single_block_unchanged(self):
+        self.assertEqual(_merge_math_blocks(["$$\n\\displaystyle x=1\n$$"]), ["$$\nx=1\n$$"])
 
 
 class TestNormalizeIngestUrl(unittest.TestCase):
