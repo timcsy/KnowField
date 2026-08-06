@@ -131,17 +131,32 @@ class ContentIngestService:
                    note: str = "", ingested_at: str = "") -> ContentIngestResult:
         """收整篇網頁（開放文章/Blog）：抓 HTML→抽正文 markdown→切塊→存。best-effort。"""
         from ..seed.fetch import default_http_get
-        from .web import extract_article_markdown, normalize_ingest_url
+        from .web import arxiv_urls, extract_article_markdown
         url = (url or "").strip()
         if not url:
             return ContentIngestResult(status="empty")
-        fetch_url, store_url = normalize_ingest_url(url)     # arxiv abs/pdf→抓 HTML 版、存回 /abs
-        html = (http_get or default_http_get)(fetch_url)    # 抓不到→SourceUnavailable（邊界攔）
-        extracted_title, md = extract_article_markdown(html, base_url=fetch_url)
-        if not (md or "").strip():
-            return ContentIngestResult(status="empty")
-        title = self._resolve_title(title, md, extracted_title)
-        return self._ingest_markdown(md, title, store_url, note=note, ingested_at=ingested_at)
+        get = http_get or default_http_get
+        store_url, html_candidates = arxiv_urls(url)
+        if not html_candidates:                             # 非 arxiv：抓自己（抓不到→SourceUnavailable 冒出）
+            html = get(url)
+            etitle, md = extract_article_markdown(html, base_url=url)
+            if not (md or "").strip():
+                return ContentIngestResult(status="empty")
+            return self._ingest_markdown(md, self._resolve_title(title, md, etitle),
+                                         url, note=note, ingested_at=ingested_at)
+        # arxiv：HTML 候選逐一試（arxiv/html→ar5iv）→ 全敗退 PDF-OCR；都存回 /abs
+        for furl in html_candidates:
+            try:
+                html = get(furl)
+            except Exception:                               # noqa: BLE001 - 這個候選掛→試下一個
+                continue
+            etitle, md = extract_article_markdown(html, base_url=furl)
+            if (md or "").strip():
+                return self._ingest_markdown(md, self._resolve_title(title, md, etitle),
+                                             store_url, note=note, ingested_at=ingested_at)
+        aid = store_url.rsplit("/", 1)[-1]                  # 全 HTML 敗→PDF-OCR（存回 /abs、由來穩定）
+        return self.ingest_pdf(pdf_url=f"https://arxiv.org/pdf/{aid}", title=title,
+                               note=note, ingested_at=ingested_at, store_url=store_url)
 
     def ingest_youtube(self, url: str, title: str = "", http_get=None) -> ContentIngestResult:
         """收 YouTube 逐字稿：抓字幕→切塊→存。抓不到字幕→SourceUnavailable（改用貼上）。"""
@@ -154,12 +169,14 @@ class ContentIngestService:
         return self._ingest_markdown(transcript, title, (url or "").strip())
 
     def ingest_pdf(self, pdf_bytes: bytes | None = None, pdf_url: str = "",
-                   title: str = "", note: str = "", ingested_at: str = "") -> ContentIngestResult:
+                   title: str = "", note: str = "", ingested_at: str = "",
+                   store_url: str = "") -> ContentIngestResult:
+        """store_url＝存進庫的網址（arxiv HTML 全敗退 PDF 時＝/abs，保由來穩定）；預設＝pdf_url。"""
         if self.converter is None:
             raise SourceUnavailable("未設定 PDF 轉檔器")
         md = self.converter.to_markdown(pdf_bytes=pdf_bytes, pdf_url=pdf_url or None)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, "")       # PDF 沒標題→AI 生（勝過用檔名/URL）
-        url = pdf_url or f"pdf:{hashlib.sha1((title or 'pdf').encode('utf-8')).hexdigest()[:16]}"
+        url = store_url or pdf_url or f"pdf:{hashlib.sha1((title or 'pdf').encode('utf-8')).hexdigest()[:16]}"
         return self._ingest_markdown(md, title, url, note=note, ingested_at=ingested_at)

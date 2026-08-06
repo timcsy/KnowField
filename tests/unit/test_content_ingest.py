@@ -158,6 +158,35 @@ class TestIngestUrl(unittest.TestCase):
         self.assertIsNone(repo.seed_exists("https://arxiv.org/html/1706.03762"))
         repo.close()
 
+    def test_arxiv_falls_back_to_ar5iv_when_html_missing(self):
+        from knowfield.sources.base import SourceUnavailable
+        seen = []
+
+        def hg(u):
+            seen.append(u)
+            if u.startswith("https://arxiv.org/html"):
+                raise SourceUnavailable("arxiv 無 HTML 版")
+            return self._HTML                                    # ar5iv 成功
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder())
+        svc.ingest_url("https://arxiv.org/abs/1706.03762", http_get=hg)
+        self.assertTrue(any("ar5iv" in u for u in seen))          # 退到 ar5iv
+        self.assertIsNotNone(repo.seed_exists("https://arxiv.org/abs/1706.03762"))  # 仍存 /abs
+        repo.close()
+
+    def test_arxiv_falls_back_to_pdf_when_all_html_fail(self):
+        from knowfield.sources.base import SourceUnavailable
+
+        def hg(u):
+            raise SourceUnavailable("HTML 全掛")
+        repo = Repository(temp_db())
+        svc = ContentIngestService(repo, StubEmbedder(),
+                                   converter=StubConverter("# 論文\n這份從 PDF 轉出的貓內容很長。"))
+        res = svc.ingest_url("https://arxiv.org/abs/1706.03762", http_get=hg)
+        self.assertEqual(res.status, "ingested")                 # 退到 PDF-OCR 成功
+        self.assertIsNotNone(repo.seed_exists("https://arxiv.org/abs/1706.03762"))  # PDF 也存回 /abs
+        repo.close()
+
 
 class TestIngestYoutube(unittest.TestCase):
     _WATCH = ('"title":"養貓指南"'

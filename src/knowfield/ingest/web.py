@@ -16,15 +16,22 @@ from html.parser import HTMLParser
 _ARXIV = re.compile(r"^https?://arxiv\.org/(?:abs|pdf)/(\d+\.\d+)(?:v\d+)?/?$", re.I)
 
 
+def arxiv_urls(url: str) -> tuple[str, list[str]]:
+    """arxiv abs/pdf → (store_abs, [HTML 候選...])：優先 arxiv HTML（作者原始 LaTeX＝數學正確、figure
+    原圖），退 ar5iv（舊論文 arxiv 無 HTML 版時），都存回正規 /abs。全 HTML 敗→由呼叫端退 PDF-OCR。
+    非 arxiv→(url, [])（呼叫端就抓自己）。"""
+    m = _ARXIV.match((url or "").strip())
+    if not m:
+        return (url or "").strip(), []
+    aid = m.group(1)
+    return (f"https://arxiv.org/abs/{aid}",
+            [f"https://arxiv.org/html/{aid}", f"https://ar5iv.labs.arxiv.org/html/{aid}"])
+
+
 def normalize_ingest_url(url: str) -> tuple[str, str]:
-    """回 (fetch_url, store_url)。arxiv abs/pdf → 抓 HTML 版（有 figure 圖＋乾淨數學；OCR 端點拿不到
-    圖像素），但**存回正規 /abs**（由來/去重穩定）。其他網址原樣。"""
-    u = (url or "").strip()
-    m = _ARXIV.match(u)
-    if m:
-        aid = m.group(1)
-        return f"https://arxiv.org/html/{aid}", f"https://arxiv.org/abs/{aid}"
-    return u, u
+    """回 (fetch_url, store_url)：arxiv→(首選 HTML, /abs)；非 arxiv→原樣。fallback 鏈見 arxiv_urls。"""
+    store, cands = arxiv_urls(url)
+    return (cands[0] if cands else store), store
 
 
 def _img_tex(src: str, a: dict) -> str:
