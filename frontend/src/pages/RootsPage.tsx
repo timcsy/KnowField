@@ -39,7 +39,8 @@ export default function RootsPage() {
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">AI 幫你整理的（還沒精選）</h2>
         {data.candidates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            目前沒有候選。到「跟知識聊」聊一段、按「整理成重點」就會出現。
+            目前沒有候選。到「來源」打開一份收進的資料、按「🧠 整理成核心理解」，候選就會來這裡等你精選。
+            （聊天頁的「整理成重點」是當場精選，不會來這裡。）
           </p>
         ) : (
           <div className="space-y-3">
