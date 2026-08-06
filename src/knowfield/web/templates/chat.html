@@ -106,7 +106,7 @@
       <form id="chat-form" action="/chat" method="post" onsubmit="return chatBusy(this)">
         <input type="hidden" name="history" value='{{ history_json }}'>
         <input type="hidden" name="last_captured" id="last-captured" value="0">
-        <div class="flex items-end gap-2 bg-base-100 border border-base-300 rounded-2xl px-3 py-1.5 shadow-sm focus-within:border-primary/60 transition-colors">
+        <div class="flex items-end gap-2 bg-base-300/60 rounded-2xl px-3 py-2 focus-within:bg-base-300/85 transition-colors">
           <textarea name="message" rows="1" autofocus
                     class="flex-1 bg-transparent outline-none resize-none text-[15px] leading-relaxed py-1.5 max-h-40"
                     placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…">{{ draft or '' }}</textarea>
