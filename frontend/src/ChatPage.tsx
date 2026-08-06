@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import { api, pages, streamChat, type Candidate, type Message } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 import { Sources, FoundExtra } from "@/components/Sources"
+import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -93,7 +94,7 @@ export default function ChatPage() {
 
   async function anointOne(i: number, c: Candidate) {
     const r = await api.anoint({
-      claim: c.claim, ladder: c.ladder.join("\n"),
+      claim: c.claim, kind: c.kind, ladder: c.ladder.join("\n"),
       evidence_urls: c.evidence_urls.join(", "),
       save_convo: saveConvo, history: messages, temp_id: tempId.current,
     })
@@ -196,7 +197,7 @@ export default function ChatPage() {
                 <div key={i} className="text-xs text-muted-foreground">✓ 已在核心理解：{c.claim}</div>
               ) : (
                 <div key={i} className="space-y-2 rounded-lg border p-3">
-                  <div className="font-medium">💡 {c.claim}</div>
+                  <div className="flex items-start gap-2 font-medium"><KindBadge kind={c.kind} /><span>💡 {c.claim}</span></div>
                   {candDone[i] ? (
                     <div className="text-sm text-primary">{candDone[i]}</div>
                   ) : (

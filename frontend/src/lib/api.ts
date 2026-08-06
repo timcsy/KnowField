@@ -30,6 +30,7 @@ export const api = {
     }).then(json),
   anoint: (p: {
     claim: string
+    kind?: string
     ladder?: string
     evidence_urls?: string
     save_convo?: boolean
@@ -66,6 +67,7 @@ export type WhyNode = {
   ladder: string[]
   touchstones: { name: string; passed: boolean }[]
   fog_flag: boolean
+  kind: string          // 認識論層次：已證實/推論/類比/猜想
 }
 export type RootsData = {
   anointed: WhyNode[]

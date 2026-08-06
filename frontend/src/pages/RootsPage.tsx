@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { pages, type RootsData, type WhyNode } from "@/lib/api"
+import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -62,7 +63,7 @@ export default function RootsPage() {
               const evidence = w.evidence_urls.filter((u) => /^https?:\/\//.test(u))
               return (
                 <div key={w.id} className="group rounded-xl bg-card px-5 py-4 shadow-sm">
-                  <p className="max-w-[42rem] text-[15px] leading-loose">💡 {w.claim}</p>
+                  <p className="max-w-[42rem] text-[15px] leading-loose"><KindBadge kind={w.kind} /> 💡 {w.claim}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     {src ? (
                       <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
@@ -112,6 +113,7 @@ function CandidateCard({
     <div className="space-y-2 rounded-xl bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">候選</span>
+        <KindBadge kind={w.kind} />
         <Input value={claim} onChange={(e) => setClaim(e.target.value)} className="flex-1 font-medium" />
       </div>
       {w.ladder.length > 0 && (
