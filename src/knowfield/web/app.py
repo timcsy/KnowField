@@ -490,7 +490,8 @@ def create_app() -> FastAPI:
         wid = int(b.get("id") or 0)
         if wid:
             repo = app.state.repo_factory(app.state.config)
-            repo.anoint_why_node(wid, (b.get("claim") or "").strip() or None)
+            repo.anoint_why_node(wid, (b.get("claim") or "").strip() or None,
+                                 (b.get("kind") or "").strip() or None)
             repo.close()
         return _JSON({"ok": True})
 

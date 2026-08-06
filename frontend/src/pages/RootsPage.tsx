@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { pages, type RootsData, type WhyNode } from "@/lib/api"
+import { pages, type RootsData } from "@/lib/api"
 import { KindBadge } from "@/components/KindBadge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 export default function RootsPage() {
   const [data, setData] = useState<RootsData | null>(null)
@@ -11,10 +9,6 @@ export default function RootsPage() {
   const load = () => pages.roots().then(setData).catch(() => {})
   useEffect(() => { load() }, [])
 
-  async function anoint(w: WhyNode, claim: string) {
-    await pages.whynodeAnoint(w.id, claim)
-    load()
-  }
   async function remove(id: number) {
     if (!confirm("移除這條核心理解？（聊天將不再優先參考它）")) return
     await pages.whynodeRemove(id)
@@ -27,109 +21,57 @@ export default function RootsPage() {
 
   if (!data) return <p className="text-sm text-muted-foreground">載入中…</p>
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-5 pb-8">
       <div>
         <h1 className="text-2xl font-bold">💡 你的核心理解</h1>
         <p className="text-xs text-muted-foreground">
-          AI 幫你整理候選、你精選——精選的，聊天時會最優先參考。
+          你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成核心理解」時精選。）
         </p>
       </div>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">AI 幫你整理的（還沒精選）</h2>
-        {data.candidates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            目前沒有候選。到「來源」打開一份收進的資料、按「🧠 整理成核心理解」，候選就會來這裡等你精選。
-            （聊天頁的「整理成重點」是當場精選，不會來這裡。）
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {data.candidates.map((c) => (
-              <CandidateCard key={c.id} w={c} onAnoint={anoint} onRemove={remove} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">你精選的核心理解</h2>
-        {data.anointed.length === 0 ? (
-          <p className="text-sm text-muted-foreground">還沒有精選的核心理解。精選後，聊天會最優先參考它。</p>
-        ) : (
-          <div className="space-y-2">
-            {data.anointed.map((w) => {
-              const src = data.source_provenance[String(w.id)]
-              const convo = data.provenance[String(w.id)]
-              // 佐證只列可點的外部連結；內部來源識別碼（paste:/收進來源）由「📎 由來」指向，不重複、不無效
-              const evidence = w.evidence_urls.filter((u) => /^https?:\/\//.test(u))
-              return (
-                <div key={w.id} className="group rounded-xl bg-card px-5 py-4 shadow-sm">
-                  <p className="max-w-[42rem] text-[15px] leading-loose"><KindBadge kind={w.kind} /> 💡 {w.claim}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    {src ? (
-                      <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
-                    ) : convo ? (
-                      <Link to={`/conversations/${convo}`} title="這條的出處：點開看當初那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
-                    ) : null}
-                    {evidence.length > 0 && (
-                      <button onClick={() => setOpenSrc(openSrc === w.id ? null : w.id)}
-                              title="這條的外部佐證網址（AI 引用的來源）——點開看" className="hover:text-foreground hover:underline">
-                        🔗 佐證（{evidence.length}）{openSrc === w.id ? " ▲" : " ▾"}
-                      </button>
-                    )}
-                    <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
-                      <button onClick={() => copyRoot(w.id, "md")} title="複製這條重點（Markdown）" className="hover:text-foreground">📋 複製</button>
-                      <button onClick={() => remove(w.id)} title="退回（聊天不再優先參考它）" className="hover:text-destructive">退回</button>
-                    </span>
-                  </div>
-                  {openSrc === w.id && evidence.length > 0 && (
-                    <ul className="mt-2 space-y-1 border-t pt-2">
-                      {evidence.map((u, i) => (
-                        <li key={i} className="text-xs">
-                          <a href={u} target="_blank" rel="noopener" className="break-all text-primary hover:underline">🔗 {u}</a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
-    </div>
-  )
-}
-
-function CandidateCard({
-  w, onAnoint, onRemove,
-}: {
-  w: WhyNode
-  onAnoint: (w: WhyNode, claim: string) => void
-  onRemove: (id: number) => void
-}) {
-  const [claim, setClaim] = useState(w.claim)
-  const [done, setDone] = useState(false)
-  return (
-    <div className="space-y-2 rounded-xl bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">候選</span>
-        <KindBadge kind={w.kind} />
-        <Input value={claim} onChange={(e) => setClaim(e.target.value)} className="flex-1 font-medium" />
-      </div>
-      {w.ladder.length > 0 && (
-        <ol className="ml-1 space-y-0.5 border-l-2 pl-3 text-xs text-muted-foreground">
-          {w.ladder.map((s, i) => (
-            <li key={i}>{i === w.ladder.length - 1 ? <b className="text-foreground">↓ 最底層：</b> : "↓ "}{s}</li>
-          ))}
-        </ol>
-      )}
-      {done ? (
-        <div className="text-sm text-primary">✅ 已精選</div>
+      {data.anointed.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          還沒有精選的核心理解。到聊天「🧵 整理成重點」、或「來源」開一份資料按「🧠 整理成核心理解」，挑認同的收進。
+        </p>
       ) : (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => { onAnoint(w, claim); setDone(true) }}>精選</Button>
-          <Button size="sm" variant="ghost" onClick={() => onRemove(w.id)}>退回</Button>
+        <div className="space-y-2">
+          {data.anointed.map((w) => {
+            const src = data.source_provenance[String(w.id)]
+            const convo = data.provenance[String(w.id)]
+            // 佐證只列可點的外部連結；內部來源識別碼（paste:/收進來源）由「📎 由來」指向，不重複、不無效
+            const evidence = w.evidence_urls.filter((u) => /^https?:\/\//.test(u))
+            return (
+              <div key={w.id} className="group rounded-xl bg-card px-5 py-4 shadow-sm">
+                <p className="max-w-[42rem] text-[15px] leading-loose"><KindBadge kind={w.kind} /> 💡 {w.claim}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {src ? (
+                    <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
+                  ) : convo ? (
+                    <Link to={`/conversations/${convo}`} title="這條的出處：點開看當初那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
+                  ) : null}
+                  {evidence.length > 0 && (
+                    <button onClick={() => setOpenSrc(openSrc === w.id ? null : w.id)}
+                            title="這條的外部佐證網址（AI 引用的來源）——點開看" className="hover:text-foreground hover:underline">
+                      🔗 佐證（{evidence.length}）{openSrc === w.id ? " ▲" : " ▾"}
+                    </button>
+                  )}
+                  <span className="flex items-center gap-4 opacity-0 transition group-hover:opacity-100">
+                    <button onClick={() => copyRoot(w.id, "md")} title="複製這條重點（Markdown）" className="hover:text-foreground">📋 複製</button>
+                    <button onClick={() => remove(w.id)} title="退回（聊天不再優先參考它）" className="hover:text-destructive">退回</button>
+                  </span>
+                </div>
+                {openSrc === w.id && evidence.length > 0 && (
+                  <ul className="mt-2 space-y-1 border-t pt-2">
+                    {evidence.map((u, i) => (
+                      <li key={i} className="text-xs">
+                        <a href={u} target="_blank" rel="noopener" className="break-all text-primary hover:underline">🔗 {u}</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

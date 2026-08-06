@@ -101,7 +101,7 @@ const post = (url: string, body: unknown) =>
 
 export const pages = {
   roots: (): Promise<RootsData> => fetch("/api/roots").then(json),
-  whynodeAnoint: (id: number, claim?: string) => post("/api/whynode/anoint", { id, claim }),
+  whynodeAnoint: (id: number, claim?: string, kind?: string) => post("/api/whynode/anoint", { id, claim, kind }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
   source: (u: string): Promise<{

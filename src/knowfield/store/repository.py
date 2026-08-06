@@ -487,15 +487,18 @@ class Repository:
                 kind=(r["kind"] if "kind" in r.keys() else "") or ""))
         return out
 
-    def anoint_why_node(self, wid: int, claim: str | None = None) -> bool:
-        """人冊封：狀態 → anointed（可同時改 claim）。回是否有更新。"""
+    def anoint_why_node(self, wid: int, claim: str | None = None,
+                        kind: str | None = None) -> bool:
+        """人冊封：狀態 → anointed（可同時改 claim／設認識論層次 kind）。回是否有更新。"""
+        sets = ["status='anointed'"]
+        args: list = []
         if claim is not None and claim.strip():
-            cur = self.conn.execute(
-                "UPDATE why_nodes SET status='anointed', claim=? WHERE id=?",
-                (claim.strip(), wid))
-        else:
-            cur = self.conn.execute(
-                "UPDATE why_nodes SET status='anointed' WHERE id=?", (wid,))
+            sets.append("claim=?"); args.append(claim.strip())
+        if kind is not None:
+            sets.append("kind=?"); args.append(kind)
+        args.append(wid)
+        cur = self.conn.execute(
+            f"UPDATE why_nodes SET {', '.join(sets)} WHERE id=?", tuple(args))
         self.conn.commit()
         return cur.rowcount > 0
 

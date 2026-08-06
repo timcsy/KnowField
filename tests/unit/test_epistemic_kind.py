@@ -56,12 +56,24 @@ class TestDistillKind(unittest.TestCase):
 
 
 class TestAnointKind(unittest.TestCase):
-    def test_api_anoint_saves_kind(self):                  # 人閘門冊封帶層級
+    def test_api_anoint_saves_kind(self):                  # 聊天精選帶層級
         db = temp_db()
         TestClient(build_app(db)).post(
             "/api/chat/anoint", json={"claim": "殘差直通", "kind": "推論"})
         repo = Repository(db)
         self.assertEqual(repo.list_why_nodes("anointed")[0].kind, "推論")
+        repo.close()
+
+    def test_whynode_anoint_sets_kind(self):               # 來源候選在來源頁精選時選層級
+        db = temp_db()
+        repo = Repository(db)
+        wid = repo.add_why_node("來源蒸餾的候選", ["http://x"], [], False, 0, "2026")  # kind 空
+        repo.close()
+        TestClient(build_app(db)).post(
+            "/api/whynode/anoint", json={"id": wid, "kind": "類比"})
+        repo = Repository(db)
+        w = repo.list_why_nodes("anointed")[0]
+        self.assertEqual(w.kind, "類比")
         repo.close()
 
 
