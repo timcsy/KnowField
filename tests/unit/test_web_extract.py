@@ -127,6 +127,37 @@ class TestExtractArticle(unittest.TestCase):
         self.assertIn("![示意圖](https://pic.example/diagram.png)", md)  # 圖沒被 figure 吞、取到真網址
 
 
+class TestListAndTable(unittest.TestCase):
+    def test_li_with_nested_p_and_tag_marker(self):
+        # LaTeXML 式 <li><span class=ltx_tag>•</span><div><p>內容</p></div>：內容要進 li、別空成 - •
+        html = ('<article><ul><li><span class="ltx_tag ltx_tag_item">•</span>'
+                '<div class="ltx_para"><p>第一項的完整內容在這裡</p></div></li>'
+                '<li><span class="ltx_tag">•</span><p>第二項內容也完整</p></li></ul></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("- 第一項的完整內容在這裡", md)
+        self.assertIn("- 第二項內容也完整", md)
+        self.assertNotIn("- •", md)                     # 沒有空 bullet
+
+    def test_data_table_to_markdown(self):
+        html = ('<article><table class="ltx_tabular"><thead><tr>'
+                '<th>Layer</th><th>Cost</th></tr></thead><tbody>'
+                '<tr><td>Self-Attention</td><td>fast</td></tr>'
+                '<tr><td>Recurrent</td><td>slow</td></tr></tbody></table></article>')
+        _, md = extract_article_markdown(html)
+        self.assertIn("| Layer | Cost |", md)
+        self.assertIn("| --- | --- |", md)
+        self.assertIn("| Self-Attention | fast |", md)
+
+    def test_equation_table_stays_math_not_data(self):
+        # 公式表 ltx_eqn 不該變 markdown 表格（維持數學流）
+        html = ('<article><table class="ltx_equation ltx_eqn_table"><tr><td>'
+                '<math><semantics><annotation encoding="application/x-tex">a=b</annotation>'
+                '</semantics></math></td></tr></table></article>')
+        _, md = extract_article_markdown(html)
+        self.assertNotIn("|", md)
+        self.assertIn("$", md)
+
+
 class TestHeadingNormalize(unittest.TestCase):
     def test_deep_start_lifted_to_h2(self):
         # ycc 式：內文從 h3 起跳（無 h1/h2）→ 提到 ## 起、連續

@@ -110,17 +110,38 @@ class _ArticleMarkdown(HTMLParser):
         self._tex_buf = ""
         self._mode: str | None = None
         self._cur: list[str] = []
+        self._in_li = False        # 在 <li> 內：裡面的 <p> 不另起段（否則 li 空掉、內容散成獨立段）
+        self._in_table = False     # 在「資料表」<table>（非公式表 ltx_eqn）內→轉 markdown 表格
+        self._rows: list[list[str]] = []
+        self._cell: list[str] | None = None   # 正在收的 <td>/<th> 文字（非 None＝文字/數學導進格內）
 
     def _emit_tex(self, tex: str):
         tex = (tex or "").strip()
         if not tex:
             return
-        if self._mode is not None:            # 段落內→行內數學（句子不斷）
+        if self._cell is not None:            # 表格格內→行內數學
+            self._cell.append(f" ${' '.join(tex.split())}$ ")
+        elif self._mode is not None:          # 段落內→行內數學（句子不斷）
             tex = " ".join(tex.split())       # 壓成單行：行內含換行會讓前端 $..$ 配對連鎖崩壞
             self._cur.append(f" ${tex}$ ")
         else:                                 # 獨立→區塊公式
             self._flush()
             self.blocks.append(f"$$\n{tex}\n$$")
+
+    def _flush_table(self):
+        rows = [r for r in self._rows if any(c.strip() for c in r)]
+        self._rows, self._in_table, self._cell = [], False, None
+        if not rows:
+            return
+        ncol = max(len(r) for r in rows)
+
+        def esc(c: str) -> str:
+            return " ".join(c.replace("|", "\\|").split()) or " "
+        pad = [[esc(c) for c in r] + [" "] * (ncol - len(r)) for r in rows]
+        lines = ["| " + " | ".join(pad[0]) + " |",
+                 "| " + " | ".join(["---"] * ncol) + " |"]
+        lines += ["| " + " | ".join(r) + " |" for r in pad[1:]]
+        self.blocks.append("\n".join(lines))
 
     def _flush(self):
         text = " ".join("".join(self._cur).split())
@@ -163,6 +184,20 @@ class _ArticleMarkdown(HTMLParser):
         if a.get("aria-hidden") == "true" or "katex-html" in cls or "MathJax" in cls:
             self._math_skip = 1
             return
+        if "ltx_tag" in cls:                              # LaTeXML 的列表符號/式號（•、(1)）→跳，別當內容
+            self._math_skip = 1
+            return
+        # --- 資料表 <table>（非公式表 ltx_eqn）→ 轉 markdown 表格；tr/td/th 收格 ---
+        if tag == "table" and "ltx_eqn" not in cls:
+            self._flush()
+            self._in_table, self._rows, self._cell = True, [], None
+            return
+        if self._in_table:
+            if tag == "tr":
+                self._rows.append([])
+            elif tag in ("td", "th"):
+                self._cell = []
+            return
         if tag in _SKIP:
             self._skip += 1
             return
@@ -196,9 +231,13 @@ class _ArticleMarkdown(HTMLParser):
             return
         if tag == "br":
             self._cur.append(" ")
+        elif tag == "p" and self._in_li:                  # <li> 裡的 <p>：不另起段、續收進 li（否則 li 空掉）
+            return
         elif tag in _BLOCK:
             self._flush()
             self._mode = tag if tag in _HEAD else ("li" if tag == "li" else "p")
+            if tag == "li":
+                self._in_li = True
 
     def handle_endtag(self, tag):
         if tag == "title":
@@ -224,6 +263,18 @@ class _ArticleMarkdown(HTMLParser):
             return
         if self._skip:
             return
+        if self._in_table:                          # 資料表收尾：td/th→收格、table→吐 markdown 表
+            if tag in ("td", "th") and self._cell is not None:
+                if self._rows:
+                    self._rows[-1].append("".join(self._cell).strip())
+                self._cell = None
+            elif tag == "table":
+                self._flush_table()
+            return
+        if tag == "p" and self._in_li:              # li 裡的 p 收尾：不 flush（續收）
+            return
+        if tag == "li":
+            self._in_li = False
         if tag in _BLOCK:
             self._flush()
 
@@ -235,7 +286,11 @@ class _ArticleMarkdown(HTMLParser):
             self.doc_h1 += data
         if self._cap:                      # 正在擷取載體裡的 tex
             self._tex_buf += data
-        elif not self._skip and not self._math_skip and not self._in_math and self._mode:
+        elif self._skip or self._math_skip or self._in_math:
+            return
+        elif self._cell is not None:       # 資料表格內文字
+            self._cell.append(data)
+        elif self._mode:
             self._cur.append(data)
 
 

@@ -117,7 +117,9 @@
 .answer-md ol { list-style: decimal; margin: 0.4rem 0 0.4rem 1.5rem; }
 .answer-md li { margin: 0.2rem 0; }
 .answer-md strong { font-weight: 600; }
-.answer-md h1, .answer-md h2, .answer-md h3 { font-weight: 700; margin: 0.7rem 0 0.3rem; }
+.answer-md h1, .answer-md h2, .answer-md h3,
+.answer-md h4, .answer-md h5, .answer-md h6 { font-weight: 700; margin: 0.7rem 0 0.3rem; }
+.answer-md h4, .answer-md h5, .answer-md h6 { font-size: 0.95em; }   /* 深標題仍粗體、略小（如 arxiv Abstract=h6） */
 .answer-md code {
   background: color-mix(in oklch, currentColor 8%, transparent);
   padding: 0 0.25rem; border-radius: 3px; font-size: 0.9em;
