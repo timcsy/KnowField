@@ -383,6 +383,18 @@
   debug 訊號：「同一份碼昨天全綠、今天全紅，程式沒改」→ 先查**環境/設定**變了什麼（這次是 .env 被填了），別一頭栽進「昨天改的功能」。
 - **來源**：`history/086-可攜資料層雙後端-reroute不騎牆.md`；commit `326469c`；`tests/conftest.py`、`src/knowfield/config.py`。
 
+### 後端處理的路由前綴，都要同步加進 PWA SW 的 navigateFallbackDenylist
+
+- **理論說**：加個後端路由（`/media/*` PDF、`/auth/login|logout`）就會生效。
+- **實際發生（**踩了兩次**）**：PWA service worker 的 SPA navigateFallback 會把**導航請求**攔下、回快取的 index.html，
+  於是那些路由**根本沒打到伺服器**——① `history/082` 的 `/media/*.pdf`（PDF 預覽變成聊天頁）；② `history/085` 的
+  `/auth/logout`（點登出沒反應，session 沒清）。症狀很誤導：「後端路由明明對、但瀏覽器行為像沒生效」。
+- **解決方式**：把該前綴加進 vite PWA 的 `navigateFallbackDenylist`（`/^\/media\//`、`/^\/auth\//`…）——讓那些導航直達後端。
+- **教訓**：**凡是後端要親自處理的路由前綴（非 SPA client route），一律同步登記進 SW 的 navigateFallbackDenylist**。
+  加新前綴（`/webhook`、`/oauth`、下載…）時把「更新 SW denylist」當 checklist 一項。debug 訊號：「後端路由對、但 PWA 下
+  行為像被吃掉」≈ SW navigateFallback 攔了它。（也呼應：改版後**先清 SW** 再驗，否則 stale 快取會給假象。）
+- **來源**：`history/082`（/media）、`history/085`（/auth）；commits `effde0b`、`87300c0`；`frontend/vite.config.ts`。
+
 <!--
   範例：
 

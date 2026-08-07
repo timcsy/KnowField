@@ -28,6 +28,19 @@ Google OIDC）。未登入 `/api`→401、頁→302 導 `/auth/login`；callback
 ## 相依/憲章
 加 `authlib`＋`itsdangerous`（web deps）；plan 說明必要性（憲章額外限制滿足）。只在 web 層；核心不受影響。
 
+## UX 收尾（真實使用中補齊，2026-08-07）
+使用者本地真跑登入後，逐一冒出的收尾（都在 web 層）：
+- **登入畫面**（`e406308`→`6c16b6c`）：原本 `/auth/login` 直接彈 Google、被拒回一坨 JSON。改成自足 HTML 落地頁
+  （🧠 KnowField＋反逢迎副標＋三行產品簡介＋「用 Google 登入」鈕，深淺色自適應）；實際發起 Google 移到 `/auth/google`；
+  非白名單→導回 `/auth/login?error=denied` 顯示友善訊息（不洩白名單）。**未登入訪首頁＝gate 導到這頁**（＝「首頁在沒登入時＝介紹＋登入」）。
+- **登入身分＋登出**（`a23a739`）：`/api/me` 回 `{user, auth_enabled}`；側欄底部顯示 `👤 email＋登出`（只在門鎖啟用時；
+  dev bypass/未啟用時不顯示，因為沒有登入概念）。
+- **登出點不動的 bug**（`87300c0`）：**PWA SW 的 navigateFallback 攔截 `/auth/logout` 導航、回快取 index.html**，沒打到
+  伺服器——**history/082 的 SW-fallback 老問題再犯**（這次是 `/auth`）。修：`navigateFallbackDenylist` 加 `/^\/auth\//`。
+  → 升 experience 一般化。
+- 驗證：造合法 session cookie 實機截圖（登入畫面、被拒紅框、側欄登出頁腳）；354 測綠。
+
 ## 產物
-spec/plan＝`specs/035-google-login-gate/`；commit `d11b5e0`（實作，352 測綠）。
-下游解鎖：文章公開分享（階段 30，gated on 本階段）。範圍外（多租戶/聯邦/公開分享/Helm/領域分類）未引入。
+spec/plan＝`specs/035-google-login-gate/`；commits `d11b5e0`（實作，352 測綠）、`e406308`/`6c16b6c`（登入畫面/介紹）、
+`a23a739`（登出頁腳/api me）、`87300c0`（SW /auth 修）。下游解鎖：文章公開分享（階段 30，gated on 本階段）。
+範圍外（多租戶/聯邦/公開分享/Helm/領域分類）未引入。
