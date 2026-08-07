@@ -20,13 +20,20 @@ spec:
         # 密鑰變更時滾動重啟（讓 Secret 更新生效）
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:
-                name: {{ include "knowfield.fullname" . }}-env
+                name: {{ .Values.existingSecret | default (printf "%s-env" (include "knowfield.fullname" .)) }}
+          env:
+            # DB DSN 顯式給（覆蓋 .env 帶入的空值）：指向 chart 內建 PG 或外部 DB
+            - name: KNOWFIELD_DATABASE_URL
+              value: {{ include "knowfield.databaseUrl" . | quote }}
           ports:
             - containerPort: 8000
           readinessProbe:

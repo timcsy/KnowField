@@ -15,7 +15,7 @@ dev = ["pytest>=8", "httpx>=0.27", "testcontainers[postgres]>=4"]
 # web 介面（階段 6）——框架相依只在此層，核心仍零相依
 # spec 035：單人 Google 登入門鎖 → authlib（OIDC 流程）＋itsdangerous（SessionMiddleware 簽章）
 web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1", "python-multipart>=0.0.12",
-       "authlib>=1.6", "itsdangerous>=2.2"]
+       "authlib>=1.6", "itsdangerous>=2.2", "httpx>=0.27"]   # httpx：Authlib OAuth client 執行期需要
 
 [project.scripts]
 knowfield = "knowfield.cli.__main__:main"
