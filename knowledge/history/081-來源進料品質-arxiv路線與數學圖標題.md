@@ -37,3 +37,7 @@
 ## 產物
 commits：`704a26f`（圖在地化）、`f3e3fa9`（arxiv HTML）、`ea84263`（數學四層）、`4cb6f72`（PDF 回圖）、
 `0839609`（fallback 鏈）、`70a5d8d`（標題/字元）。全程唯讀診斷真實 `knowfield.db`＋臨時 db 實測、備份先行、324 測綠。
+
+## 續
+`history/082`：同串後續——arxiv 排版三修（`5112568`：空 bullet／資料表→表格／Abstract）＋來源頁重定位
+（原文為真相、抽取為參考、Text Fragment／PDF 頁級溯源定位）。
