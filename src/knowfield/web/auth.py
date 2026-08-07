@@ -110,38 +110,50 @@ def _login_page(denied: bool = False) -> str:
 <style>
   :root {{ color-scheme: light dark; }}
   * {{ box-sizing: border-box; }}
-  body {{ margin:0; min-height:100svh; display:flex; align-items:center; justify-content:center;
+  body {{ margin:0; min-height:100svh; display:flex; align-items:center; justify-content:center; padding:1.5rem;
     font-family: system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
     background:#fafaf9; color:#1c1917; }}
-  .card {{ width:min(92vw,360px); padding:2.4rem 2rem; border-radius:1rem; text-align:center;
+  .card {{ width:min(94vw,400px); padding:2.6rem 2.2rem; border-radius:1rem; text-align:center;
     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.06); }}
-  h1 {{ margin:.2rem 0 .1rem; font-size:1.5rem; }}
-  .sub {{ margin:0 0 1.6rem; font-size:.85rem; color:#78716c; line-height:1.5; }}
+  h1 {{ margin:.3rem 0 .15rem; font-size:1.6rem; }}
+  .tag {{ margin:0 0 1.5rem; font-size:.9rem; color:#78716c; }}
+  .feats {{ margin:0 0 1.7rem; padding:1rem 1.1rem; border-radius:.7rem; background:#f5f5f4; text-align:left; }}
+  .feat {{ display:flex; gap:.6rem; align-items:flex-start; font-size:.85rem; line-height:1.5; }}
+  .feat + .feat {{ margin-top:.6rem; }}
+  .feat b {{ font-weight:600; }}
   .btn {{ display:inline-flex; align-items:center; gap:.6rem; width:100%; justify-content:center;
     padding:.7rem 1rem; border-radius:.6rem; border:1px solid #e7e5e4; background:#fff; color:#1c1917;
     font-size:.95rem; font-weight:500; text-decoration:none; cursor:pointer; transition:background .15s; }}
   .btn:hover {{ background:#f5f5f4; }}
   .g {{ width:18px; height:18px; }}
+  .foot {{ margin:1rem 0 0; font-size:.72rem; color:#a8a29e; }}
   .err {{ margin:0 0 1rem; padding:.5rem .7rem; border-radius:.5rem; font-size:.8rem;
     background:#fef2f2; color:#b91c1c; }}
   @media (prefers-color-scheme: dark) {{
     body {{ background:#0c0a09; color:#f5f5f4; }}
     .card {{ background:#1c1917; box-shadow:0 1px 3px rgba(0,0,0,.4), 0 8px 30px rgba(0,0,0,.5); }}
-    .sub {{ color:#a8a29e; }}
+    .tag, .foot {{ color:#a8a29e; }}
+    .feats {{ background:#292524; }}
     .btn {{ background:#292524; border-color:#44403c; color:#f5f5f4; }}
     .btn:hover {{ background:#44403c; }}
     .err {{ background:#450a0a; color:#fca5a5; }}
   }}
 </style></head>
 <body><div class="card">
-  <div style="font-size:2.4rem">🧠</div>
+  <div style="font-size:2.6rem">🧠</div>
   <h1>KnowField</h1>
-  <p class="sub">反逢迎的當下副手——你的知識場<br>需要登入才能進入</p>
+  <p class="tag">反逢迎的當下副手</p>
+  <div class="feats">
+    <div class="feat"><span>📥</span><span><b>收進你信的來源</b>——文章、論文、對話，沉澱成你的「核心理解」。</span></div>
+    <div class="feat"><span>💬</span><span><b>跟你的知識場聊</b>——有話直說、有據可溯，不順著你講好聽話。</span></div>
+    <div class="feat"><span>✍️</span><span><b>生成高證實文章</b>——只用已證實/推論、每個引用連回來源。</span></div>
+  </div>
   {err}
   <a class="btn" href="/auth/google">
     <svg class="g" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.8 6c1.9-5.5 7-9.8 13.7-9.8z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-3.9 6.8-9.7 6.8-17.4z"/><path fill="#FBBC05" d="M10.3 28.3c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6C.9 16.3 0 20 0 24s.9 7.7 2.5 10.9l7.8-6z"/><path fill="#34A853" d="M24 48c6.1 0 11.3-2 15-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.7 2.2-6.7 0-12.4-4.3-14.4-10.1l-7.8 6C6.4 42.6 14.6 48 24 48z"/></svg>
     用 Google 登入
   </a>
+  <p class="foot">私人知識場，僅限授權帳號進入</p>
 </div></body></html>"""
 
 
