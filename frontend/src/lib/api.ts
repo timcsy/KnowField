@@ -112,6 +112,10 @@ const post = (url: string, body: unknown) =>
   }).then(json)
 
 export const pages = {
+  // 登入身分＋門鎖是否啟用（決定要不要顯示登出）；不走 json（避免 401 導轉），失敗→視為未啟用
+  me: (): Promise<{ user: string | null; auth_enabled: boolean }> =>
+    fetch("/api/me").then((r) => (r.ok ? r.json() : { user: null, auth_enabled: false }))
+      .catch(() => ({ user: null, auth_enabled: false })),
   roots: (): Promise<RootsData> => fetch("/api/roots").then(json),
   whynodeAnoint: (id: number, claim?: string, kind?: string) => post("/api/whynode/anoint", { id, claim, kind }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),

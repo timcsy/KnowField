@@ -92,6 +92,12 @@ def setup_auth(app) -> None:
         request.session.pop("user", None)
         return RedirectResponse("/auth/login")
 
+    @app.get("/api/me")
+    async def api_me(request: Request):
+        # 給前端知道：目前登入者是誰、門鎖有沒有啟用（決定要不要顯示登出）
+        return {"user": request.session.get("user"),
+                "auth_enabled": auth_active(app.state.config)}
+
 
 def _login_page(denied: bool = False) -> str:
     """自足登入畫面（pre-auth，後端直接吐；不依賴前端 SPA）。深淺色自適應。"""

@@ -82,6 +82,13 @@ class TestLoginGate(unittest.TestCase):
             TestClient(self._app("me@example.com"), cookies=None).get(
                 "/api/roots", follow_redirects=False).status_code, 401)
 
+    def test_api_me_reports_user(self):                    # /api/me 給前端顯示登入身分＋登出
+        c = TestClient(self._app("me@example.com"))
+        self._login(c)
+        me = c.get("/api/me").json()
+        self.assertEqual(me["user"], "me@example.com")
+        self.assertTrue(me["auth_enabled"])
+
     def test_session_cookie_httponly(self):                # session cookie httponly（FR-004，防前端竊取）
         c = TestClient(self._app("me@example.com"))
         r = c.get("/auth/callback", follow_redirects=False)   # 注入身分→建 session→Set-Cookie

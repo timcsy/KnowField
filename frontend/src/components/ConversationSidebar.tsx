@@ -21,9 +21,11 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const [perm, setPerm] = useState<ConvRow[]>([])
   const [temp, setTemp] = useState<ConvRow[]>([])
   const [msg, setMsg] = useState<string | null>(null)
+  const [me, setMe] = useState<{ user: string | null; auth_enabled: boolean }>({ user: null, auth_enabled: false })
   const load = () => pages.conversations().then((r) => { setPerm(r.permanent); setTemp(r.temporary) }).catch(() => {})
   useEffect(() => {
     load()
+    pages.me().then(setMe).catch(() => {})
     const h = () => load()
     window.addEventListener("kf-conversations-changed", h)
     return () => window.removeEventListener("kf-conversations-changed", h)
@@ -85,6 +87,14 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
           </Group>
         )}
       </div>
+
+      {/* 登入身分＋登出（只在門鎖啟用時顯示） */}
+      {me.auth_enabled && (
+        <div className="mt-1 flex items-center justify-between gap-2 border-t px-2 pt-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate" title={me.user || ""}>👤 {me.user}</span>
+          <a href="/auth/logout" className="shrink-0 hover:text-foreground hover:underline">登出</a>
+        </div>
+      )}
     </div>
   )
 }
