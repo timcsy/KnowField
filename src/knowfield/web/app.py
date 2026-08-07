@@ -898,6 +898,11 @@ def create_app() -> FastAPI:
     app.mount("/media", _StaticFiles(directory=str(Path(app.state.config.media_dir).resolve()),
                                      check_dir=False), name="media")
 
+    # 單人 Google 登入門鎖（spec 035）：只在設了 allowlist＋憑證時啟用；沒設＝全開（既有測試零回歸）。
+    # 須在 SPA catch-all 之前註冊 /auth 路由，否則被 "/" mount 遮蔽。
+    from .auth import setup_auth
+    setup_auth(app)
+
     # SPA 掛在 / 當 catch-all（放最後，讓上面所有實體路由先比對）：非檔案→fallback index.html
     if _DIST.is_dir():
         app.mount("/", _SpaStatic(directory=str(_DIST), html=True), name="spa")

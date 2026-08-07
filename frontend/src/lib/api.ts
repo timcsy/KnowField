@@ -20,7 +20,11 @@ export type ChatState = {
   recent_temp: { id: number; title: string; messages: Message[] } | null
 }
 
-const json = (r: Response) => r.json()
+// 登入門鎖（spec 035）：session 過期/未登入時 /api 回 401 → 導去 Google 登入（否則 SPA 卡在壞掉的請求）
+const json = (r: Response) => {
+  if (r.status === 401) { window.location.href = "/auth/login"; return Promise.reject(new Error("未登入")) }
+  return r.json()
+}
 
 export const api = {
   state: (): Promise<ChatState> => fetch("/api/chat/state").then(json),

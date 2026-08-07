@@ -31,6 +31,13 @@ def load_dotenv(path: str = ".env") -> None:
 class Config:
     db_path: str = "knowfield.db"       # 保留（相依/相容）；PG DSN 走 database_url
     database_url: str = ""              # spec 034：Postgres DSN（env KNOWFIELD_DATABASE_URL）
+
+    # 單人 Google 登入門鎖（spec 035，階段 32）：只在 allowlist＋client 憑證都設時啟用；皆 env、不進 git
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    auth_allowlist: str = ""            # 逗號分隔的授權 Google email（單人＝你自己）
+    session_secret: str = ""           # SessionMiddleware 簽章密鑰
+    auth_disabled: bool = False        # dev bypass（KNOWFIELD_AUTH_DISABLED=1）：防設錯鎖死自己；正式勿設
     digest_limit: int = 15               # SC-007 預設上限
     relevance_threshold: float = 0.10    # 低於此相關性即濾除
     dedup_similarity: float = 0.82       # 語義去重 cosine 門檻
@@ -80,6 +87,11 @@ class Config:
         return cls(
             db_path=os.environ.get("KNOWFIELD_DB", "knowfield.db"),
             database_url=os.environ.get("KNOWFIELD_DATABASE_URL", ""),
+            google_client_id=os.environ.get("KNOWFIELD_GOOGLE_CLIENT_ID", ""),
+            google_client_secret=os.environ.get("KNOWFIELD_GOOGLE_CLIENT_SECRET", ""),
+            auth_allowlist=os.environ.get("KNOWFIELD_AUTH_ALLOWLIST", ""),
+            session_secret=os.environ.get("KNOWFIELD_SESSION_SECRET", ""),
+            auth_disabled=os.environ.get("KNOWFIELD_AUTH_DISABLED", "") == "1",
             digest_limit=int(os.environ.get("KNOWFIELD_LIMIT", "15")),
             backend=backend,
             api_base_url=base.rstrip("/"),
