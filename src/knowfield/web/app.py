@@ -523,7 +523,7 @@ def create_app() -> FastAPI:
         import re as _re
 
         from ..ingest.chunk import stitch_chunks
-        from ..ingest.media import source_pdf_name
+        from ..ingest.media import load_paper_meta, source_pdf_name
         repo = app.state.repo_factory(app.state.config)
         chunks = repo.get_source_chunks(u)
         title = repo.source_title(u)
@@ -534,9 +534,10 @@ def create_app() -> FastAPI:
         md = _re.sub(r"<!--kf-page:\d+-->", "", stitch_chunks(chunks))   # 去頁碼標記（顯示/複製乾淨）
         mdir = Path(app.state.config.media_dir).resolve()               # 有存原始 PDF→回預覽路徑
         pdf_path = f"/media/{source_pdf_name(u)}" if (mdir / source_pdf_name(u)).exists() else ""
+        paper = load_paper_meta(str(mdir), u)                          # 論文 metadata（Abstract/作者/日期）
         return _JSON({"found": True, "url": u, "title": title, "markdown": md,
                       "original_url": u if u.startswith("http") else "", "pdf_path": pdf_path,
-                      "note": meta["note"], "ingested_at": meta["ingested_at"]})
+                      "paper": paper, "note": meta["note"], "ingested_at": meta["ingested_at"]})
 
     @app.post("/api/source/meta")
     async def api_source_meta(request: Request):

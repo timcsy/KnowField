@@ -115,6 +115,7 @@ export const pages = {
   source: (u: string): Promise<{
     found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
     original_url: string; pdf_path: string   // 原文=真相：原站連結／存下的 PDF（防失效＋頁級預覽）
+    paper: { title: string; authors: string[]; abstract: string; published: string; source: string } | null
   }> => fetch(`/api/source?u=${encodeURIComponent(u)}`).then(json),
   sourceMeta: (u: string, note: string, ingested_at: string) =>
     post("/api/source/meta", { u, note, ingested_at }),

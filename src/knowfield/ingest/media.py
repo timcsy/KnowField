@@ -49,6 +49,32 @@ def save_source_pdf(media_dir: str, url: str, data: bytes) -> str:
     return f"/media/{name}"
 
 
+def paper_meta_name(url: str) -> str:
+    """論文 metadata JSON 的本地檔名（由 url 衍生、穩定）：Abstract/作者/日期，供論文展示。"""
+    return "paper-" + hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:16] + ".json"
+
+
+def save_paper_meta(media_dir: str, url: str, meta: dict) -> str:
+    """存論文 metadata JSON 進 media_dir，回本地路徑。"""
+    import json
+    d = Path(media_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / paper_meta_name(url)).write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    return f"/media/{paper_meta_name(url)}"
+
+
+def load_paper_meta(media_dir: str, url: str) -> dict | None:
+    """讀論文 metadata（無→None）。"""
+    import json
+    p = Path(media_dir) / paper_meta_name(url)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _decode_data_uri(uri: str) -> tuple[bytes, str, str]:
     """data:image/jpeg;base64,XXXX → (bytes, 副檔名, base64字串)。base64 當內容雜湊、同圖去重。"""
     header, _, b64 = uri.partition(",")

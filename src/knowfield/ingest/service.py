@@ -152,8 +152,15 @@ class ContentIngestService:
                 continue
             etitle, md = extract_article_markdown(html, base_url=furl)
             if (md or "").strip():
-                return self._ingest_markdown(md, self._resolve_title(title, md, etitle),
-                                             store_url, note=note, ingested_at=ingested_at)
+                res = self._ingest_markdown(md, self._resolve_title(title, md, etitle),
+                                            store_url, note=note, ingested_at=ingested_at)
+                if self.media_dir:                          # arXiv 加料：Abstract/PDF 進 media（論文展示）
+                    from .paper import enrich_arxiv
+                    try:
+                        enrich_arxiv(self.media_dir, store_url)
+                    except Exception:  # noqa: BLE001 - 加料失敗不擋收進
+                        pass
+                return res
         aid = store_url.rsplit("/", 1)[-1]                  # 全 HTML 敗→PDF-OCR（存回 /abs、由來穩定）
         return self.ingest_pdf(pdf_url=f"https://arxiv.org/pdf/{aid}", title=title,
                                note=note, ingested_at=ingested_at, store_url=store_url)

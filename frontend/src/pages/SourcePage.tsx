@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
+type Paper = { title: string; authors: string[]; abstract: string; published: string; source: string }
 type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
-             original_url: string; pdf_path: string }
+             original_url: string; pdf_path: string; paper: Paper | null }
 const KINDS = ["已證實", "推論", "類比", "猜想"]
 
 export default function SourcePage() {
@@ -68,6 +69,20 @@ export default function SourcePage() {
           {src.url.startsWith("http") && <span className="break-all text-muted-foreground">{src.url}</span>}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">要看準確內容以上方原文／PDF 為準；下方是自動萃取的參考（給檢索、也能看）。</p>
+
+        {/* 論文展示（先 arXiv）：作者/日期＋乾淨 Abstract（來自 arXiv API，非抽取，最可信） */}
+        {src.paper && (
+          <div className="mt-3 rounded-xl border bg-card p-4 shadow-sm">
+            {src.paper.authors.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {src.paper.authors.join("、")}{src.paper.published ? `　·　${src.paper.published}` : ""}
+                {src.paper.source === "arxiv" ? "　·　arXiv" : ""}
+              </p>
+            )}
+            <h2 className="mt-1.5 text-sm font-semibold">📄 Abstract</h2>
+            <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed">{src.paper.abstract}</p>
+          </div>
+        )}
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
           <span>📌</span>
