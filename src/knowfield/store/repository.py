@@ -1,7 +1,8 @@
-"""Repository：Postgres 之上的 CRUD（對應 data-model.md 實體）。
+"""Repository：資料層 CRUD（對應 data-model.md 實體）。
 
-spec 034：資料層從 SQLite 遷到 PG（parity 換血）。連線吃 PG DSN（env KNOWFIELD_DATABASE_URL 或傳入）。
-dict_row 讓 r["c"]／r.keys()／dict(r) 與原 sqlite3.Row 相容；自增 id 用 RETURNING（取代 lastrowid）。
+spec 034＋036：資料層走可攜 adapter（`store/db.py`）——本地 SQLite（零 server）或 prod Postgres，由連線字串決定。
+SQL 一律寫 `%s`＋RETURNING＋ON CONFLICT（adapter 對 SQLite 翻 `?`）。r["c"]／r.keys()／dict(r) 兩後端相容；
+自增 id 用 RETURNING（取代 lastrowid）。
 """
 
 from __future__ import annotations
@@ -9,9 +10,6 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-
-import psycopg
-from psycopg.rows import dict_row
 
 from ..models import (
     Article,
@@ -36,14 +34,13 @@ def _iso(value: datetime | None) -> str | None:
 
 
 class Repository:
-    """對 Postgres 的存取層。傳入 DSN（postgresql://…）；None→讀 env KNOWFIELD_DATABASE_URL。"""
+    """可攜資料層存取（spec 036）。傳入連線字串：PG DSN（postgresql://…）或 SQLite（檔案路徑/:memory:/sqlite://…）；
+    None→讀 env KNOWFIELD_DATABASE_URL，仍空→預設本地 SQLite 檔（零 server 本地預設）。"""
 
     def __init__(self, dsn: str | None = None) -> None:
-        dsn = dsn or os.environ.get("KNOWFIELD_DATABASE_URL")
-        if not dsn:
-            raise RuntimeError(
-                "需要 Postgres 連線：設環境變數 KNOWFIELD_DATABASE_URL，或傳入 dsn。")
-        self.conn = psycopg.connect(dsn, row_factory=dict_row)
+        from . import db
+        dsn = dsn or os.environ.get("KNOWFIELD_DATABASE_URL") or "knowfield.db"
+        self.conn = db.connect(dsn)
         init_db(self.conn)
 
     def close(self) -> None:

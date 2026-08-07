@@ -1,12 +1,10 @@
-"""Postgres schema（對應 data-model.md）。
+"""可攜 schema（對應 data-model.md）。spec 036：一份 DDL 跑 SQLite 或 Postgres。
 
-parity 原則（spec 034）：日期欄維持 TEXT（碼存/讀 ISO 字串）、布林維持 INTEGER（碼 int()/bool()）
-——不「升級」型別，避免與 SQLite 版行為漂移。自增主鍵用 SERIAL。
+parity 原則：日期欄維持 TEXT（碼存/讀 ISO 字串）、布林維持 INTEGER（碼 int()/bool()）——不「升級」型別。
+自增主鍵在 PG＝`SERIAL PRIMARY KEY`、SQLite＝`INTEGER PRIMARY KEY`（依 conn.dialect 分岔）。
 """
 
 from __future__ import annotations
-
-import psycopg
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -138,13 +136,15 @@ def _statements(script: str) -> list[str]:
     return out
 
 
-def init_db(conn: psycopg.Connection) -> None:
-    """建 schema（冪等，CREATE IF NOT EXISTS）＋確保單一使用者興趣畫像列存在。
+def init_db(conn) -> None:
+    """建 schema（冪等，CREATE IF NOT EXISTS）＋確保單一使用者興趣畫像列存在。依 conn.dialect 分岔自增型別。
 
-    註（spec 034）：SQLite 版的 _migrate（PRAGMA/ALTER 補欄）是升級舊 SQLite 檔用的；PG 從零起、
-    SCHEMA 已含所有欄，故不需要——移除。
+    註：不含舊 SQLite 檔的 _migrate 補欄（新庫從零起、SCHEMA 已含所有欄）。
     """
-    for stmt in _statements(SCHEMA):
+    schema = SCHEMA
+    if getattr(conn, "dialect", "postgres") == "sqlite":
+        schema = schema.replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY")
+    for stmt in _statements(schema):
         conn.execute(stmt)
     conn.execute(
         "INSERT INTO interest_profile (id, explicit_topics, learned_weights)"

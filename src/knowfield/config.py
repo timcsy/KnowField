@@ -76,7 +76,9 @@ class Config:
 
     @classmethod
     def from_env(cls, dotenv: str = ".env") -> "Config":
-        load_dotenv(dotenv)
+        # 測試隔離：KNOWFIELD_NO_DOTENV=1 時不讀開發者本機 .env（否則測試會撈到真實設定，如 auth）。
+        if os.environ.get("KNOWFIELD_NO_DOTENV") != "1":
+            load_dotenv(dotenv)
         api_key = os.environ.get("KNOWFIELD_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         base = (os.environ.get("KNOWFIELD_API_BASE")
                 or os.environ.get("OPENAI_BASE_URL")

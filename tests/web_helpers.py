@@ -10,9 +10,11 @@ from knowfield.store.repository import Repository
 
 
 def temp_db() -> str:
-    # spec 034：改回一個乾淨 PG 資料庫的 DSN（原為 SQLite 檔路徑）
-    from tests.pgtest import fresh_pg_dsn
-    return fresh_pg_dsn()
+    # spec 036：預設 SQLite 臨時檔（零 server、零 Docker）；KNOWFIELD_TEST_BACKEND=postgres→容器化 PG。
+    if os.environ.get("KNOWFIELD_TEST_BACKEND", "sqlite") == "postgres":
+        from tests.pgtest import fresh_pg_dsn
+        return fresh_pg_dsn()
+    return os.path.join(tempfile.mkdtemp(), "web.db")
 
 
 def build_app(db_path: str):
