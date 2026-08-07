@@ -29,6 +29,7 @@ export default function SourcesPage() {
   const [ytUrl, setYtUrl] = useState("")
   const [pdfUrl, setPdfUrl] = useState("")
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [paperUrl, setPaperUrl] = useState("")
 
   const load = () => pages.library().then((r) => setSources(r.sources)).catch(() => {})
   useEffect(() => { load() }, [])
@@ -50,6 +51,12 @@ export default function SourcesPage() {
     })
   }
   async function urlPost(): Promise<Res> { return pages.ingestUrl({ url: pageUrl, note }) }
+  async function paperPost(): Promise<Res> {
+    // 論文走 ingestUrl（後端 normalize：arXiv abs/pdf→HTML＋Abstract/PDF 加料）。純 id→補成 abs 網址。
+    const v = paperUrl.trim()
+    const url = /^\d+\.\d+(v\d+)?$/.test(v) ? `https://arxiv.org/abs/${v}` : v
+    return pages.ingestUrl({ url, note })
+  }
   async function ytPost(): Promise<Res> { return pages.ingestYoutube({ url: ytUrl }) }
   async function pdfPost(): Promise<Res> {
     const fd = new FormData()
@@ -123,12 +130,22 @@ export default function SourcesPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold">📄 收進 PDF（論文／報告）</h2>
+            <h2 className="text-sm font-semibold">🎓 收進論文（arXiv）</h2>
+            <div className="flex gap-2">
+              <Input value={paperUrl} onChange={(e) => setPaperUrl(e.target.value)}
+                     placeholder="貼 arXiv 網址或 id（如 arxiv.org/abs/1706.03762 或 1706.03762）" className="flex-1" />
+              <Button disabled={busy} onClick={() => run(paperPost)}>收進論文</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">走論文管線：HTML 版（數學/圖最準）＋抓 Abstract／作者／原始 PDF → 來源頁論文展示。</p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">📄 收進 PDF（一般報告／檔案）</h2>
             <input type="file" accept="application/pdf"
                    onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
                    className="text-sm" />
             <div className="flex gap-2">
-              <Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder="或貼 PDF 網址（如 arXiv PDF）" className="flex-1" />
+              <Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder="或貼 PDF 網址（非 arXiv；arXiv 論文請用上方「收進論文」）" className="flex-1" />
               <Button disabled={busy} onClick={() => run(pdfPost)}>收進 PDF</Button>
             </div>
           </section>
