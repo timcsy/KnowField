@@ -54,6 +54,20 @@ class TestDistillSource(unittest.TestCase):
         self.assertTrue(cands[0].ladder)                  # 帶 why 階梯
         repo.close()
 
+    def test_stores_source_quote_anchor(self):
+        # 第一刀：distill 存 verbatim 錨點（Text Fragment 由來定位到原文段落）
+        repo = Repository(temp_db())
+        url = _seed(repo, body="# 標題\n\n這是一段夠長的實質內容句子用來當定位原文的錨點。\n\n" + ("後續。" * 40))
+        distill_source(repo, StubExtractor(), url, now="2026-08-05")
+        self.assertIn("這是一段夠長的實質內容句子", repo.list_why_nodes("candidate")[0].source_quote)
+        repo.close()
+
+    def test_source_anchor_skips_markup(self):
+        from knowfield.ingest.activate import _source_anchor
+        body = "# 標題\n\n| a | b |\n\n這是一段夠長的實質內容句子應該被選為錨點來定位。\n\n下一段"
+        self.assertEqual(_source_anchor(body), "這是一段夠長的實質內容句子應該被選為錨點來定位。")
+        self.assertEqual(_source_anchor("# 只有標題\n\n短。"), "")   # 沒實質句→空（由來退回整篇）
+
     def test_no_material_stores_nothing(self):
         repo = Repository(temp_db())
         url = _seed(repo)

@@ -481,7 +481,8 @@ def create_app() -> FastAPI:
             return {"id": w.id, "claim": w.claim, "evidence_urls": w.evidence_urls,
                     "ladder": w.ladder, "touchstones": w.touchstones, "fog_flag": w.fog_flag,
                     "kind": getattr(w, "kind", ""),
-                    "src_from": getattr(w, "src_from", 0), "src_to": getattr(w, "src_to", 0)}
+                    "src_from": getattr(w, "src_from", 0), "src_to": getattr(w, "src_to", 0),
+                    "source_quote": getattr(w, "source_quote", "")}
         return _JSON({"anointed": [_wn(w) for w in anointed],
                       "candidates": [_wn(w) for w in candidates],
                       "provenance": {str(k): v for k, v in prov.items()},

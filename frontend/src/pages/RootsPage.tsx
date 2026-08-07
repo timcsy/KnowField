@@ -3,6 +3,13 @@ import { Link } from "react-router-dom"
 import { pages, type RootsData } from "@/lib/api"
 import { KindBadge } from "@/components/KindBadge"
 
+// 原文＝唯一真相：由來連結帶 Text Fragment（#:~:text=）→ 瀏覽器原生捲到並高亮原文那段。
+// best-effort：匹配失敗（抽取清理過/SPA 渲染）→ 只開頁面、不跳段（無害）。
+function withTextFragment(url: string, quote: string): string {
+  if (!quote || !/^https?:\/\//.test(url) || url.includes("#")) return url
+  return `${url}#:~:text=${encodeURIComponent(quote.trim())}`
+}
+
 export default function RootsPage() {
   const [data, setData] = useState<RootsData | null>(null)
   const [openSrc, setOpenSrc] = useState<number | null>(null)   // 展開哪條的佐證網址
@@ -45,7 +52,13 @@ export default function RootsPage() {
                 <p className="max-w-[42rem] text-[15px] leading-loose"><KindBadge kind={w.kind} /> 💡 {w.claim}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {src ? (
-                    <Link to={`/source?u=${encodeURIComponent(src)}`} title="這條的出處：點開看當初收進的來源" className="hover:text-foreground hover:underline">📎 由來</Link>
+                    <>
+                      {/^https?:\/\//.test(src) && (
+                        <a href={withTextFragment(src, w.source_quote)} target="_blank" rel="noopener"
+                           title="看原文（唯一真相）——跳到它來自的那段並高亮" className="hover:text-foreground hover:underline">🌐 看原文</a>
+                      )}
+                      <Link to={`/source?u=${encodeURIComponent(src)}`} title="萃取的參考（供檢索、也能看）；準確請看原文" className="hover:text-foreground hover:underline">📎 萃取參考</Link>
+                    </>
                   ) : convo ? (
                     <Link to={`/conversations/${convo}${w.src_from ? `?from=${w.src_from}&to=${w.src_to}` : ""}`}
                           title="這條的出處：點開展開它來自的那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
@@ -65,7 +78,7 @@ export default function RootsPage() {
                   <ul className="mt-2 space-y-1 border-t pt-2">
                     {evidence.map((u, i) => (
                       <li key={i} className="text-xs">
-                        <a href={u} target="_blank" rel="noopener" className="break-all text-primary hover:underline">🔗 {u}</a>
+                        <a href={withTextFragment(u, w.source_quote)} target="_blank" rel="noopener" className="break-all text-primary hover:underline">🔗 {u}</a>
                       </li>
                     ))}
                   </ul>

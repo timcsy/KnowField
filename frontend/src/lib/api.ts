@@ -74,6 +74,7 @@ export type WhyNode = {
   kind: string          // 認識論層次：已證實/推論/類比/猜想
   src_from: number      // 出處對話則數範圍（階段29第2階段）
   src_to: number
+  source_quote: string  // 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
 }
 export type RootsData = {
   anointed: WhyNode[]

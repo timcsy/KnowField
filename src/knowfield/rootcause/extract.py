@@ -39,6 +39,7 @@ class WhyNode:
     kind: str = ""                                    # 認識論層次：已證實/推論/類比/猜想（vision 階段 28）
     src_from: int = 0                                 # 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）
     src_to: int = 0
+    source_quote: str = ""                            # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
 
 
 @dataclass

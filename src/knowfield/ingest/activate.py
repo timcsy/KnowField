@@ -9,7 +9,28 @@
 
 from __future__ import annotations
 
+import re
+
 from ..rootcause.extract import Candidate, RootCauseExtractor
+
+
+def _source_anchor(body: str) -> str:
+    """從來源正文取一段 verbatim 錨點（Text Fragment `#:~:text=` 用，定位回原文段落）：
+    第一個夠長的實質句子，跳過標題/表格/公式/圖/清單標記。取不到→空（由來退回整篇）。
+    刻意取**較短**（≤90 字、切在詞界）——太長會跨行內元素/腳註而配不到（TF best-effort）。"""
+    for para in (body or "").split("\n\n"):
+        p = para.strip()
+        if not p or p[0] in "#|-*>" or p.startswith(("$$", "![")):
+            continue
+        s = re.split(r"(?<=[。.!?])\s", p, maxsplit=1)[0].strip()
+        if len(s) < 24:
+            continue
+        if len(s) > 90:                       # 截短、切在詞界（英文；中文無空格則直接截）
+            cut = s[:90]
+            sp = cut.rfind(" ")
+            s = cut[:sp] if sp > 40 else cut
+        return s
+    return ""
 
 
 def distill_source(repo, extractor: RootCauseExtractor, url: str,
@@ -28,5 +49,5 @@ def distill_source(repo, extractor: RootCauseExtractor, url: str,
     if cand.no_material or not (cand.claim or "").strip():
         return None
     repo.add_why_node(cand.claim, [url], cand.touchstones, cand.fog_flag,
-                      0, now, ladder=cand.ladder)
+                      0, now, ladder=cand.ladder, source_quote=_source_anchor(body))
     return cand
