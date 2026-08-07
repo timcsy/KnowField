@@ -370,6 +370,19 @@
   相依藏在窄介面後、預設離線」：預設安全/無感，opt-in 才啟用。
 - **來源**：`history/085-單人Google登入門鎖.md`；commit `d11b5e0`；`src/knowfield/web/auth.py`（auth_active）。
 
+### 測試不能讀開發者本機 .env——會撈到真實設定、汙染測試
+
+- **理論說**：`Config.from_env` 讀 `.env` 很方便，測試也用它建 app 就好。
+- **實際發生**：使用者填好 `.env`（含真實 Google 登入 auth 設定）後，跑測試——`from_env` 的 `load_dotenv(".env")`
+  把 auth 設定撈進來 → **門鎖被啟用 → 全部 web 測試被擋**（POST 401→讀空 IndexError、autosave 無 temp_id KeyError、
+  export 302 登入 redirect loop）。**一度被誤判成剛做的 SQLite 遷移 parity 問題**——實為測試讀了真實 .env（同一份碼在
+  .env 沒 auth 時全綠、有 auth 時全紅）。
+- **解決方式**：`tests/conftest.py`（session 起點）設 `KNOWFIELD_NO_DOTENV=1`＋清 auth/DB 環境變數；`Config.from_env`
+  尊重旗標、不讀 .env。測試從乾淨、確定的環境開始。
+- **教訓**：**測試必須 hermetic——不依賴開發者本機 `.env`／shell 環境**。設定載入要有「測試模式跳過」的旗標。
+  debug 訊號：「同一份碼昨天全綠、今天全紅，程式沒改」→ 先查**環境/設定**變了什麼（這次是 .env 被填了），別一頭栽進「昨天改的功能」。
+- **來源**：`history/086-可攜資料層雙後端-reroute不騎牆.md`；commit `326469c`；`tests/conftest.py`、`src/knowfield/config.py`。
+
 <!--
   範例：
 

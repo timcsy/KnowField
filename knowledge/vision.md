@@ -953,17 +953,18 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - **Acceptance**：未登入訪 app/api→導 Google 登入；非 allowlist 帳號→拒；本人帳號→全站可用；
   session httponly；密鑰不進 git；**含「未登入真被擋」負向測試**（experience「別信自報的綠」）；既有 344 測不回歸。
 
-## 階段 33：本地 SQLite ＋ prod PG——可攜資料層（re-route「不騎牆」，未建）
+## 階段 33：本地 SQLite ＋ prod PG——可攜資料層（re-route「不騎牆」，✅ 完成 2026-08-07）
 
 > 設計源 `draft/2026-08-07-本地SQLite與prod-PG雙後端`。promote 2026-08-07（使用者 commit /goal 做完）。
 > **re-route**：階段 31「全部 PG 不騎牆」的前提（本地跑得起 PG）被「**本地零 server**」需求推翻——SQLite 是唯一
 > 零-server 的 SQL 庫。動工時 `history/084` 標「不騎牆」段 superseded、開新 history。
 
-- [ ] **薄 dialect adapter（非完整 SQLAlchemy）**：`store/db.py connect(url)` 依 URL 選 sqlite3/psycopg、統一佔位符
-  （`%s`→`?`）＋dict row；schema 自增型別分岔（`SERIAL`↔`INTEGER PRIMARY KEY`）。**SQL 本體幾乎不動**
-  （現代 SQLite 已支援 RETURNING/ON CONFLICT，實測 3.49.1 OK）。
-- [ ] **drift 機械消除**：本地 dev/測試跑 SQLite（零 server、零 Docker）；CI/prod 跑 PG；**同套測試兩後端皆可跑**
-  （`KNOWFIELD_TEST_BACKEND` 選）。核心 DB-less 測試不變。
+- [x] **薄 dialect adapter（commit `326469c`）**：`store/db.py connect(url)` 依 URL 選 sqlite3/psycopg、統一佔位符
+  （`%s`→`?`）＋dict row；schema 自增型別分岔（`SERIAL`↔`INTEGER PRIMARY KEY`）。SQL 本體不動。零新相依（sqlite3 stdlib）。
+- [x] **drift 機械消除（實證）**：本地/測試 SQLite（**1.83s 零 server 零 Docker**）；`KNOWFIELD_TEST_BACKEND=postgres`
+  同套測試跑 PG——**兩後端各 352 綠**＝parity。核心 DB-less 測試不變。
+- [x] **順修測試隔離漏洞**：測試會讀開發者本機 `.env`（填了 auth→啟用門鎖→擋掉 web 測）→ `conftest` 設
+  `KNOWFIELD_NO_DOTENV`＋清 auth/DB env。→ 升 experience。
 - **In scope**：sqlite/psycopg 雙後端 adapter＋parity。**Out**：完整 SQLAlchemy ORM、pgvector（**PG-only 已知邊界**，
   檢索升級時該功能 PG 專屬）、行為改變。
 - **相依/憲章**：sqlite3＝stdlib（零新相依）；psycopg 已在。核心演算法不碰。
