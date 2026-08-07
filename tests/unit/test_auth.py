@@ -43,23 +43,30 @@ class TestLoginGate(unittest.TestCase):
         return app
 
     def _login(self, client):
-        client.get("/auth/login", follow_redirects=True)   # 注入身分→callback→建 session
+        client.get("/auth/google", follow_redirects=True)   # 注入身分→callback→建 session
 
-    def test_unauthed_page_redirects_to_login(self):       # 未登入訪頁→導登入
+    def test_unauthed_page_redirects_to_login(self):       # 未登入訪頁→導登入畫面
         c = TestClient(self._app("me@example.com"), follow_redirects=False)
         r = c.get("/")
         self.assertIn(r.status_code, (302, 307))
         self.assertIn("/auth/login", r.headers["location"])
+
+    def test_login_page_renders(self):                     # 有登入畫面（用 Google 登入鈕）
+        c = TestClient(self._app("me@example.com"))
+        r = c.get("/auth/login")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("用 Google 登入", r.text)
 
     def test_unauthed_api_blocked_401(self):               # 負向測試（FR-010）：未登入 /api 真的被擋
         c = TestClient(self._app("me@example.com"), follow_redirects=False)
         self.assertEqual(c.get("/api/roots").status_code, 401)
 
     def test_non_allowlist_rejected(self):                 # 非白名單→拒、不建 session（FR-002）
-        c = TestClient(self._app("stranger@evil.com"), follow_redirects=False)
-        r = c.get("/auth/login", follow_redirects=True)
-        self.assertEqual(r.status_code, 403)               # callback 拒
-        self.assertEqual(c.get("/api/roots").status_code, 401)   # 仍未授權
+        c = TestClient(self._app("stranger@evil.com"))
+        r = c.get("/auth/google", follow_redirects=True)   # 發起→callback 拒→導回登入頁
+        self.assertEqual(r.status_code, 200)               # 落在登入畫面
+        self.assertIn("未獲授權", r.text)                   # 顯示被拒訊息
+        self.assertEqual(c.get("/api/roots", follow_redirects=False).status_code, 401)  # 仍未授權
 
     def test_allowlist_login_grants_access(self):          # 本人→建 session→全站可用（FR-003）
         c = TestClient(self._app("me@example.com"))
