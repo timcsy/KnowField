@@ -18,6 +18,7 @@ import Layout from "./Layout"
 import ChatPage from "./ChatPage"
 import RootsPage from "./pages/RootsPage"
 import ArticlesPage from "./pages/ArticlesPage"
+import ArticleViewPage from "./pages/ArticleViewPage"
 import SourcesPage from "./pages/SourcesPage"
 import SourcePage from "./pages/SourcePage"
 import ConversationViewPage from "./pages/ConversationViewPage"
@@ -31,6 +32,7 @@ createRoot(document.getElementById("root")!).render(
           <Route index element={<ChatPage />} />
           <Route path="roots" element={<RootsPage />} />
           <Route path="articles" element={<ArticlesPage />} />
+          <Route path="articles/:id" element={<ArticleViewPage />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="source" element={<SourcePage />} />
           <Route path="conversations" element={<ConversationsPage />} />

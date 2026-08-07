@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { pages } from "@/lib/api"
-import { Markdown } from "@/components/Markdown"
 
-// 文章庫＝場的輸出面（與地基「核心理解」分離）：唯讀閱讀＋管理，版面對齊「來源」頁。
-// 文章＝輸出物、不回灌場（原則 6）——這裡只讀/刪，生成留在核心理解頁（貼原料）。
+// 文章庫＝場的輸出面（與地基「核心理解」分離）：版面對齊「來源」頁，點進去＝獨立詳情頁 /articles/:id。
+// 文章＝輸出物、不回灌場（原則 6）——這裡只列/刪，生成留在核心理解頁（貼原料）。
 const LEN: Record<string, string> = { short: "短", medium: "中", long: "長" }
 const LVL: Record<string, string> = { intro: "入門", intermediate: "進階", expert: "專家" }
 
 export default function ArticlesPage() {
   const [list, setList] = useState<{ id: number; topic: string; title: string; length: string; level: string; created_at: string }[] | null>(null)
-  const [open, setOpen] = useState<{ id: number; title: string; markdown: string } | null>(null)
   const load = () => pages.listArticles().then((r) => setList(r.articles)).catch(() => setList([]))
   useEffect(() => { load() }, [])
 
-  async function view(id: number) { setOpen(await pages.getArticle(id)) }
   async function del(id: number) {
     if (!confirm("刪除這篇文章？（不可復原）")) return
-    await pages.deleteArticle(id); if (open?.id === id) setOpen(null); load()
+    await pages.deleteArticle(id); load()
   }
 
   return (
@@ -44,7 +41,7 @@ export default function ArticlesPage() {
             <div key={a.id} className="group flex items-start justify-between gap-3 rounded-xl bg-card px-4 py-3 shadow-sm">
               <div className="min-w-0">
                 <div className="font-medium">
-                  <button onClick={() => view(a.id)} className="text-left hover:underline">{a.title || a.topic}</button>
+                  <Link to={`/articles/${a.id}`} className="hover:underline">{a.title || a.topic}</Link>
                   {LEN[a.length] && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">長度：{LEN[a.length]}</span>}
                   {LVL[a.level] && <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">難度：{LVL[a.level]}</span>}
                 </div>
@@ -54,25 +51,11 @@ export default function ArticlesPage() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
-                <button onClick={() => view(a.id)} className="hover:text-foreground">檢視</button>
+                <Link to={`/articles/${a.id}`} className="hover:text-foreground">檢視</Link>
                 <button onClick={() => del(a.id)} className="hover:text-destructive">刪除</button>
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {open && (
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between border-b pb-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">閱讀中</span>
-            <div className="flex gap-3 text-xs text-muted-foreground">
-              <button onClick={async () => { try { await navigator.clipboard.writeText(open.markdown) } catch { /* 無剪貼簿 */ } }}
-                      className="hover:text-foreground">📋 複製 Markdown</button>
-              <button onClick={() => setOpen(null)} className="hover:text-foreground">✕ 收起</button>
-            </div>
-          </div>
-          <Markdown text={open.markdown} prefix="artv" />
         </div>
       )}
     </div>
