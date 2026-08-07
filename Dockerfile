@@ -27,4 +27,6 @@ RUN useradd -u 10001 -m app && mkdir -p /data/media && chown -R app:app /data
 USER app
 
 EXPOSE 8000
-CMD ["uvicorn", "knowfield.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# --proxy-headers：在反向代理（Caddy）後面認得 X-Forwarded-Proto/Host → OAuth redirect_uri 組成正確的 https://<網域>
+CMD ["uvicorn", "knowfield.web.app:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]
