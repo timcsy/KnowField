@@ -19,9 +19,21 @@ _SYS = (
     "你是把一個人自己冊封的『核心理解』寫成部落格教學文章的寫手。鐵律：\n"
     "1. **只根據下面編號的核心理解**寫，不要新增它們沒有的事實、不要杜撰。\n"
     "2. 用到某條理解時，在該句後標 **[n] 上標**（n＝理解編號；同一條可重複引用同編號）。\n"
-    "3. 部落格教學語氣、繁體中文：**先用一段較長的『引起動機』**（讀者常見的困惑／為何值得看），"
+    "3. 部落格教學語氣、繁體中文：**先用一段『引起動機』**（讀者常見的困惑／為何值得看），"
     "再用小節把脈絡串成一根脊椎，最後『一句話帶走』。少而深、收斂、別灌水。\n"
     "4. **只輸出正文**（不要寫 References／延伸閱讀，那些會由系統補）。")
+
+# 長度／難度：影響 prompt 的指示（不是硬截斷）
+_LENGTHS = {
+    "short": "短（約 500 字，直接切重點、少鋪陳）",
+    "medium": "中（約 1200 字，脈絡完整）",
+    "long": "長（約 2500 字，深入鋪陳、多舉例）",
+}
+_LEVELS = {
+    "intro": "入門（給初學者：多鋪陳、白話、少術語，必要時用比喻）",
+    "intermediate": "進階（給有基礎的：可用術語，著重脈絡與關聯）",
+    "expert": "專家（給熟悉者：精煉直接、著重洞見與非顯然的細節，假設懂基礎術語）",
+}
 
 
 def _rank_by_topic(nodes: list, topic: str, embedder) -> list:
@@ -37,12 +49,16 @@ def _rank_by_topic(nodes: list, topic: str, embedder) -> list:
         return list(nodes)
 
 
-def build_article_prompt(topic: str, body: list) -> str:
-    """給 LLM 的 user prompt：主題＋編號的核心理解（含佐證脈絡）。"""
-    lines = [f"主題：{topic}\n", "核心理解（只能用這些；標 [n] 引用）："]
+def build_article_prompt(topic: str, body: list, length: str = "medium",
+                         level: str = "intermediate") -> str:
+    """給 LLM 的 user prompt：主題＋長度／難度＋編號的核心理解（含佐證脈絡）。"""
+    lines = [f"主題：{topic}",
+             f"長度：{_LENGTHS.get(length, _LENGTHS['medium'])}",
+             f"難度：{_LEVELS.get(level, _LEVELS['intermediate'])}\n",
+             "核心理解（只能用這些；標 [n] 引用）："]
     for i, w in enumerate(body, 1):
         lines.append(f"[{i}]（{getattr(w, 'kind', '')}）{getattr(w, 'claim', '')}")
-    lines.append("\n請寫成一篇部落格教學文章（繁中），依鐵律。")
+    lines.append("\n請寫成一篇部落格教學文章（繁中），依鐵律與上面的長度／難度。")
     return "\n".join(lines)
 
 
@@ -71,8 +87,8 @@ _MEMBRANE_NOTE = ("<sub>正文只採你場中「已證實／推論」層；延�
 
 
 def generate_article(topic: str, nodes: list, chat_backend, embedder=None,
-                     top_k: int = 8) -> dict:
-    """從已冊封核心理解生成高證實文章。回 {title, markdown, empty}。
+                     top_k: int = 8, length: str = "medium", level: str = "intermediate") -> dict:
+    """從已冊封核心理解生成高證實文章。回 {title, markdown, empty}。length/level＝長度/難度。
     body＝相關度前 top_k 的 🔬🧩；ext＝相關的 🌉💭（延伸閱讀）。References 結構化組（原則 3）。"""
     ranked = _rank_by_topic(nodes, topic, embedder)
     body = [w for w in ranked if (getattr(w, "kind", "") or "") in _BODY_KINDS][:top_k]
@@ -80,7 +96,7 @@ def generate_article(topic: str, nodes: list, chat_backend, embedder=None,
     if not body:
         return {"title": topic, "markdown": "", "empty": True}
     article = (chat_backend.reply([{"role": "system", "content": _SYS},
-                                   {"role": "user", "content": build_article_prompt(topic, body)}]) or "").strip()
+                                   {"role": "user", "content": build_article_prompt(topic, body, length, level)}]) or "").strip()
     if not article:
         return {"title": topic, "markdown": "", "empty": True}
     parts = [article, _references(body)]

@@ -112,6 +112,17 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_activity_at TEXT,             -- spec 028：最後活動時間（TTL 起算）
     chapters TEXT DEFAULT '[]'         -- 階段29：切好的章節 JSON [{title,start,end}]，持久化避免重切
 );
+
+-- 知識的輸出（階段 30）：生成的高證實文章存檔。輸出物、唯讀（不回灌場，原則 6）。
+CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    markdown TEXT NOT NULL,
+    length TEXT DEFAULT '',            -- short/medium/long
+    level TEXT DEFAULT '',             -- intro/intermediate/expert
+    created_at TEXT DEFAULT ''
+);
 """
 
 

@@ -517,6 +517,29 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # --- Articles（知識的輸出，階段 30）：生成文章存檔（輸出物、不回灌場）---
+    def save_article(self, topic: str, title: str, markdown: str,
+                     length: str = "", level: str = "", created_at: str = "") -> int:
+        cur = self.conn.execute(
+            "INSERT INTO articles (topic, title, markdown, length, level, created_at)"
+            " VALUES (?,?,?,?,?,?)", (topic, title, markdown, length, level, created_at))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_articles(self) -> list[dict]:
+        """列已存文章（不含全文，新在上）。"""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, topic, title, length, level, created_at FROM articles ORDER BY id DESC")]
+
+    def get_article(self, aid: int) -> dict | None:
+        r = self.conn.execute("SELECT * FROM articles WHERE id=?", (aid,)).fetchone()
+        return dict(r) if r else None
+
+    def delete_article(self, aid: int) -> bool:
+        cur = self.conn.execute("DELETE FROM articles WHERE id=?", (aid,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
     # --- 對話的「由來」存檔（spec 023，episodes 層）---
     def save_conversation(self, title: str, messages: list,
                           why_node_id: int | None = None) -> int:

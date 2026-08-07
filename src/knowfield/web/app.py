@@ -517,9 +517,12 @@ def create_app() -> FastAPI:
         結構化 References、不回灌場。"""
         from ..backends.factory import make_embedder
         from ..output.article import generate_article
-        topic = str((await request.json()).get("topic") or "").strip()
+        b = await request.json()
+        topic = str(b.get("topic") or "").strip()
         if not topic:
             return _JSON({"error": "請給一個主題"}, status_code=400)
+        length = str(b.get("length") or "medium")
+        level = str(b.get("level") or "intermediate")
         repo = app.state.repo_factory(app.state.config)
         try:
             nodes = repo.list_why_nodes("anointed")
@@ -527,13 +530,47 @@ def create_app() -> FastAPI:
             repo.close()
         try:
             emb = getattr(app.state, "embedder_for_test", None) or make_embedder(app.state.config)
-            out = generate_article(topic, nodes, _chat_backend(), embedder=emb)
+            out = generate_article(topic, nodes, _chat_backend(), embedder=emb, length=length, level=level)
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("生成文章失敗", extra={"extra": {"reason": str(e)}})
             return _JSON({"error": str(e)}, status_code=502)
         if out.get("empty"):
             return _JSON({"error": "場裡還沒有夠格（已證實／推論）的核心理解可寫成文章"}, status_code=200)
+        out["length"], out["level"] = length, level
         return _JSON(out)
+
+    @app.post("/api/article/save")
+    async def api_article_save(request: Request):
+        """存下生成的文章（輸出物、唯讀存檔）。"""
+        b = await request.json()
+        if not (b.get("markdown") or "").strip():
+            return _JSON({"error": "沒有內容可存"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        aid = repo.save_article(b.get("topic", ""), b.get("title", ""), b["markdown"],
+                                b.get("length", ""), b.get("level", ""), _now_iso())
+        repo.close()
+        return _JSON({"id": aid})
+
+    @app.get("/api/articles")
+    async def api_articles():
+        repo = app.state.repo_factory(app.state.config)
+        arts = repo.list_articles()
+        repo.close()
+        return _JSON({"articles": arts})
+
+    @app.get("/api/article/{aid}")
+    async def api_article_get(aid: int):
+        repo = app.state.repo_factory(app.state.config)
+        art = repo.get_article(aid)
+        repo.close()
+        return _JSON(art or {}, status_code=200 if art else 404)
+
+    @app.post("/api/article/{aid}/delete")
+    async def api_article_delete(aid: int):
+        repo = app.state.repo_factory(app.state.config)
+        repo.delete_article(aid)
+        repo.close()
+        return _JSON({"ok": True})
 
     @app.get("/api/library")
     async def api_library():

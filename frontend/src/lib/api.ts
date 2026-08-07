@@ -148,8 +148,15 @@ export const pages = {
     fetch("/api/conversations-dedupe/preview").then(json),
   dedupeApply: (): Promise<{ removed: number; repointed: number }> =>
     post("/api/conversations-dedupe/apply", {}),
-  generateArticle: (topic: string): Promise<{ title?: string; markdown?: string; error?: string }> =>
-    post("/api/article", { topic }),
+  generateArticle: (topic: string, length: string, level: string): Promise<{ title?: string; markdown?: string; length?: string; level?: string; error?: string }> =>
+    post("/api/article", { topic, length, level }),
+  saveArticle: (b: { topic: string; title: string; markdown: string; length: string; level: string }): Promise<{ id: number }> =>
+    post("/api/article/save", b),
+  listArticles: (): Promise<{ articles: { id: number; topic: string; title: string; length: string; level: string; created_at: string }[] }> =>
+    fetch("/api/articles").then(json),
+  getArticle: (id: number): Promise<{ id: number; title: string; markdown: string }> =>
+    fetch(`/api/article/${id}`).then(json),
+  deleteArticle: (id: number) => post(`/api/article/${id}/delete`, {}),
 }
 
 export type StreamHandlers = {

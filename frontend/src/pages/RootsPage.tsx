@@ -17,24 +17,40 @@ export default function RootsPage() {
   const [data, setData] = useState<RootsData | null>(null)
   const [openSrc, setOpenSrc] = useState<number | null>(null)   // 展開哪條的佐證網址
   const [topic, setTopic] = useState("")                        // 生成文章的主題
+  const [length, setLength] = useState("medium")
+  const [level, setLevel] = useState("intermediate")
   const [article, setArticle] = useState<string | null>(null)
+  const [artTitle, setArtTitle] = useState("")
   const [gen, setGen] = useState(false)
   const [genMsg, setGenMsg] = useState<string | null>(null)
+  const [saved, setSaved] = useState<{ id: number; title: string; topic: string; length: string; level: string; created_at: string }[]>([])
+  const [openArt, setOpenArt] = useState<{ id: number; title: string; markdown: string } | null>(null)
   const load = () => pages.roots().then(setData).catch(() => {})
-  useEffect(() => { load() }, [])
+  const loadArts = () => pages.listArticles().then((r) => setSaved(r.articles)).catch(() => {})
+  useEffect(() => { load(); loadArts() }, [])
 
   async function genArticle() {
     if (!topic.trim() || gen) return
     setGen(true); setGenMsg("生成中…（只用已證實／推論的核心理解）"); setArticle(null)
     try {
-      const r = await pages.generateArticle(topic.trim())
+      const r = await pages.generateArticle(topic.trim(), length, level)
       setGen(false)
       if (r.error) { setGenMsg(r.error); return }
-      setGenMsg(null); setArticle(r.markdown || "")
+      setGenMsg(null); setArticle(r.markdown || ""); setArtTitle(r.title || topic.trim())
     } catch { setGen(false); setGenMsg("生成失敗") }
   }
   async function copyArticle() {
     if (article) { try { await navigator.clipboard.writeText(article); setGenMsg("已複製") } catch { /* 無剪貼簿 */ } }
+  }
+  async function saveArticle() {
+    if (!article) return
+    await pages.saveArticle({ topic: topic.trim(), title: artTitle, markdown: article, length, level })
+    setGenMsg("已保存"); loadArts()
+  }
+  async function viewArt(id: number) { setOpenArt(await pages.getArticle(id)) }
+  async function delArt(id: number) {
+    if (!confirm("刪除這篇文章？")) return
+    await pages.deleteArticle(id); if (openArt?.id === id) setOpenArt(null); loadArts()
   }
 
   async function remove(id: number) {
@@ -61,19 +77,52 @@ export default function RootsPage() {
       {data.anointed.length > 0 && (
         <section className="space-y-2 rounded-xl border bg-card p-4">
           <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input value={topic} onChange={(e) => setTopic(e.target.value)}
                    onKeyDown={(e) => { if (e.key === "Enter") genArticle() }}
-                   placeholder="給一個主題（如「生成模型的底層」）——只用已證實／推論的理解寫" className="flex-1" />
+                   placeholder="給一個主題（如「生成模型的底層」）——只用已證實／推論的理解寫" className="min-w-48 flex-1" />
+            <select value={length} onChange={(e) => setLength(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
+              <option value="short">短</option><option value="medium">中</option><option value="long">長</option>
+            </select>
+            <select value={level} onChange={(e) => setLevel(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
+              <option value="intro">入門</option><option value="intermediate">進階</option><option value="expert">專家</option>
+            </select>
             <Button disabled={gen} onClick={genArticle}>生成文章</Button>
           </div>
           {genMsg && <div className="text-xs text-muted-foreground">{genMsg}</div>}
           {article && (
             <div className="mt-2 rounded-lg border bg-background p-4">
-              <div className="mb-2 flex justify-end">
+              <div className="mb-2 flex justify-end gap-3">
+                <button onClick={saveArticle} className="text-xs text-muted-foreground hover:text-foreground">💾 保存</button>
                 <button onClick={copyArticle} className="text-xs text-muted-foreground hover:text-foreground">📋 複製 Markdown</button>
               </div>
               <Markdown text={article} prefix="art" />
+            </div>
+          )}
+
+          {/* 已存文章 */}
+          {saved.length > 0 && (
+            <div className="mt-2 border-t pt-2">
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">已存文章</div>
+              <ul className="space-y-1">
+                {saved.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 text-sm">
+                    <button onClick={() => viewArt(a.id)} className="min-w-0 flex-1 truncate text-left hover:underline">
+                      {a.title || a.topic}
+                      <span className="ml-2 text-xs text-muted-foreground">{a.created_at?.slice(0, 10)}</span>
+                    </button>
+                    <button onClick={() => delArt(a.id)} className="shrink-0 text-xs text-muted-foreground hover:text-destructive">刪</button>
+                  </li>
+                ))}
+              </ul>
+              {openArt && (
+                <div className="mt-2 rounded-lg border bg-background p-4">
+                  <div className="mb-2 flex justify-end">
+                    <button onClick={() => setOpenArt(null)} className="text-xs text-muted-foreground hover:text-foreground">✕ 收起</button>
+                  </div>
+                  <Markdown text={openArt.markdown} prefix="artv" />
+                </div>
+              )}
             </div>
           )}
         </section>

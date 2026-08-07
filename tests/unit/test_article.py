@@ -47,6 +47,25 @@ class TestArticle(unittest.TestCase):
         self.assertIn("1. https://x/a", refs)
         self.assertIn("2. （你收藏的來源）", refs)            # 非 http（貼上）→標「你收藏的」
 
+    def test_length_level_in_prompt(self):
+        from knowfield.output.article import build_article_prompt
+        p = build_article_prompt("主題", [_n("a", "已證實")], length="long", level="intro")
+        self.assertIn("2500", p)                             # 長度指示進 prompt
+        self.assertIn("入門", p)                              # 難度指示進 prompt
+
+    def test_article_crud(self):
+        from knowfield.store.repository import Repository
+        from tests.rag_helpers import temp_db
+        repo = Repository(temp_db())
+        aid = repo.save_article("主題", "標題", "# 文章內容", "medium", "intermediate", "2026-08-07")
+        rows = repo.list_articles()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["title"], "標題")
+        self.assertEqual(repo.get_article(aid)["markdown"], "# 文章內容")
+        self.assertTrue(repo.delete_article(aid))
+        self.assertEqual(repo.list_articles(), [])
+        repo.close()
+
 
 if __name__ == "__main__":
     unittest.main()
