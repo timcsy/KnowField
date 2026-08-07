@@ -933,7 +933,10 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - **Acceptance**：repository 全走 PG、既有 344 測在「核心 DB-less ＋ DB 層 PG」下全綠、**行為零回歸**；
   prod 能以 PG 起、mirrord read-only dev 打得到遠端。
 
-## 階段 32：單人 Google 登入門鎖——部署上「不被看光」（程式側✅ 完成 2026-08-07；待使用者接 Google Cloud＋部署）
+## 階段 32：單人 Google 登入門鎖——部署上「不被看光」（✅ 已上線 2026-08-08 @ https://know.tew.tw）
+
+> **上線（2026-08-08，`history/087`）**：部署到使用者 k3s（ghcr 映像＋in-cluster PG＋Caddy TLS），本地場資料已遷入，
+> 登入流程實測通（redirect_uri=https://know.tew.tw/auth/callback）。「手機能開、不被看光」成真。UX 收尾＋部署踩的坑見 `history/085`、`087`。
 
 > 設計源 `draft/2026-07-23-部署與介面路線`（「A 登入牆」＋2026-08-07 定案節②「單人門鎖」）。
 > promote 2026-08-07（使用者 commit，接 /knowie-next）。由來：階段 31 換好 PG 部署 substrate；本階段是讓

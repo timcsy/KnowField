@@ -395,6 +395,21 @@
   行為像被吃掉」≈ SW navigateFallback 攔了它。（也呼應：改版後**先清 SW** 再驗，否則 stale 快取會給假象。）
 - **來源**：`history/082`（/media）、`history/085`（/auth）；commits `effde0b`、`87300c0`；`frontend/vite.config.ts`。
 
+### prod 部署是另一個環境——這些差異本地/測試照不到，逐一驗
+
+- **理論說**：本地跑得起、測試全綠，push 上去就會動。
+- **實際發生（首次上 k3s 一次踩四個，`history/087`）**：全部是**上 prod 才炸、本地/測試看不到**的環境差異——
+  ① **映像平台**：Mac build 出 arm64、節點 amd64 → `no match for platform`。② **執行期 vs 測試相依**：`httpx` 只在 test
+  extra，但 Authlib 執行期要它 → **本地測綠（測環境剛好有）、prod crash**。③ **反向代理**：Caddy 後面沒 `--proxy-headers`
+  → OAuth redirect_uri 組成內部 http → `redirect_uri_mismatch`。④ **惰性初始化**：`init_db` 首次碰 DB 才建 schema
+  → 遷移/探針時撲空。
+- **解決方式**：各自對症（`buildx --platform`、httpx 進 runtime deps、`--proxy-headers`、遷移前先 init_db）。
+- **教訓**：**「本地綠 ≠ prod 綠」，部署是新環境，差異要當 checklist 逐項實測**——
+  (a) **映像平台**對上節點架構；(b) **執行期相依**別靠測試環境剛好有（庫的 runtime import 要進 runtime deps，不是 dev extra）；
+  (c) **反向代理**：scheme/host 靠 `--proxy-headers`＋Host 透傳，OAuth/絕對 URL 才對；(d) **惰性初始化**：schema/種子若
+  lazy，遷移或探針要先觸發。呼應「別信自報的綠」——**測綠只證本地那個環境**。
+- **來源**：`history/087-部署上線-k3s-ghcr-網域.md`；commits `232bc23`、`2d2581b`；`Dockerfile`、`pyproject.toml`、`deploy/`。
+
 <!--
   範例：
 
