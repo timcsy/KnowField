@@ -12,7 +12,9 @@ from knowfield.store.repository import Repository
 
 
 def temp_db() -> str:
-    return os.path.join(tempfile.mkdtemp(), "rag.db")
+    # spec 034：改回一個乾淨 PG 資料庫的 DSN（原為 SQLite 檔路徑）
+    from tests.pgtest import fresh_pg_dsn
+    return fresh_pg_dsn()
 
 
 def make_entry(rank: int, title: str, url: str, headline: str, body: str,

@@ -7,12 +7,13 @@ from knowfield.rag.service import RagService
 from knowfield.rag.types import Scope
 from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 from tests.rag_helpers import make_entry, seed_digest
 
 
 class TestRagScope(unittest.TestCase):
     def test_today_vs_accumulated(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-22", [
             make_entry(1, "Old", "https://a/old", "Agent memory", "agent memory old")])
         seed_digest(repo, "2026-07-23", [

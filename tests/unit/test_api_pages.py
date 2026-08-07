@@ -117,9 +117,9 @@ class TestApiConversations(unittest.TestCase):
         self._save(db, "重複")
         repo = Repository(db)      # 存一份相同指紋的（觸發重複）
         repo.conn.execute("INSERT INTO conversations (title, messages, created_at)"
-                          " VALUES (?,?,?)",
+                          " VALUES (%s,%s,%s)",
                           ("重複複本",
-                           repo.conn.execute("SELECT messages FROM conversations LIMIT 1").fetchone()[0],
+                           repo.conn.execute("SELECT messages FROM conversations LIMIT 1").fetchone()["messages"],
                            "2026-08-06T00:00:00Z"))
         repo.conn.commit()
         repo.close()

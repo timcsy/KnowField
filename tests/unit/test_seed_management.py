@@ -7,6 +7,7 @@ from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.rag.service import embedder_tag
 from knowfield.rag.types import CorpusEntry
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 from tests.rag_helpers import make_entry, seed_digest
 
 
@@ -23,7 +24,7 @@ def _add_seed(repo, title, url, body, cls="ordinary"):
 
 class TestSeedManagement(unittest.TestCase):
     def test_list_seeds_excludes_daily_flow(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23",
                     [make_entry(1, "Daily", "https://a/daily", "H", "b")])
         _add_seed(repo, "Seed A", "https://a/seed", "seed body")
@@ -33,7 +34,7 @@ class TestSeedManagement(unittest.TestCase):
         repo.close()
 
     def test_delete_seed_clears_embedding(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         eid = _add_seed(repo, "Seed", "https://a/1", "agent memory")
         self.assertIsNotNone(repo.get_entry_embedding(eid, "hashing-256"))
         self.assertTrue(repo.delete_seed(eid))
@@ -42,7 +43,7 @@ class TestSeedManagement(unittest.TestCase):
         repo.close()
 
     def test_delete_refuses_daily_flow(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23",
                     [make_entry(1, "Daily", "https://a/daily", "H", "b")])
         daily = repo.list_corpus_entries(today=True)[0]
@@ -51,7 +52,7 @@ class TestSeedManagement(unittest.TestCase):
         repo.close()
 
     def test_set_seed_class(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         eid = _add_seed(repo, "Seed", "https://a/1", "body", cls="ordinary")
         self.assertTrue(repo.set_seed_class(eid, "explainer"))
         self.assertEqual(repo.list_seeds()[0].source_class, "explainer")
@@ -59,7 +60,7 @@ class TestSeedManagement(unittest.TestCase):
         repo.close()
 
     def test_set_class_refuses_daily_flow(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23",
                     [make_entry(1, "Daily", "https://a/daily", "H", "b")])
         daily = repo.list_corpus_entries(today=True)[0]

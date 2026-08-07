@@ -8,12 +8,13 @@ from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.seed.service import SeedService
 from knowfield.store.repository import Repository
 from knowfield.summarize.article import ArticleBuilder
+from tests.rag_helpers import temp_db
 from tests.seed_helpers import http_html
 
 
 class TestExplainerWeight(unittest.TestCase):
     def test_explainer_ranks_first(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         body = "attention transformer scaling sequence model explained clearly"
         # 兩篇內容相同（→ 原始 cosine 相等）、url 不同、一篇標解說文
         SeedService(repo, ArticleBuilder(), HashingEmbedder(),
@@ -31,7 +32,7 @@ class TestExplainerWeight(unittest.TestCase):
 
     def test_no_weight_ties_preserve_but_weight_flips(self):
         # 權重=1.0 時不必然解說文優先；權重>1 時解說文優先（對照）
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         body = "attention transformer scaling sequence model"
         SeedService(repo, ArticleBuilder(), HashingEmbedder(),
                     http_get=http_html("A", body)).ingest("https://a/ord", explainer=False)

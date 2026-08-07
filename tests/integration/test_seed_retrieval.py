@@ -8,6 +8,7 @@ from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.seed.service import SeedService
 from knowfield.store.repository import Repository
 from knowfield.summarize.article import ArticleBuilder
+from tests.rag_helpers import temp_db
 from tests.seed_helpers import http_arxiv
 
 
@@ -17,7 +18,7 @@ def _seed_service(repo, http_get):
 
 class TestSeedRetrieval(unittest.TestCase):
     def test_ingested_seed_is_retrievable_and_sourced(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         res = _seed_service(repo, http_arxiv).ingest("1706.03762")
         self.assertEqual(res.status, "ingested")
         self.assertEqual(res.title, "Attention Is All You Need")
@@ -30,7 +31,7 @@ class TestSeedRetrieval(unittest.TestCase):
         repo.close()
 
     def test_duplicate_ingest_no_dup(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         svc = _seed_service(repo, http_arxiv)
         svc.ingest("1706.03762")
         res2 = svc.ingest("arXiv:1706.03762v5")                   # 同篇不同寫法
@@ -43,7 +44,7 @@ class TestSeedRetrieval(unittest.TestCase):
 
     def test_today_excludes_seeds(self):
         # 種子不屬於「今天這份匯整」（spec 006 R2）
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         _seed_service(repo, http_arxiv).ingest("1706.03762")
         self.assertEqual(repo.list_corpus_entries(today=True), [])   # 無真實每日匯整
         self.assertEqual(len(repo.list_corpus_entries(today=False)), 1)  # 累積含種子

@@ -8,6 +8,7 @@ from knowfield.rag.service import RagService, embedder_tag
 from knowfield.rag.types import CorpusEntry
 from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 
 
 def _add_seed(repo, title, url, body, cls="ordinary"):
@@ -23,7 +24,7 @@ def _add_seed(repo, title, url, body, cls="ordinary"):
 
 class TestReclassifyWeight(unittest.TestCase):
     def test_reclassify_to_explainer_raises_rank(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         body = "attention transformer scaling sequence model"
         _add_seed(repo, "A", "https://a/ordinary", body, "ordinary")
         b = _add_seed(repo, "B", "https://a/target", body, "ordinary")   # 同內容

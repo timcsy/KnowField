@@ -64,7 +64,7 @@ class TestPurityGuard(unittest.TestCase):
 
     def test_corpus_not_in_field_prompt(self):             # 收進不進 build_field_system_prompt 地基
         app = build_app(temp_db())
-        db = app.state.config.db_path
+        db = app.state.config.database_url
         secret = "SECRET_外部觀點_不該進地基"
         app.state.chat_backend_for_test = StubChat(f"你收的資料說… [1]。")
         app.state.chat_search_for_test = lambda q: []

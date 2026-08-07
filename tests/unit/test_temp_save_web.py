@@ -51,15 +51,15 @@ class TestLazyPurge(unittest.TestCase):
         # 過期暫存（8 天前）
         repo.conn.execute(
             "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('過期暫存','[]',1,?,?)", (_iso(8), _iso(8)))
+            " VALUES ('過期暫存','[]',1,%s,%s)", (_iso(8), _iso(8)))
         # 新暫存（今天）
         repo.conn.execute(
             "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('新暫存','[]',1,?,?)", (_iso(0), _iso(0)))
+            " VALUES ('新暫存','[]',1,%s,%s)", (_iso(0), _iso(0)))
         # 永久（很舊）
         repo.conn.execute(
             "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('永久','[]',0,?,?)", (_iso(99), _iso(99)))
+            " VALUES ('永久','[]',0,%s,%s)", (_iso(99), _iso(99)))
         repo.conn.commit()
         repo.close()
         TestClient(build_app(db)).get("/api/conversations")   # 載入時懶清

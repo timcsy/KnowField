@@ -1,8 +1,12 @@
-"""SQLite schema（對應 data-model.md）。"""
+"""Postgres schema（對應 data-model.md）。
+
+parity 原則（spec 034）：日期欄維持 TEXT（碼存/讀 ISO 字串）、布林維持 INTEGER（碼 int()/bool()）
+——不「升級」型別，避免與 SQLite 版行為漂移。自增主鍵用 SERIAL。
+"""
 
 from __future__ import annotations
 
-import sqlite3
+import psycopg
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -17,7 +21,7 @@ CREATE TABLE IF NOT EXISTS sources (
 );
 
 CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     source_id TEXT NOT NULL,
     external_id TEXT,
     title TEXT NOT NULL,
@@ -32,7 +36,7 @@ CREATE TABLE IF NOT EXISTS items (
 );
 
 CREATE TABLE IF NOT EXISTS clusters (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     canonical_item_id INTEGER NOT NULL,
     signature TEXT DEFAULT ''
 );
@@ -45,14 +49,14 @@ CREATE TABLE IF NOT EXISTS interest_profile (
 );
 
 CREATE TABLE IF NOT EXISTS digests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     date TEXT NOT NULL,
     truncated_count INTEGER DEFAULT 0,
     missing_sources TEXT DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS digest_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     digest_id INTEGER NOT NULL,
     rank INTEGER NOT NULL,
     title TEXT NOT NULL,
@@ -62,152 +66,88 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     article_headline TEXT DEFAULT '',
     figure_url TEXT DEFAULT '',
     figure_kind TEXT DEFAULT '',
-    source_class TEXT DEFAULT 'ordinary',  -- 'ordinary' | 'explainer'（種子 spec 006）
-    source_id TEXT DEFAULT '',             -- 條目來源 id（spec 017 分區用；join sources.type）
-    note TEXT DEFAULT '',                  -- 收進原因/脈絡（spec 031+，不進 embedding）
-    ingested_at TEXT DEFAULT ''            -- 收進日期（spec 031+，可編輯自由文字）
+    source_class TEXT DEFAULT 'ordinary',
+    source_id TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    ingested_at TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
-    entry_id INTEGER NOT NULL,      -- → digest_entries.id
-    tag TEXT NOT NULL,              -- embedder 身分：'hashing-256' / 'openai-<model>'
+    entry_id INTEGER NOT NULL,
+    tag TEXT NOT NULL,
     dim INTEGER NOT NULL,
     vector_json TEXT NOT NULL,
     PRIMARY KEY (entry_id, tag)
 );
 
 CREATE TABLE IF NOT EXISTS behavior_signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     item_id INTEGER NOT NULL,
     action TEXT NOT NULL,
     at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS why_nodes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    claim TEXT NOT NULL,               -- 根因主張（一段話）
-    evidence_urls TEXT DEFAULT '[]',   -- JSON：證據原文連結（來源種子 url）
-    touchstones TEXT DEFAULT '[]',     -- JSON：試金石逐條 [{name, passed}]
-    ladder TEXT DEFAULT '[]',          -- JSON：why 階梯（表面→bedrock，每層一句）
-    fog_flag INTEGER DEFAULT 0,        -- 是否有霧詞（假根因旗標）
-    kind TEXT DEFAULT '',              -- 認識論層次：已證實/推論/類比/猜想（distill 看上下文判，vision 階段 28）
-    src_from INTEGER DEFAULT 0,        -- 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）→由來精準定位
+    id SERIAL PRIMARY KEY,
+    claim TEXT NOT NULL,
+    evidence_urls TEXT DEFAULT '[]',
+    touchstones TEXT DEFAULT '[]',
+    ladder TEXT DEFAULT '[]',
+    fog_flag INTEGER DEFAULT 0,
+    kind TEXT DEFAULT '',
+    src_from INTEGER DEFAULT 0,
     src_to INTEGER DEFAULT 0,
-    source_quote TEXT DEFAULT '',      -- 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
-    source_page INTEGER DEFAULT 0,     -- PDF 來源的出處頁碼（1-indexed，0=未知）→由來 #page=N
-    status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
-    source_entry_id INTEGER,           -- 來源種子 digest_entries.id
-    created_at TEXT,                   -- 建立時間（呼叫端傳入）
-    conversation_id INTEGER            -- spec 025：由來對話（多條根因可共用一份；取代 conversations.why_node_id 為事實來源）
-);
-
--- 對話的「由來」存檔（spec 023，episodes 層）：第一個落庫的對話產物。唯讀參考、不入地基（原則 6）。
-CREATE TABLE IF NOT EXISTS conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,                        -- 自動「由來」標題（一句摘要）
-    messages TEXT DEFAULT '[]',        -- JSON：整段訊息（role/content/sources）
-    why_node_id INTEGER,               -- 可空：連到的核心理解；無 FK（刪根因→對話變獨立、不崩）
+    source_quote TEXT DEFAULT '',
+    source_page INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'candidate',
+    source_entry_id INTEGER,
     created_at TEXT,
-    temporary INTEGER DEFAULT 0,       -- spec 028：0=永久 / 1=暫存（閒置 TTL 後懶清）
-    last_activity_at TEXT,             -- spec 028：最後活動時間（TTL 起算）
-    chapters TEXT DEFAULT '[]'         -- 階段29：切好的章節 JSON [{title,start,end}]，持久化避免重切
+    conversation_id INTEGER
 );
 
--- 知識的輸出（階段 30）：生成的高證實文章存檔。輸出物、唯讀（不回灌場，原則 6）。
+CREATE TABLE IF NOT EXISTS conversations (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    messages TEXT DEFAULT '[]',
+    why_node_id INTEGER,
+    created_at TEXT,
+    temporary INTEGER DEFAULT 0,
+    last_activity_at TEXT,
+    chapters TEXT DEFAULT '[]'
+);
+
 CREATE TABLE IF NOT EXISTS articles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     topic TEXT DEFAULT '',
     title TEXT DEFAULT '',
     markdown TEXT NOT NULL,
-    length TEXT DEFAULT '',            -- short/medium/long
-    level TEXT DEFAULT '',             -- intro/intermediate/expert
+    length TEXT DEFAULT '',
+    level TEXT DEFAULT '',
     created_at TEXT DEFAULT ''
 );
 """
 
 
-def init_db(conn: sqlite3.Connection) -> None:
-    conn.executescript(SCHEMA)
-    # 確保單一使用者的興趣畫像列存在
+def _statements(script: str) -> list[str]:
+    """把多語句 DDL 拆成逐句（去掉 -- 行註解、空句）。psycopg 一次 execute 一句。"""
+    lines = [ln for ln in script.splitlines() if not ln.strip().startswith("--")]
+    out = []
+    for stmt in "\n".join(lines).split(";"):
+        if stmt.strip():
+            out.append(stmt)
+    return out
+
+
+def init_db(conn: psycopg.Connection) -> None:
+    """建 schema（冪等，CREATE IF NOT EXISTS）＋確保單一使用者興趣畫像列存在。
+
+    註（spec 034）：SQLite 版的 _migrate（PRAGMA/ALTER 補欄）是升級舊 SQLite 檔用的；PG 從零起、
+    SCHEMA 已含所有欄，故不需要——移除。
+    """
+    for stmt in _statements(SCHEMA):
+        conn.execute(stmt)
     conn.execute(
-        "INSERT OR IGNORE INTO interest_profile (id, explicit_topics, learned_weights)"
-        " VALUES (1, '[]', '{}')"
+        "INSERT INTO interest_profile (id, explicit_topics, learned_weights)"
+        " VALUES (1, '[]', '{}') ON CONFLICT (id) DO NOTHING"
     )
-    _migrate(conn)
     conn.commit()
-
-
-def _migrate(conn: sqlite3.Connection) -> None:
-    """對既有 DB 補欄（CREATE TABLE IF NOT EXISTS 不會改既有表）。冪等。"""
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(digest_entries)").fetchall()}
-    if "source_class" not in cols:   # spec 006：既有增量 1 的 db 補上種子分類欄
-        conn.execute(
-            "ALTER TABLE digest_entries ADD COLUMN source_class TEXT DEFAULT 'ordinary'")
-    if "source_id" not in cols:      # spec 017：分區用（條目來源 id）
-        conn.execute("ALTER TABLE digest_entries ADD COLUMN source_id TEXT DEFAULT ''")
-    if "note" not in cols:           # spec 031+：收進原因（脈絡註記，不進 embedding）
-        conn.execute("ALTER TABLE digest_entries ADD COLUMN note TEXT DEFAULT ''")
-    if "ingested_at" not in cols:    # spec 031+：收進日期（可編輯自由文字，可大概）
-        conn.execute("ALTER TABLE digest_entries ADD COLUMN ingested_at TEXT DEFAULT ''")
-    # spec 012：既有 db 補 why_nodes 表（CREATE IF NOT EXISTS，不動既有表）
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS why_nodes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            claim TEXT NOT NULL,
-            evidence_urls TEXT DEFAULT '[]',
-            touchstones TEXT DEFAULT '[]',
-            fog_flag INTEGER DEFAULT 0,
-            status TEXT DEFAULT 'candidate',
-            ladder TEXT DEFAULT '[]',
-            source_entry_id INTEGER,
-            created_at TEXT
-        )""")
-    # spec 012 品質補強：既有 why_nodes 補 ladder 欄（why 階梯）
-    wn_cols = {r[1] for r in conn.execute("PRAGMA table_info(why_nodes)").fetchall()}
-    if wn_cols and "ladder" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN ladder TEXT DEFAULT '[]'")
-    # spec 025：why_nodes 補 conversation_id 欄（由來連結改存 why_node 側，多條可共用一份）
-    # vision 階段 28：why_nodes 補 kind 欄（認識論層次；既有列＝空，不崩）
-    if wn_cols and "kind" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN kind TEXT DEFAULT ''")
-    # 階段29第2階段：why_nodes 補出處則數範圍（既有列＝0=未知）
-    if wn_cols and "src_from" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN src_from INTEGER DEFAULT 0")
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN src_to INTEGER DEFAULT 0")
-    # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）＋ PDF 出處頁碼
-    if wn_cols and "source_quote" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN source_quote TEXT DEFAULT ''")
-    if wn_cols and "source_page" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN source_page INTEGER DEFAULT 0")
-    if wn_cols and "conversation_id" not in wn_cols:
-        conn.execute("ALTER TABLE why_nodes ADD COLUMN conversation_id INTEGER")
-        # 一次性回填：既有 conversations.why_node_id → why_nodes.conversation_id（既有「← 由來」不斷）
-        has_conv = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'"
-        ).fetchone()
-        if has_conv:
-            conn.execute(
-                "UPDATE why_nodes SET conversation_id="
-                "(SELECT c.id FROM conversations c WHERE c.why_node_id=why_nodes.id"
-                " ORDER BY c.id ASC LIMIT 1)"
-                " WHERE conversation_id IS NULL")
-    # spec 023：既有 db 補 conversations 表（對話由來存檔，CREATE IF NOT EXISTS，不動既有表）
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            messages TEXT DEFAULT '[]',
-            why_node_id INTEGER,
-            created_at TEXT
-        )""")
-    # spec 028：conversations 補 temporary＋last_activity_at（暫存/永久生命週期）；既有列＝永久、回填時間
-    conv_cols = {r[1] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()}
-    if conv_cols and "temporary" not in conv_cols:
-        conn.execute("ALTER TABLE conversations ADD COLUMN temporary INTEGER DEFAULT 0")
-    if conv_cols and "last_activity_at" not in conv_cols:
-        conn.execute("ALTER TABLE conversations ADD COLUMN last_activity_at TEXT")
-        conn.execute(     # 既有存檔＝永久，last_activity 回填 created_at（一次性、冪等）
-            "UPDATE conversations SET last_activity_at=created_at WHERE last_activity_at IS NULL")
-    # 階段29：conversations 補 chapters 欄（切好的章節；既有列＝空、首次檢視時切）
-    if conv_cols and "chapters" not in conv_cols:
-        conn.execute("ALTER TABLE conversations ADD COLUMN chapters TEXT DEFAULT '[]'")

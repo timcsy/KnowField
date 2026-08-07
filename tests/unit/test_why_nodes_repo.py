@@ -62,10 +62,10 @@ class TestWhyNodesRepo(unittest.TestCase):
         repo.anoint_why_node(wid)
         # 塞一筆負 id 嵌入，刪 why-node 應一併清
         repo.conn.execute("INSERT INTO entry_embeddings (entry_id, tag, dim, vector_json)"
-                          " VALUES (?,?,?,?)", (-wid, "hashing-256", 1, "[0.1]"))
+                          " VALUES (%s,%s,%s,%s)", (-wid, "hashing-256", 1, "[0.1]"))
         repo.conn.commit()
         repo.delete_why_node(wid)
-        left = repo.conn.execute("SELECT COUNT(*) c FROM entry_embeddings WHERE entry_id=?",
+        left = repo.conn.execute("SELECT COUNT(*) c FROM entry_embeddings WHERE entry_id=%s",
                                  (-wid,)).fetchone()["c"]
         self.assertEqual(left, 0)
         repo.close()

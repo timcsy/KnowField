@@ -10,11 +10,13 @@ from knowfield.store.repository import Repository
 
 
 def temp_db() -> str:
-    return os.path.join(tempfile.mkdtemp(), "web.db")
+    # spec 034：改回一個乾淨 PG 資料庫的 DSN（原為 SQLite 檔路徑）
+    from tests.pgtest import fresh_pg_dsn
+    return fresh_pg_dsn()
 
 
 def build_app(db_path: str):
-    os.environ["KNOWFIELD_DB"] = db_path
+    os.environ["KNOWFIELD_DATABASE_URL"] = db_path   # spec 034：db_path 現為 PG DSN
     os.environ["KNOWFIELD_BACKEND"] = "offline"   # 明講離線（勝過 .env）
     from knowfield.web.app import create_app
     return create_app()

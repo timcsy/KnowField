@@ -29,7 +29,8 @@ def load_dotenv(path: str = ".env") -> None:
 
 @dataclass
 class Config:
-    db_path: str = "knowfield.db"
+    db_path: str = "knowfield.db"       # 保留（相依/相容）；PG DSN 走 database_url
+    database_url: str = ""              # spec 034：Postgres DSN（env KNOWFIELD_DATABASE_URL）
     digest_limit: int = 15               # SC-007 預設上限
     relevance_threshold: float = 0.10    # 低於此相關性即濾除
     dedup_similarity: float = 0.82       # 語義去重 cosine 門檻
@@ -78,6 +79,7 @@ class Config:
             backend = "openai" if api_key else "offline"
         return cls(
             db_path=os.environ.get("KNOWFIELD_DB", "knowfield.db"),
+            database_url=os.environ.get("KNOWFIELD_DATABASE_URL", ""),
             digest_limit=int(os.environ.get("KNOWFIELD_LIMIT", "15")),
             backend=backend,
             api_base_url=base.rstrip("/"),

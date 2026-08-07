@@ -40,7 +40,7 @@ def _sse(obj: dict) -> str:
 
 def _default_repo_factory(config: Config) -> Repository:
     from ..cli.fetchers import DEFAULT_SOURCES
-    repo = Repository(config.db_path)
+    repo = Repository(config.database_url or None)   # spec 034：PG DSN（env）
     if not repo.list_sources():
         for s in DEFAULT_SOURCES:
             repo.upsert_source(s)

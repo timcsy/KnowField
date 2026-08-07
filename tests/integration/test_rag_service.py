@@ -6,6 +6,7 @@ from knowfield.rag.answerer import StubAnswerer
 from knowfield.rag.service import RagService
 from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 from tests.rag_helpers import make_entry, seed_digest
 
 
@@ -15,7 +16,7 @@ def _svc(repo, **kw):
 
 class TestRagService(unittest.TestCase):
     def test_retrieval_cites_matching_source(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23", [
             make_entry(1, "Agent paper", "https://a/agent", "Agent memory",
                        "agent memory retrieval augmented systems"),
@@ -30,7 +31,7 @@ class TestRagService(unittest.TestCase):
         repo.close()
 
     def test_semantic_hit_different_wording(self):
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23", [
             make_entry(1, "t", "https://a/1", "Agent memory systems",
                        "agent memory retrieval"),
@@ -42,7 +43,7 @@ class TestRagService(unittest.TestCase):
 
     def test_model_no_material_suppresses_sources(self):
         # 模型判材料無關而回「沒有相關材料」時，程式不可自相矛盾地還列來源
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23", [
             make_entry(1, "t", "https://a/1", "Agent memory", "agent memory")])
 
@@ -58,7 +59,7 @@ class TestRagService(unittest.TestCase):
 
     def test_sources_only_from_retrieved(self):
         # 溯源鐵律：sources 只含實際檢索到的條目（原則 3）
-        repo = Repository(":memory:")
+        repo = Repository(temp_db())
         seed_digest(repo, "2026-07-23", [
             make_entry(1, "Hit", "https://a/hit", "Agent memory", "agent memory"),
             make_entry(2, "Miss", "https://a/miss", "Cooking", "recipe kitchen food"),

@@ -1,13 +1,11 @@
 """核心理解的認識論層次（kind）：distill 看上下文判→持久化→顯示→聊天用。
 4 檔：已證實／推論／類比／猜想（draft 2026-08-06、vision 階段 28）。離線注入、零外呼。"""
 
-import sqlite3
 import unittest
 
 from fastapi.testclient import TestClient
 
 from knowfield.store.repository import Repository
-from knowfield.store.schema import init_db
 from tests.web_helpers import build_app, temp_db
 
 
@@ -29,16 +27,13 @@ class TestKindPersist(unittest.TestCase):
 
 
 class TestKindMigration(unittest.TestCase):
-    def test_old_db_gets_kind_column(self):                # 既有 db 補 kind 欄、不崩
+    def test_row_without_kind_reads_empty(self):           # 沒帶 kind 的舊列→讀成 ""、不崩
+        # spec 034：SQLite 的 _migrate 補欄已移除（PG 從零起、schema 已含 kind、default ''）。
+        # 保留 parity 意圖：不帶 kind 插入的「舊式」列，讀出 kind="" 且不崩。
         db = temp_db()
-        conn = sqlite3.connect(db)
-        conn.execute("CREATE TABLE why_nodes (id INTEGER PRIMARY KEY, claim TEXT,"
-                     " evidence_urls TEXT, touchstones TEXT, ladder TEXT, fog_flag INTEGER,"
-                     " status TEXT, source_entry_id INTEGER, created_at TEXT, conversation_id INTEGER)")
-        conn.execute("INSERT INTO why_nodes (claim, status) VALUES ('舊條','anointed')")
-        conn.commit(); conn.close()
-        conn = sqlite3.connect(db); init_db(conn); conn.close()   # migrate 補欄
         repo = Repository(db)
+        repo.conn.execute("INSERT INTO why_nodes (claim, status) VALUES ('舊條','anointed')")
+        repo.conn.commit()
         self.assertEqual(repo.list_why_nodes("anointed")[0].kind, "")
         repo.close()
 

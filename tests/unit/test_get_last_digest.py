@@ -4,11 +4,12 @@ import unittest
 
 from knowfield.models import Article, Digest, DigestEntry, Figure, Item
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 
 
 class TestGetLastDigest(unittest.TestCase):
     def setUp(self):
-        self.repo = Repository(":memory:")
+        self.repo = Repository(temp_db())
 
     def tearDown(self):
         self.repo.close()

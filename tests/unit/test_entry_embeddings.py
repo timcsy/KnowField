@@ -4,6 +4,7 @@ import unittest
 
 from knowfield.ranking.embeddings import HashingEmbedder
 from knowfield.store.repository import Repository
+from tests.rag_helpers import temp_db
 from tests.rag_helpers import make_entry, seed_digest
 
 
@@ -25,7 +26,7 @@ class SpyEmbedder:
 
 class TestEntryEmbeddings(unittest.TestCase):
     def setUp(self):
-        self.repo = Repository(":memory:")
+        self.repo = Repository(temp_db())
         seed_digest(self.repo, "2026-07-23", [
             make_entry(1, "A", "https://a/1", "Agent memory", "agent memory systems"),
             make_entry(2, "B", "https://a/2", "Compiler", "compiler register loop"),

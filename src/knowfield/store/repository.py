@@ -1,10 +1,17 @@
-"""Repository：SQLite 之上的 CRUD（對應 data-model.md 實體）。"""
+"""Repository：Postgres 之上的 CRUD（對應 data-model.md 實體）。
+
+spec 034：資料層從 SQLite 遷到 PG（parity 換血）。連線吃 PG DSN（env KNOWFIELD_DATABASE_URL 或傳入）。
+dict_row 讓 r["c"]／r.keys()／dict(r) 與原 sqlite3.Row 相容；自增 id 用 RETURNING（取代 lastrowid）。
+"""
 
 from __future__ import annotations
 
 import json
-import sqlite3
+import os
 from datetime import datetime
+
+import psycopg
+from psycopg.rows import dict_row
 
 from ..models import (
     Article,
@@ -29,21 +36,29 @@ def _iso(value: datetime | None) -> str | None:
 
 
 class Repository:
-    """對 SQLite 的存取層。傳入 db_path（":memory:" 供測試）。"""
+    """對 Postgres 的存取層。傳入 DSN（postgresql://…）；None→讀 env KNOWFIELD_DATABASE_URL。"""
 
-    def __init__(self, db_path: str = ":memory:") -> None:
-        self.conn = sqlite3.connect(db_path)
-        self.conn.row_factory = sqlite3.Row
+    def __init__(self, dsn: str | None = None) -> None:
+        dsn = dsn or os.environ.get("KNOWFIELD_DATABASE_URL")
+        if not dsn:
+            raise RuntimeError(
+                "需要 Postgres 連線：設環境變數 KNOWFIELD_DATABASE_URL，或傳入 dsn。")
+        self.conn = psycopg.connect(dsn, row_factory=dict_row)
         init_db(self.conn)
 
     def close(self) -> None:
         self.conn.close()
 
+    def _insert_id(self, sql: str, params: tuple) -> int:
+        """執行 INSERT … RETURNING id，回新 id（取代 SQLite lastrowid）。"""
+        row = self.conn.execute(sql + " RETURNING id", params).fetchone()
+        return int(row["id"]) if row else 0
+
     # --- Source ---
     def upsert_source(self, s: Source) -> None:
         self.conn.execute(
             "INSERT INTO sources (id, name, type, access_method, endpoint, enabled,"
-            " last_fetch_at, last_status) VALUES (?,?,?,?,?,?,?,?)"
+            " last_fetch_at, last_status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
             " ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type,"
             " access_method=excluded.access_method, endpoint=excluded.endpoint,"
             " enabled=excluded.enabled, last_fetch_at=excluded.last_fetch_at,"
@@ -55,13 +70,13 @@ class Repository:
 
     def set_source_enabled(self, source_id: str, enabled: bool) -> None:
         self.conn.execute(
-            "UPDATE sources SET enabled=? WHERE id=?", (int(enabled), source_id)
+            "UPDATE sources SET enabled=%s WHERE id=%s", (int(enabled), source_id)
         )
         self.conn.commit()
 
     def delete_source(self, source_id: str) -> None:
         """刪除一個來源（spec 008）。digest 僅在來源全空時重種預設 → 刪除被尊重。"""
-        self.conn.execute("DELETE FROM sources WHERE id=?", (source_id,))
+        self.conn.execute("DELETE FROM sources WHERE id=%s", (source_id,))
         self.conn.commit()
 
     def list_sources(self, enabled_only: bool = False) -> list[Source]:
@@ -81,23 +96,24 @@ class Repository:
 
     # --- Item ---
     def add_item(self, item: Item) -> int:
-        cur = self.conn.execute(
-            "INSERT OR IGNORE INTO items (source_id, external_id, title, abstract, url,"
+        row = self.conn.execute(
+            "INSERT INTO items (source_id, external_id, title, abstract, url,"
             " published_at, lang, cluster_id, fetched_at, content_hash)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            " ON CONFLICT (content_hash) DO NOTHING RETURNING id",
             (item.source_id, item.external_id, item.title, item.abstract, item.url,
              _iso(item.published_at), item.lang, item.cluster_id,
              _iso(item.fetched_at), item.content_hash),
-        )
-        self.conn.commit()
-        if cur.lastrowid:
-            item.id = cur.lastrowid
-            return cur.lastrowid
-        # content_hash 衝突：回傳既有列 id
-        row = self.conn.execute(
-            "SELECT id FROM items WHERE content_hash=?", (item.content_hash,)
         ).fetchone()
-        item.id = row["id"] if row else None
+        self.conn.commit()
+        if row:
+            item.id = int(row["id"])
+            return item.id
+        # content_hash 衝突：回傳既有列 id
+        existing = self.conn.execute(
+            "SELECT id FROM items WHERE content_hash=%s", (item.content_hash,)
+        ).fetchone()
+        item.id = existing["id"] if existing else None
         return item.id or 0
 
     # --- InterestProfile ---
@@ -113,8 +129,8 @@ class Repository:
 
     def save_interest_profile(self, p: InterestProfile) -> None:
         self.conn.execute(
-            "UPDATE interest_profile SET explicit_topics=?, learned_weights=?,"
-            " updated_at=? WHERE id=1",
+            "UPDATE interest_profile SET explicit_topics=%s, learned_weights=%s,"
+            " updated_at=%s WHERE id=1",
             (json.dumps(p.explicit_topics, ensure_ascii=False),
              json.dumps(p.learned_weights, ensure_ascii=False),
              _iso(datetime(2026, 7, 23))),
@@ -124,7 +140,7 @@ class Repository:
     # --- BehaviorSignal ---
     def add_behavior(self, sig: BehaviorSignal) -> None:
         self.conn.execute(
-            "INSERT INTO behavior_signals (item_id, action, at) VALUES (?,?,?)",
+            "INSERT INTO behavior_signals (item_id, action, at) VALUES (%s,%s,%s)",
             (sig.item_id, sig.action, _iso(sig.at)),
         )
         self.conn.commit()
@@ -139,13 +155,12 @@ class Repository:
 
     # --- Digest ---
     def save_digest(self, d: Digest) -> int:
-        cur = self.conn.execute(
+        digest_id = self._insert_id(
             "INSERT INTO digests (date, truncated_count, missing_sources)"
-            " VALUES (?,?,?)",
+            " VALUES (%s,%s,%s)",
             (d.date, d.truncated_count,
              json.dumps(d.missing_sources, ensure_ascii=False)),
         )
-        digest_id = cur.lastrowid or 0
         for e in d.entries:
             body = e.article.body if e.article else ""
             headline = e.article.headline if e.article else ""
@@ -154,7 +169,7 @@ class Repository:
             self.conn.execute(
                 "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
                 " article_body, article_headline, figure_url, figure_kind, source_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic,
                  body, headline, fig_url, fig_kind, e.item.source_id or ""),
             )
@@ -166,13 +181,14 @@ class Repository:
         """最近 K 份『真實』匯整（排除種子容器）的條目標題——供趨勢讀數（spec 013）。"""
         from ..config import SEEDS_DATE
         rows = self.conn.execute(
-            "SELECT id FROM digests WHERE date != ? ORDER BY id DESC LIMIT ?",
+            "SELECT id FROM digests WHERE date != %s ORDER BY id DESC LIMIT %s",
             (SEEDS_DATE, k)).fetchall()
         if not rows:
             return []
         ids = [r["id"] for r in rows]
-        q = ("SELECT title FROM digest_entries WHERE digest_id IN (%s) ORDER BY id"
-             % ",".join("?" * len(ids)))
+        placeholders = ",".join(["%s"] * len(ids))
+        q = (f"SELECT title FROM digest_entries WHERE digest_id IN ({placeholders})"
+             " ORDER BY id")
         return [r["title"] for r in self.conn.execute(q, ids).fetchall() if r["title"]]
 
     def get_last_digest(self) -> Digest | None:
@@ -186,7 +202,7 @@ class Repository:
         rows = self.conn.execute(
             "SELECT id, rank, title, url, matched_topic, article_body, article_headline,"
             " figure_url, figure_kind, source_id FROM digest_entries"
-            " WHERE digest_id=? ORDER BY rank",
+            " WHERE digest_id=%s ORDER BY rank",
             (row["id"],),
         ).fetchall()
         entries: list[DigestEntry] = []
@@ -213,7 +229,7 @@ class Repository:
             return None
         entry = self.conn.execute(
             "SELECT title, url, matched_topic FROM digest_entries"
-            " WHERE digest_id=? AND rank=?", (row["mid"], rank)
+            " WHERE digest_id=%s AND rank=%s", (row["mid"], rank)
         ).fetchone()
         if entry is None:
             return None
@@ -225,7 +241,7 @@ class Repository:
         回 (headline_or_title, body, url)；headline 優先（溯源）；不存在→None。純讀，不寫庫。"""
         r = self.conn.execute(
             "SELECT title, article_headline, article_body, url FROM digest_entries"
-            " WHERE id=?", (entry_id,)).fetchone()
+            " WHERE id=%s", (entry_id,)).fetchone()
         if r is None:
             return None
         return (r["article_headline"] or r["title"], r["article_body"] or "", r["url"])
@@ -242,12 +258,12 @@ class Repository:
         if today:
             # 最近一份真實每日匯整（種子容器不算「今天」，spec 006 R2）
             row = self.conn.execute(
-                "SELECT MAX(id) AS mid FROM digests WHERE date != ?", (SEEDS_DATE,)
+                "SELECT MAX(id) AS mid FROM digests WHERE date != %s", (SEEDS_DATE,)
             ).fetchone()
             if not row or row["mid"] is None:
                 return []
             rows = self.conn.execute(
-                base + " WHERE de.digest_id=? ORDER BY de.id", (row["mid"],)
+                base + " WHERE de.digest_id=%s ORDER BY de.id", (row["mid"],)
             ).fetchall()
         else:
             rows = self.conn.execute(base + " ORDER BY de.id").fetchall()
@@ -286,14 +302,14 @@ class Repository:
         """種子容器：哨兵 date 的 digests 列（無則建），種子皆插為它的 entries。"""
         from ..config import SEEDS_DATE
         row = self.conn.execute(
-            "SELECT id FROM digests WHERE date=?", (SEEDS_DATE,)).fetchone()
+            "SELECT id FROM digests WHERE date=%s", (SEEDS_DATE,)).fetchone()
         if row:
             return row["id"]
-        cur = self.conn.execute(
+        did = self._insert_id(
             "INSERT INTO digests (date, truncated_count, missing_sources)"
-            " VALUES (?,0,'[]')", (SEEDS_DATE,))
+            " VALUES (%s,0,'[]')", (SEEDS_DATE,))
         self.conn.commit()
-        return cur.lastrowid or 0
+        return did
 
     def seed_exists(self, url: str) -> str | None:
         """種子去重：容器內已有 canonical_url 相同者 → 回其標題（FR-004/007）。
@@ -306,7 +322,7 @@ class Repository:
         target = canonical_url(url)
         for r in self.conn.execute(
             "SELECT de.title, de.url FROM digest_entries de JOIN digests d"
-            " ON de.digest_id=d.id WHERE d.date=?", (SEEDS_DATE,)
+            " ON de.digest_id=d.id WHERE d.date=%s", (SEEDS_DATE,)
         ).fetchall():
             if canonical_url(r["url"]) == target:
                 return r["title"]
@@ -319,23 +335,23 @@ class Repository:
         fig_url = article.figure.url if article.figure else ""
         fig_kind = article.figure.kind if article.figure else ""
         rank = self.conn.execute(
-            "SELECT COALESCE(MAX(rank),0)+1 AS r FROM digest_entries WHERE digest_id=?",
+            "SELECT COALESCE(MAX(rank),0)+1 AS r FROM digest_entries WHERE digest_id=%s",
             (digest_id,)).fetchone()["r"]
-        cur = self.conn.execute(
+        eid = self._insert_id(
             "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
             " article_body, article_headline, figure_url, figure_kind, source_class,"
             " note, ingested_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (digest_id, rank, item.title, item.url, "", article.body,
              article.headline, fig_url, fig_kind, source_class, note, ingested_at))
         self.conn.commit()
-        return cur.lastrowid or 0
+        return eid
 
     # --- 知識庫管理（spec 007，皆僅限種子容器 → 每日流結構性唯讀） ---
     def _seeds_digest_id(self) -> int | None:
         from ..config import SEEDS_DATE
         row = self.conn.execute(
-            "SELECT id FROM digests WHERE date=?", (SEEDS_DATE,)).fetchone()
+            "SELECT id FROM digests WHERE date=%s", (SEEDS_DATE,)).fetchone()
         return row["id"] if row else None
 
     def list_field_attractors(self) -> list[CorpusEntry]:
@@ -349,7 +365,7 @@ class Repository:
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            " WHERE d.date=? ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
+            " WHERE d.date=%s ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
         return [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
                         headline=r["headline"] or "", body=r["body"] or "",
@@ -364,12 +380,12 @@ class Repository:
         if sid is None:
             return False
         row = self.conn.execute(
-            "SELECT id FROM digest_entries WHERE id=? AND digest_id=?",
+            "SELECT id FROM digest_entries WHERE id=%s AND digest_id=%s",
             (entry_id, sid)).fetchone()
         if row is None:
             return False
-        self.conn.execute("DELETE FROM digest_entries WHERE id=?", (entry_id,))
-        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (entry_id,))
+        self.conn.execute("DELETE FROM digest_entries WHERE id=%s", (entry_id,))
+        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (entry_id,))
         self.conn.commit()
         return True
 
@@ -382,7 +398,7 @@ class Repository:
             " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
             " MIN(de.note) AS note, MIN(de.ingested_at) AS ingested_at"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            " WHERE d.date=? GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
+            " WHERE d.date=%s GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
         return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
                  "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"],
                  "note": r["note"] or "", "ingested_at": r["ingested_at"] or ""}
@@ -394,7 +410,7 @@ class Repository:
         if sid is None:
             return 0
         cur = self.conn.execute(
-            "UPDATE digest_entries SET note=?, ingested_at=? WHERE digest_id=? AND url=?",
+            "UPDATE digest_entries SET note=%s, ingested_at=%s WHERE digest_id=%s AND url=%s",
             (note, ingested_at, sid, url))
         self.conn.commit()
         return cur.rowcount
@@ -404,7 +420,7 @@ class Repository:
         from ..config import SEEDS_DATE
         r = self.conn.execute(
             "SELECT de.note, de.ingested_at FROM digest_entries de"
-            " JOIN digests d ON de.digest_id=d.id WHERE d.date=? AND de.url=? LIMIT 1",
+            " JOIN digests d ON de.digest_id=d.id WHERE d.date=%s AND de.url=%s LIMIT 1",
             (SEEDS_DATE, url)).fetchone()
         return {"note": (r["note"] if r else "") or "", "ingested_at": (r["ingested_at"] if r else "") or ""}
 
@@ -413,7 +429,7 @@ class Repository:
         from ..config import SEEDS_DATE
         rows = self.conn.execute(
             "SELECT de.article_body AS body FROM digest_entries de"
-            " JOIN digests d ON de.digest_id=d.id WHERE d.date=? AND de.url=? ORDER BY de.id ASC",
+            " JOIN digests d ON de.digest_id=d.id WHERE d.date=%s AND de.url=%s ORDER BY de.id ASC",
             (SEEDS_DATE, url)).fetchall()
         return [r["body"] or "" for r in rows]
 
@@ -421,7 +437,7 @@ class Repository:
         from ..config import SEEDS_DATE
         r = self.conn.execute(
             "SELECT de.title FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            " WHERE d.date=? AND de.url=? LIMIT 1", (SEEDS_DATE, url)).fetchone()
+            " WHERE d.date=%s AND de.url=%s LIMIT 1", (SEEDS_DATE, url)).fetchone()
         return (r["title"] if r else "") or url
 
     def delete_source(self, url: str) -> int:
@@ -430,10 +446,10 @@ class Repository:
         if sid is None:
             return 0
         ids = [r["id"] for r in self.conn.execute(
-            "SELECT id FROM digest_entries WHERE digest_id=? AND url=?", (sid, url)).fetchall()]
+            "SELECT id FROM digest_entries WHERE digest_id=%s AND url=%s", (sid, url)).fetchall()]
         for eid in ids:
-            self.conn.execute("DELETE FROM digest_entries WHERE id=?", (eid,))
-            self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (eid,))
+            self.conn.execute("DELETE FROM digest_entries WHERE id=%s", (eid,))
+            self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (eid,))
         self.conn.commit()
         return len(ids)
 
@@ -443,7 +459,7 @@ class Repository:
         if sid is None:
             return 0
         cur = self.conn.execute(
-            "UPDATE digest_entries SET source_class=? WHERE digest_id=? AND url=?",
+            "UPDATE digest_entries SET source_class=%s WHERE digest_id=%s AND url=%s",
             (source_class, sid, url))
         self.conn.commit()
         return cur.rowcount
@@ -457,16 +473,16 @@ class Repository:
         """新增候選 why-node（狀態=candidate），回 id。kind＝層次；src_from/to＝出處則數（階段29）；
         source_quote＝來源 verbatim 錨點（Text Fragment 由來定位）；source_page＝PDF 出處頁碼。"""
         import json as _json
-        cur = self.conn.execute(
+        wid = self._insert_id(
             "INSERT INTO why_nodes (claim, evidence_urls, touchstones, ladder, fog_flag,"
             " kind, src_from, src_to, source_quote, source_page, status, source_entry_id, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,'candidate',?,?)",
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate',%s,%s)",
             (claim, _json.dumps(evidence_urls, ensure_ascii=False),
              _json.dumps(touchstones, ensure_ascii=False),
              _json.dumps(ladder or [], ensure_ascii=False), 1 if fog_flag else 0,
              kind, src_from, src_to, source_quote, source_page, source_entry_id, created_at))
         self.conn.commit()
-        return cur.lastrowid
+        return wid
 
     def list_why_nodes(self, status: str | None = None) -> list:
         import json as _json
@@ -475,7 +491,7 @@ class Repository:
         sql = "SELECT * FROM why_nodes"
         args: tuple = ()
         if status:
-            sql += " WHERE status=?"
+            sql += " WHERE status=%s"
             args = (status,)
         sql += " ORDER BY id DESC"
         out = []
@@ -501,30 +517,30 @@ class Repository:
         sets = ["status='anointed'"]
         args: list = []
         if claim is not None and claim.strip():
-            sets.append("claim=?"); args.append(claim.strip())
+            sets.append("claim=%s"); args.append(claim.strip())
         if kind is not None:
-            sets.append("kind=?"); args.append(kind)
+            sets.append("kind=%s"); args.append(kind)
         args.append(wid)
         cur = self.conn.execute(
-            f"UPDATE why_nodes SET {', '.join(sets)} WHERE id=?", tuple(args))
+            f"UPDATE why_nodes SET {', '.join(sets)} WHERE id=%s", tuple(args))
         self.conn.commit()
         return cur.rowcount > 0
 
     def delete_why_node(self, wid: int) -> bool:
         """刪 why-node，連其負 id 嵌入一起清（無孤兒）。"""
-        cur = self.conn.execute("DELETE FROM why_nodes WHERE id=?", (wid,))
-        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=?", (-wid,))
+        cur = self.conn.execute("DELETE FROM why_nodes WHERE id=%s", (wid,))
+        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (-wid,))
         self.conn.commit()
         return cur.rowcount > 0
 
     # --- Articles（知識的輸出，階段 30）：生成文章存檔（輸出物、不回灌場）---
     def save_article(self, topic: str, title: str, markdown: str,
                      length: str = "", level: str = "", created_at: str = "") -> int:
-        cur = self.conn.execute(
+        aid = self._insert_id(
             "INSERT INTO articles (topic, title, markdown, length, level, created_at)"
-            " VALUES (?,?,?,?,?,?)", (topic, title, markdown, length, level, created_at))
+            " VALUES (%s,%s,%s,%s,%s,%s)", (topic, title, markdown, length, level, created_at))
         self.conn.commit()
-        return cur.lastrowid
+        return aid
 
     def list_articles(self) -> list[dict]:
         """列已存文章（不含全文，新在上）。"""
@@ -532,11 +548,11 @@ class Repository:
             "SELECT id, topic, title, length, level, created_at FROM articles ORDER BY id DESC")]
 
     def get_article(self, aid: int) -> dict | None:
-        r = self.conn.execute("SELECT * FROM articles WHERE id=?", (aid,)).fetchone()
+        r = self.conn.execute("SELECT * FROM articles WHERE id=%s", (aid,)).fetchone()
         return dict(r) if r else None
 
     def delete_article(self, aid: int) -> bool:
-        cur = self.conn.execute("DELETE FROM articles WHERE id=?", (aid,))
+        cur = self.conn.execute("DELETE FROM articles WHERE id=%s", (aid,))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -557,14 +573,13 @@ class Repository:
                 break
         if cid is None:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            cur = self.conn.execute(
+            cid = self._insert_id(
                 "INSERT INTO conversations (title, messages, why_node_id, created_at)"
-                " VALUES (?,?,?,?)",
+                " VALUES (%s,%s,%s,%s)",
                 (title, json.dumps(messages, ensure_ascii=False), why_node_id, now))
-            cid = cur.lastrowid
         if why_node_id is not None:    # 連結存 why_node 側（事實來源）
             self.conn.execute(
-                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (cid, why_node_id))
+                "UPDATE why_nodes SET conversation_id=%s WHERE id=%s", (cid, why_node_id))
         self.conn.commit()
         return cid
 
@@ -583,7 +598,7 @@ class Repository:
     def set_conversation_chapters(self, cid: int, chapters: list) -> None:
         """存切好的章節（階段29 持久化，避免每次檢視重切）。"""
         self.conn.execute(
-            "UPDATE conversations SET chapters=? WHERE id=?",
+            "UPDATE conversations SET chapters=%s WHERE id=%s",
             (json.dumps(chapters, ensure_ascii=False), cid))
         self.conn.commit()
 
@@ -597,7 +612,7 @@ class Repository:
 
     def get_conversation(self, cid: int):
         r = self.conn.execute(
-            f"SELECT {self._CONV_COLS} FROM conversations WHERE id=?", (cid,)).fetchone()
+            f"SELECT {self._CONV_COLS} FROM conversations WHERE id=%s", (cid,)).fetchone()
         return self._row_to_conversation(r) if r else None
 
     # --- 暫時存檔＋TTL 衰減（spec 028）---
@@ -607,24 +622,24 @@ class Repository:
             return None
         if temp_id:
             cur = self.conn.execute(
-                "UPDATE conversations SET messages=?, last_activity_at=?"
-                " WHERE id=? AND temporary=1",
+                "UPDATE conversations SET messages=%s, last_activity_at=%s"
+                " WHERE id=%s AND temporary=1",
                 (json.dumps(messages, ensure_ascii=False), now, temp_id))
             if cur.rowcount > 0:
                 self.conn.commit()
                 return int(temp_id)
         from ..chat.capture import cheap_title
-        cur = self.conn.execute(
+        cid = self._insert_id(
             "INSERT INTO conversations (title, messages, why_node_id, created_at,"
-            " temporary, last_activity_at) VALUES (?,?,?,?,1,?)",
+            " temporary, last_activity_at) VALUES (%s,%s,%s,%s,1,%s)",
             (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now))
         self.conn.commit()
-        return cur.lastrowid
+        return cid
 
     def touch_conversation(self, cid: int, now: str) -> bool:
         """接回時重設計時（更新 last_activity_at）。"""
         cur = self.conn.execute(
-            "UPDATE conversations SET last_activity_at=? WHERE id=?", (now, cid))
+            "UPDATE conversations SET last_activity_at=%s WHERE id=%s", (now, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -634,14 +649,14 @@ class Repository:
         sets = ["temporary=0"]
         args: list = []
         if title and title.strip():
-            sets.append("title=?")
+            sets.append("title=%s")
             args.append(title.strip())
         args.append(cid)
         cur = self.conn.execute(
-            f"UPDATE conversations SET {', '.join(sets)} WHERE id=?", tuple(args))
+            f"UPDATE conversations SET {', '.join(sets)} WHERE id=%s", tuple(args))
         if why_node_id is not None:
             self.conn.execute(
-                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (cid, why_node_id))
+                "UPDATE why_nodes SET conversation_id=%s WHERE id=%s", (cid, why_node_id))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -650,7 +665,7 @@ class Repository:
         from ..chat.capture import expired_temp_ids
         ids = expired_temp_ids(self.list_conversations(), now, ttl_days)
         for cid in ids:
-            self.conn.execute("DELETE FROM conversations WHERE id=? AND temporary=1", (cid,))
+            self.conn.execute("DELETE FROM conversations WHERE id=%s AND temporary=1", (cid,))
         if ids:
             self.conn.commit()
         return len(ids)
@@ -661,7 +676,7 @@ class Repository:
         if not title:
             return False
         cur = self.conn.execute(
-            "UPDATE conversations SET title=? WHERE id=?", (title, cid))
+            "UPDATE conversations SET title=%s WHERE id=%s", (title, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -676,9 +691,9 @@ class Repository:
         plan = self.dedupe_plan()
         for wid, survivor in plan.repoint.items():
             self.conn.execute(
-                "UPDATE why_nodes SET conversation_id=? WHERE id=?", (survivor, wid))
+                "UPDATE why_nodes SET conversation_id=%s WHERE id=%s", (survivor, wid))
         for cid in plan.delete_ids:
-            self.conn.execute("DELETE FROM conversations WHERE id=?", (cid,))
+            self.conn.execute("DELETE FROM conversations WHERE id=%s", (cid,))
         self.conn.commit()
         return {"groups": plan.n_groups, "removed": plan.n_extra,
                 "repointed": plan.n_roots}
@@ -714,22 +729,24 @@ class Repository:
         if sid is None:
             return False
         cur = self.conn.execute(
-            "UPDATE digest_entries SET source_class=? WHERE id=? AND digest_id=?",
+            "UPDATE digest_entries SET source_class=%s WHERE id=%s AND digest_id=%s",
             (cls, entry_id, sid))
         self.conn.commit()
         return cur.rowcount > 0
 
     def get_entry_embedding(self, entry_id: int, tag: str) -> Vector | None:
         row = self.conn.execute(
-            "SELECT vector_json FROM entry_embeddings WHERE entry_id=? AND tag=?",
+            "SELECT vector_json FROM entry_embeddings WHERE entry_id=%s AND tag=%s",
             (entry_id, tag),
         ).fetchone()
         return json.loads(row["vector_json"]) if row else None
 
     def save_entry_embedding(self, entry_id: int, tag: str, vec: Vector) -> None:
         self.conn.execute(
-            "INSERT OR REPLACE INTO entry_embeddings (entry_id, tag, dim, vector_json)"
-            " VALUES (?,?,?,?)",
+            "INSERT INTO entry_embeddings (entry_id, tag, dim, vector_json)"
+            " VALUES (%s,%s,%s,%s)"
+            " ON CONFLICT (entry_id, tag) DO UPDATE SET dim=excluded.dim,"
+            " vector_json=excluded.vector_json",
             (entry_id, tag, len(vec), json.dumps(vec)),
         )
         self.conn.commit()
