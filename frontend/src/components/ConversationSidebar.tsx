@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
+// nav 順序＝膜的流向：來源（原料）→ 對話（消化）→ 核心理解（沉澱地基）→ 文章（輸出）
 const NAV = [
+  { label: "📚 來源", to: "/sources" },
   { label: "💬 對話", to: "/conversations" },
   { label: "💡 核心理解", to: "/roots" },
-  { label: "📚 來源", to: "/sources" },
+  { label: "📝 文章", to: "/articles" },
 ]
 
 // 單一側欄（各大 AI 手順）：Logo＋新對話＋導覽＋對話歷史，全在一欄。

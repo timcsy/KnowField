@@ -23,11 +23,8 @@ export default function RootsPage() {
   const [artTitle, setArtTitle] = useState("")
   const [gen, setGen] = useState(false)
   const [genMsg, setGenMsg] = useState<string | null>(null)
-  const [saved, setSaved] = useState<{ id: number; title: string; topic: string; length: string; level: string; created_at: string }[]>([])
-  const [openArt, setOpenArt] = useState<{ id: number; title: string; markdown: string } | null>(null)
   const load = () => pages.roots().then(setData).catch(() => {})
-  const loadArts = () => pages.listArticles().then((r) => setSaved(r.articles)).catch(() => {})
-  useEffect(() => { load(); loadArts() }, [])
+  useEffect(() => { load() }, [])
 
   async function genArticle() {
     if (!topic.trim() || gen) return
@@ -45,12 +42,7 @@ export default function RootsPage() {
   async function saveArticle() {
     if (!article) return
     await pages.saveArticle({ topic: topic.trim(), title: artTitle, markdown: article, length, level })
-    setGenMsg("已保存"); loadArts()
-  }
-  async function viewArt(id: number) { setOpenArt(await pages.getArticle(id)) }
-  async function delArt(id: number) {
-    if (!confirm("刪除這篇文章？")) return
-    await pages.deleteArticle(id); if (openArt?.id === id) setOpenArt(null); loadArts()
+    setGenMsg("已保存 → 到「📝 文章」面看")
   }
 
   async function remove(id: number) {
@@ -97,32 +89,6 @@ export default function RootsPage() {
                 <button onClick={copyArticle} className="text-xs text-muted-foreground hover:text-foreground">📋 複製 Markdown</button>
               </div>
               <Markdown text={article} prefix="art" />
-            </div>
-          )}
-
-          {/* 已存文章 */}
-          {saved.length > 0 && (
-            <div className="mt-2 border-t pt-2">
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">已存文章</div>
-              <ul className="space-y-1">
-                {saved.map((a) => (
-                  <li key={a.id} className="flex items-center gap-2 text-sm">
-                    <button onClick={() => viewArt(a.id)} className="min-w-0 flex-1 truncate text-left hover:underline">
-                      {a.title || a.topic}
-                      <span className="ml-2 text-xs text-muted-foreground">{a.created_at?.slice(0, 10)}</span>
-                    </button>
-                    <button onClick={() => delArt(a.id)} className="shrink-0 text-xs text-muted-foreground hover:text-destructive">刪</button>
-                  </li>
-                ))}
-              </ul>
-              {openArt && (
-                <div className="mt-2 rounded-lg border bg-background p-4">
-                  <div className="mb-2 flex justify-end">
-                    <button onClick={() => setOpenArt(null)} className="text-xs text-muted-foreground hover:text-foreground">✕ 收起</button>
-                  </div>
-                  <Markdown text={openArt.markdown} prefix="artv" />
-                </div>
-              )}
             </div>
           )}
         </section>
