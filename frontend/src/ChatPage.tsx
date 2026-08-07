@@ -356,7 +356,8 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
+              // 輸入法組字中的 Enter＝選字確認，不是送出（isComposing / keyCode 229）
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); send() }
             }}
             placeholder="丟一個想法、一個「為什麼 X 要這樣」、或接著上一句往下問…"
             className="max-h-40 min-h-0 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"

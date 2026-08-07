@@ -79,7 +79,7 @@ export default function RootsPage() {
           <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
           <div className="flex flex-wrap gap-2">
             <Input value={topic} onChange={(e) => setTopic(e.target.value)}
-                   onKeyDown={(e) => { if (e.key === "Enter") genArticle() }}
+                   onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) genArticle() }}
                    placeholder="給一個主題（如「生成模型的底層」）——只用已證實／推論的理解寫" className="min-w-48 flex-1" />
             <select value={length} onChange={(e) => setLength(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
               <option value="short">短</option><option value="medium">中</option><option value="long">長</option>
