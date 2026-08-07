@@ -911,6 +911,27 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
   **不自動回灌場**＝馬太陷阱/model collapse 防線，回場過人閘門）；過度擬合檢查（論點要有 payoff/預測解釋力）。
 - **Acceptance（真驗收，非測試綠）**：**使用者在沒人要求時自己伸手用**（experience「提案-批准≠打到需求」）。
 
+## 階段 31：全部 PG——資料層從 SQLite 遷到 Postgres（部署 substrate，未建）
+
+> 設計源 `draft/2026-07-23-部署與介面路線` ⑤「全部 PG」。promote 2026-08-07（使用者 commit）。
+> 因果轉移＝`history/084`。由來：使用者為部署做準備（K8s 既有 cluster、Google 單人登入、想往分享/多人走）。
+> **順序鐵律：本階段排在 auth ＋ [[領域知識分類與場的分區]] 之前**——那兩個要加表/查詢，在 PG 蓋一次、
+> 別 SQLite 蓋完再重港。
+
+- [ ] **repository 從 SQLite-isms 搬到 PG**：`?`→`%s`/psycopg、`AUTOINCREMENT`→`IDENTITY`、`lastrowid`→`RETURNING`、
+  `executescript`/`row_factory=Row` 等逐一對應。核心演算法（chunk/ingest/distill/rag）**維持純、不碰**。
+- [ ] **測試策略：核心 DB-less 保持零安裝；只有碰 DB 的整合層打容器化 PG（testcontainers）**——守 experience
+  「離線 stub、TDD 零安裝」：不是每個測試都要 PG，是 repository/web 整合層才要。
+- **In scope**：SQLite→PG **parity**（行為一樣、測試全綠）。**Out（scope 守門，防過度擬合）**：
+  **pgvector**（檢索升級，等 parity 站穩再單獨切）、多租戶 `user_id`（auth 那條）、領域分類。
+- **相依/憲章（誠實記，非修憲）**：加 `psycopg` 進 repository。**憲章 IV 未被推翻**——IV＋額外限制本就允許
+  「有明確當前需求＋在計畫說明必要性」時新增相依；這裡放鬆的是**spec 級慣例「核心含 repository 零相依」**
+  （階段 27 spec 的說法），必要性＝部署 substrate，記在 `history/084`＋動工時的 plan（滿足額外限制）。
+- **守衛**：mirrord dev 只 **read-only PG role**（寫入被 DB 拒＝結構保證，接鐵律「dev 不碰真實場」）；
+  遷移前**備份真實場**（PG dump）；prod 密鑰進 env、不進 git。
+- **Acceptance**：repository 全走 PG、既有 344 測在「核心 DB-less ＋ DB 層 PG」下全綠、**行為零回歸**；
+  prod 能以 PG 起、mirrord read-only dev 打得到遠端。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
