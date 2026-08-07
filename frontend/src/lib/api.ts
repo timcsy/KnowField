@@ -148,6 +148,8 @@ export const pages = {
     fetch("/api/conversations-dedupe/preview").then(json),
   dedupeApply: (): Promise<{ removed: number; repointed: number }> =>
     post("/api/conversations-dedupe/apply", {}),
+  generateArticle: (topic: string): Promise<{ title?: string; markdown?: string; error?: string }> =>
+    post("/api/article", { topic }),
 }
 
 export type StreamHandlers = {

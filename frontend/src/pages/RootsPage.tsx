@@ -2,6 +2,9 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { pages, type RootsData } from "@/lib/api"
 import { KindBadge } from "@/components/KindBadge"
+import { Markdown } from "@/components/Markdown"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 // 原文＝唯一真相：由來連結帶 Text Fragment（#:~:text=）→ 瀏覽器原生捲到並高亮原文那段。
 // best-effort：匹配失敗（抽取清理過/SPA 渲染）→ 只開頁面、不跳段（無害）。
@@ -13,8 +16,26 @@ function withTextFragment(url: string, quote: string): string {
 export default function RootsPage() {
   const [data, setData] = useState<RootsData | null>(null)
   const [openSrc, setOpenSrc] = useState<number | null>(null)   // 展開哪條的佐證網址
+  const [topic, setTopic] = useState("")                        // 生成文章的主題
+  const [article, setArticle] = useState<string | null>(null)
+  const [gen, setGen] = useState(false)
+  const [genMsg, setGenMsg] = useState<string | null>(null)
   const load = () => pages.roots().then(setData).catch(() => {})
   useEffect(() => { load() }, [])
+
+  async function genArticle() {
+    if (!topic.trim() || gen) return
+    setGen(true); setGenMsg("生成中…（只用已證實／推論的核心理解）"); setArticle(null)
+    try {
+      const r = await pages.generateArticle(topic.trim())
+      setGen(false)
+      if (r.error) { setGenMsg(r.error); return }
+      setGenMsg(null); setArticle(r.markdown || "")
+    } catch { setGen(false); setGenMsg("生成失敗") }
+  }
+  async function copyArticle() {
+    if (article) { try { await navigator.clipboard.writeText(article); setGenMsg("已複製") } catch { /* 無剪貼簿 */ } }
+  }
 
   async function remove(id: number) {
     if (!confirm("移除這條核心理解？（聊天將不再優先參考它）")) return
@@ -35,6 +56,28 @@ export default function RootsPage() {
           你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成核心理解」時精選。）
         </p>
       </div>
+
+      {/* 知識的輸出（階段 30）：從核心理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
+      {data.anointed.length > 0 && (
+        <section className="space-y-2 rounded-xl border bg-card p-4">
+          <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
+          <div className="flex gap-2">
+            <Input value={topic} onChange={(e) => setTopic(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") genArticle() }}
+                   placeholder="給一個主題（如「生成模型的底層」）——只用已證實／推論的理解寫" className="flex-1" />
+            <Button disabled={gen} onClick={genArticle}>生成文章</Button>
+          </div>
+          {genMsg && <div className="text-xs text-muted-foreground">{genMsg}</div>}
+          {article && (
+            <div className="mt-2 rounded-lg border bg-background p-4">
+              <div className="mb-2 flex justify-end">
+                <button onClick={copyArticle} className="text-xs text-muted-foreground hover:text-foreground">📋 複製 Markdown</button>
+              </div>
+              <Markdown text={article} prefix="art" />
+            </div>
+          )}
+        </section>
+      )}
 
       {data.anointed.length === 0 ? (
         <p className="text-sm text-muted-foreground">

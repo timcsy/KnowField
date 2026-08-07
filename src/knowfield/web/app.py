@@ -511,6 +511,30 @@ def create_app() -> FastAPI:
             repo.close()
         return _JSON({"ok": True})
 
+    @app.post("/api/article")
+    async def api_article(request: Request):
+        """知識的輸出（階段 30）：從已冊封核心理解生成高證實文章。守衛：只採已證實/推論、
+        結構化 References、不回灌場。"""
+        from ..backends.factory import make_embedder
+        from ..output.article import generate_article
+        topic = str((await request.json()).get("topic") or "").strip()
+        if not topic:
+            return _JSON({"error": "請給一個主題"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            nodes = repo.list_why_nodes("anointed")
+        finally:
+            repo.close()
+        try:
+            emb = getattr(app.state, "embedder_for_test", None) or make_embedder(app.state.config)
+            out = generate_article(topic, nodes, _chat_backend(), embedder=emb)
+        except (SourceUnavailable, OpenAIError) as e:
+            _log.error("生成文章失敗", extra={"extra": {"reason": str(e)}})
+            return _JSON({"error": str(e)}, status_code=502)
+        if out.get("empty"):
+            return _JSON({"error": "場裡還沒有夠格（已證實／推論）的核心理解可寫成文章"}, status_code=200)
+        return _JSON(out)
+
     @app.get("/api/library")
     async def api_library():
         repo = app.state.repo_factory(app.state.config)
