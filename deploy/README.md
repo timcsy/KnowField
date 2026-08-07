@@ -69,5 +69,24 @@ postgres:
 externalDatabaseUrl: "postgresql://user:pass@your-pg-host:5432/knowfield"
 ```
 
+## 本地開發：mirrord 讀「線上」場（唯讀，寫入被 DB 拒）
+用 mirrord 讓本地程式進到 pod 的網路、讀線上 PG，但用**唯讀 role** → 寫入被資料庫拒絕（結構保證，不靠自律）。
+
+一次性：在 PG 建唯讀 role（已建 `mirrord_ro`；重建時）：
+```sql
+CREATE ROLE mirrord_ro LOGIN PASSWORD '<pw>';
+GRANT CONNECT ON DATABASE knowfield TO mirrord_ro;
+GRANT USAGE ON SCHEMA public TO mirrord_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO mirrord_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO mirrord_ro;
+```
+本地跑（`-t` 指部署，程式經 pod 網路連 in-cluster PG service）：
+```bash
+export MIRRORD_DEMO_DSN="postgresql://mirrord_ro:<pw>@knowfield-knowfield-postgres:5432/knowfield"
+mirrord exec -t deployment/knowfield-knowfield -n knowfield -- .venv/bin/python your_script.py
+```
+> 鐵律：**dev 只讀線上、絕不寫**——唯讀 role 讓它結構上成立（見 experience「隱私/唯讀要做進結構」）。
+> 要重度改資料的開發，走本地 SQLite（`KNOWFIELD_DATABASE_URL=` 留空），別碰線上。
+
 ## 備份（你的全部家當）
 內建 PG 的資料在它的 PVC。定期 `pg_dump` 出來（可另開一支 CronJob）。media PVC 同理。

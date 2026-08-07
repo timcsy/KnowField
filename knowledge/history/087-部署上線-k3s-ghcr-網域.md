@@ -32,6 +32,13 @@
 - **使用者手動一哩**：Google Cloud OAuth 重新導向 URI 加 `https://know.tew.tw/auth/callback`（AI 不碰憑證）。
 - 改版：buildx --push → `kubectl rollout restart deployment/knowfield-knowfield`。
 
+## mirrord 唯讀開發實測（2026-08-08）
+驗證 `draft/2026-08-07-本地SQLite與prod-PG雙後端`＋`history/084/086` 設計的「mirrord 讀遠端、唯讀」那條路：
+- PG 建唯讀 role `mirrord_ro`（GRANT SELECT only ＋ default privileges）；`mirrord exec -t deployment/... -- python`
+  讓本地程式進 pod 網路連 in-cluster PG。**讀到線上場（why34/digest626/對話12）、寫入被 DB 拒**
+  （`permission denied`）＝**結構保證，不靠自律**。mirrord exit 自動清 agent、無殘留。
+- 記進 `deploy/README`「本地開發：mirrord 讀線上」。鐵律：dev 只讀線上、要改資料走本地 SQLite。
+
 ## 產物
 commits `8198de1`（部署基座）、`232bc23`（httpx＋chart existingSecret/pull secret）、`2d2581b`（proxy-headers）。
 `deploy/helm/knowfield`、`Dockerfile`、`.github/workflows/docker-publish.yml`、`deploy/README.md`。
