@@ -91,6 +91,10 @@ def create_app() -> FastAPI:
     app.state.doc_converter = MistralDocConverter(app.state.config)  # spec 030；測試可注入
     app.state.web_fetch = None                                       # 網頁抓取（測試可注入；None=預設）
 
+    @app.get("/healthz")   # k8s liveness/readiness 探針；門鎖豁免（見 auth gate），免登入可探
+    async def healthz():
+        return {"ok": True}
+
     def _content_ingest(kind, **kw):
         """貼上/PDF/URL 收進：切塊→存成 corpus（spec 030）。轉檔器/抓取器可注入。"""
         from ..backends.factory import make_embedder

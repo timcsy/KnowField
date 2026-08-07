@@ -1,0 +1,6 @@
+apiVersion: v2
+name: knowfield
+description: KnowField——反逢迎的當下副手（單人部署：app ＋ in-cluster Postgres ＋ Google 登入門鎖）
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

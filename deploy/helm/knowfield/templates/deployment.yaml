@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "knowfield.fullname" . }}
+  labels: {{- include "knowfield.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate           # media PVC 為 RWO → 不用 RollingUpdate（避免兩 pod 搶掛）
+  selector:
+    matchLabels:
+      {{- include "knowfield.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        {{- include "knowfield.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
+      annotations:
+        # 密鑰變更時滾動重啟（讓 Secret 更新生效）
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ include "knowfield.fullname" . }}-env
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: media
+              mountPath: /data/media
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ include "knowfield.fullname" . }}-media
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

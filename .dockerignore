@@ -1,0 +1,16 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+frontend/node_modules
+frontend/dist
+knowledge
+specs
+tests
+media
+*.db
+.env
+.env.*
+!.env.example
+scratchpad
+rename-project.sh

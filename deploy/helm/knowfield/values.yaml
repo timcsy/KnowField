@@ -1,0 +1,60 @@
+# KnowField Helm values（單人部署）。密鑰請用 -f secrets.yaml 覆蓋、別提交真值。
+
+image:
+  repository: ghcr.io/timcsy/knowfield
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1          # 單人；media PVC 為 ReadWriteOnce → 單副本＋Recreate
+
+# ── 資料庫 ──
+postgres:
+  enabled: true          # true=chart 內建一個 in-cluster Postgres；false=用外部 DB
+  image: postgres:16-alpine
+  user: knowfield
+  password: change-me-postgres     # 請覆蓋
+  database: knowfield
+  storage:
+    size: 5Gi
+    storageClass: ""     # 空=用叢集預設 StorageClass
+  resources: {}
+externalDatabaseUrl: ""  # postgres.enabled=false 時填：postgresql://user:pass@host:5432/db
+
+# ── 單人 Google 登入門鎖（spec 035）──
+auth:
+  allowlist: ""          # 你自己的 Google email（逗號分隔可多個）；空=門鎖不啟用（勿在公網留空）
+  googleClientId: ""
+  googleClientSecret: ""
+  sessionSecret: ""      # 填長隨機字串：python -c "import secrets;print(secrets.token_urlsafe(48))"
+  disabled: false        # true=強制關門鎖（僅測試/救援用）
+# 提醒：Google Cloud OAuth client 的重新導向 URI 要設成  https://<你的網域>/auth/callback
+
+# ── LLM gateway（你的 OpenAI 相容端點）；留空=離線 stub ──
+backend:
+  apiBase: ""
+  apiKey: ""
+  chatModel: "gpt-4o-mini"
+  embedModel: "text-embedding-3-small"
+  ocrModel: "azure/mistral-document-ai-2512"
+
+# ── app 儲存（收進的在地化圖片）──
+media:
+  size: 2Gi
+  storageClass: ""
+
+service:
+  type: ClusterIP
+  port: 80               # → 容器 8000
+
+# 網域/TLS 你自己接（Caddy/ingress 指向本 Service）；預設不建 ingress
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  annotations: {}
+  tls: false
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
