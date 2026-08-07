@@ -933,16 +933,17 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - **Acceptance**：repository 全走 PG、既有 344 測在「核心 DB-less ＋ DB 層 PG」下全綠、**行為零回歸**；
   prod 能以 PG 起、mirrord read-only dev 打得到遠端。
 
-## 階段 32：單人 Google 登入門鎖——部署上「不被看光」（未建）
+## 階段 32：單人 Google 登入門鎖——部署上「不被看光」（程式側✅ 完成 2026-08-07；待使用者接 Google Cloud＋部署）
 
 > 設計源 `draft/2026-07-23-部署與介面路線`（「A 登入牆」＋2026-08-07 定案節②「單人門鎖」）。
 > promote 2026-08-07（使用者 commit，接 /knowie-next）。由來：階段 31 換好 PG 部署 substrate；本階段是讓
 > 「手機能開、公開網址不被路人看光」成真的那道門——部署這條線的目的地，也是階段 30 公開分享的前置。
 
-- [ ] **登入牆（單人 allowlist）**：Starlette `SessionMiddleware` ＋ Authlib Google OIDC ＋
-  **allowlist = 使用者自己的 Google 帳號** ＋ 登入/登出/回呼；未登入擋掉 app＋/api（登入頁/靜態例外）。
-- [ ] **結構保證，非假隱私**（原則 3）：真 session（httponly cookie）＋HTTPS（部署前擺 Caddy 自動 TLS）；
-  密鑰進 env、不進 git。allowlist 在**伺服器端**驗（非前端藏鈕）。
+- [x] **登入牆（單人 allowlist）程式側完成（commit `d11b5e0`，spec 035）**：`web/auth.py setup_auth`＝
+  SessionMiddleware＋gate middleware＋/auth/login|callback|logout（Authlib Google OIDC）；未登入 /api→401、頁→302
+  導登入；allowlist 比對、非白名單拒。**啟用條件**：allowlist＋憑證都設才啟用（沒設＝全開、既有測試零回歸）。
+- [x] **結構保證，非假隱私（原則 3）**：session httponly＋授權判斷伺服器端＋密鑰進 env；dev bypass 防鎖死自己。
+  HTTPS 由部署層（Caddy）負責＝**待部署**。
 - **In scope**：單人登入牆。**Out（防蔓延）**：多租戶 `user_id`（B，非本階段）、[[共享的膜與跨base聯邦]] 聯邦、
   公開分享（下游、本階段解鎖它）、Helm/host 本身（ops 後續，非本 spec）、領域分類。
 - **相依/憲章**：加 Authlib＋SessionMiddleware，**在 plan 說明必要性**（同 PG，非修憲）。

@@ -349,6 +349,27 @@
   是最會騙人的假綠（未提交也讀得到）。呼應本專案骨幹「答案對到 ground truth、別信自報的綠」。
 - **來源**：`history/084-全部PG-資料層遷移定案.md`；commit `e7dcbec`；`specs/034-postgres-migration/`。
 
+### 具體路由要註冊在 catch-all mount 之前，否則被吃掉
+
+- **理論說**：加登入的 `/auth/login|callback` 路由，寫在 `create_app` 裡就會生效。
+- **實際發生**：SPA 用 `app.mount("/", …)` 當 catch-all（非檔案 fallback index.html）。新 `/auth/*` 路由註冊在**它之後**
+  → 「/」catch-all 先比對到、把 `/auth/callback` 也吃掉 → callback 沒跑、session 沒建。詭異的是**擋人有效、登入無效**
+  （gate middleware 在路由層之前所以擋得住，但要跑的 /auth 路由被 mount 遮蔽）→ 測試現象「登入後仍 401、Set-Cookie 空」。
+- **解決方式**：把 `/auth` 路由（`setup_auth`）移到 SPA `mount("/")` **之前**。
+- **教訓**：**catch-all（`mount("/")`／萬用路由）永遠放最後**；任何具體路由都要在它之前註冊，否則靜默被吞。
+  debug 訊號：「middleware 攔截正常、但具體 handler 沒被呼叫」≈ 路由被更早的 catch-all 比對走了。
+- **來源**：`history/085-單人Google登入門鎖.md`；commit `d11b5e0`；`src/knowfield/web/app.py`（setup_auth 順序）。
+
+### 加全域攔截但不驚動既有測試——用「設定存在性」當開關、預設關
+
+- **理論說**：加登入門鎖＝全域攔截所有請求，勢必要改一堆既有測試（讓它們登入）。
+- **實際發生**：既有 344 測都走 `build_app`；若 gate 預設啟用，全部會被擋 → 得改 344 處。
+- **解決方式**：**auth 只在「allowlist＋憑證都設了」時才掛 gate**（`auth_active`）。既有測試沒設這些 env → 全開 → 零回歸、
+  一處不動。新功能測試才設 env 啟用。＋dev bypass 開關防設錯鎖死。
+- **教訓**：**新增全域行為時，用「設定存在性」當啟用開關、預設關**——既有路徑不受驚動、遷移面積趨零。同型於「把重量級
+  相依藏在窄介面後、預設離線」：預設安全/無感，opt-in 才啟用。
+- **來源**：`history/085-單人Google登入門鎖.md`；commit `d11b5e0`；`src/knowfield/web/auth.py`（auth_active）。
+
 <!--
   範例：
 
