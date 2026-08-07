@@ -32,9 +32,9 @@
 - **測試矩陣**：整合測試要能在兩後端跑（本地 SQLite／CI PG）——`tests/pgtest.py` 的 temp_db 依 env 選後端。
 
 ## 出口
-- **待 promote 成 roadmap 項**（人閘門）：薄 adapter 雙後端；acceptance＝本地 SQLite 零 server 可跑 app＋測試、
-  CI/prod PG、**同套測試兩後端皆綠**、行為零回歸；核心 DB-less 測試不變。
+- **✅ 已 promote → `vision.md` 階段 33（2026-08-07，使用者 commit /goal 做完）**。SQLite 3.49.1 實測 RETURNING/ON CONFLICT OK。
+  本 draft＝其 in-flight 設計理由，動工完成才反流退場。
+- acceptance（已進 vision 階段 33）：本地 SQLite 零 server 可跑 app＋測試、CI/prod PG、**同套測試兩後端皆綠**、行為零回歸、核心 DB-less 測試不變。
 - **這 supersede `history/084` 的「不騎牆」立場**（動工時 `history/084` 標該段 superseded、開新 history 記 re-route 因果）。
-  在此之前＝**未定案、未動工**（captured ≠ committed）。
 - 相關：`history/084-全部PG-資料層遷移定案`、`specs/034-postgres-migration/`、
   experience「加全域行為用設定存在性當開關」（同型：後端由 env/URL scheme 選）。
