@@ -911,17 +911,18 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
   **不自動回灌場**＝馬太陷阱/model collapse 防線，回場過人閘門）；過度擬合檢查（論點要有 payoff/預測解釋力）。
 - **Acceptance（真驗收，非測試綠）**：**使用者在沒人要求時自己伸手用**（experience「提案-批准≠打到需求」）。
 
-## 階段 31：全部 PG——資料層從 SQLite 遷到 Postgres（部署 substrate，未建）
+## 階段 31：全部 PG——資料層從 SQLite 遷到 Postgres（部署 substrate，✅ 完成 2026-08-07）
 
 > 設計源 `draft/2026-07-23-部署與介面路線` ⑤「全部 PG」。promote 2026-08-07（使用者 commit）。
 > 因果轉移＝`history/084`。由來：使用者為部署做準備（K8s 既有 cluster、Google 單人登入、想往分享/多人走）。
 > **順序鐵律：本階段排在 auth ＋ [[領域知識分類與場的分區]] 之前**——那兩個要加表/查詢，在 PG 蓋一次、
 > 別 SQLite 蓋完再重港。
 
-- [ ] **repository 從 SQLite-isms 搬到 PG**：`?`→`%s`/psycopg、`AUTOINCREMENT`→`IDENTITY`、`lastrowid`→`RETURNING`、
-  `executescript`/`row_factory=Row` 等逐一對應。核心演算法（chunk/ingest/distill/rag）**維持純、不碰**。
-- [ ] **測試策略：核心 DB-less 保持零安裝；只有碰 DB 的整合層打容器化 PG（testcontainers）**——守 experience
-  「離線 stub、TDD 零安裝」：不是每個測試都要 PG，是 repository/web 整合層才要。
+- [x] **repository 從 SQLite-isms 搬到 PG（commit `e7dcbec`）**：`?`→`%s`/psycopg（dict_row）、`SERIAL`、
+  `lastrowid`→`RETURNING`、`INSERT OR IGNORE/REPLACE`→`ON CONFLICT`；連線吃 DSN。移除 SQLite _migrate 舊檔補欄
+  （PG 從零起、SCHEMA 已完整）。核心演算法（chunk/ingest/distill/rag）維持純、不碰。
+- [x] **測試策略：核心 DB-less 保持零安裝；整合層打容器化 PG（`tests/pgtest.py` session testcontainer）**——
+  核心測試 3.86s 無 container（守零安裝離線）；只有 repository/web 整合層起 PG、per-test 乾淨庫。
 - **In scope**：SQLite→PG **parity**（行為一樣、測試全綠）。**Out（scope 守門，防過度擬合）**：
   **pgvector**（檢索升級，等 parity 站穩再單獨切）、多租戶 `user_id`（auth 那條）、領域分類。
 - **相依/憲章（誠實記，非修憲）**：加 `psycopg` 進 repository。**憲章 IV 未被推翻**——IV＋額外限制本就允許

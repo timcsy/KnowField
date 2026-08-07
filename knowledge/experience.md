@@ -337,6 +337,18 @@
 - **來源**：`history/083-知識的輸出-高證實文章生成第一刀.md`（順修）；commit `efe08f7`；
   `frontend/src/ChatPage.tsx`、`frontend/src/pages/RootsPage.tsx`。
 
+### 驗證 DB 寫入要跨連線——單連線 smoke 會假綠
+
+- **理論說**：把資料層從 SQLite 遷到 PG，寫個 smoke test 建 Repository、塞資料、讀回來，過了就代表 port 對。
+- **實際發生**：port 時把 `add_why_node`/`save_article` 收斂成 `return self._insert_id(...)`，**不小心把
+  `commit()` 掉了**。smoke test 在**同一個連線**塞完立刻讀——PG 未提交的資料在**同連線內可見**，所以 smoke 全綠、
+  假象「port 正確」。真正的 API 場景是「請求端連線寫、另一端連線讀」，跨連線讀不到未提交資料 → 候選數 0，整套測試才露餡。
+- **解決方式**：port 後**跑完整測試套件**（它天然跨連線：API 一個 Repository 寫、測試另開 Repository 讀）；
+  smoke test 不足以驗 DB 層。補回 `add_why_node`/`save_article` 的 `commit()`。
+- **教訓**：**PG（非 autocommit）每個寫入路徑都要顯式 commit**；而**驗證寫入必須跨連線**——單連線的「塞了又讀到」
+  是最會騙人的假綠（未提交也讀得到）。呼應本專案骨幹「答案對到 ground truth、別信自報的綠」。
+- **來源**：`history/084-全部PG-資料層遷移定案.md`；commit `e7dcbec`；`specs/034-postgres-migration/`。
+
 <!--
   範例：
 
