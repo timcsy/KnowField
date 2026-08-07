@@ -14,6 +14,10 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icon.svg"],
+      // SPA fallback 別攔真實端點：/api、/media（PDF/圖）、匯出、帶副檔名的檔案——否則 iframe/直連拿到 index.html
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//, /^\/media\//, /\/export(\?|$)/, /\.[^/]+$/],
+      },
       manifest: {
         name: "KnowField — 反逢迎的知識副手",
         short_name: "KnowField",

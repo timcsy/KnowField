@@ -53,7 +53,10 @@ export default function RootsPage() {
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {src ? (
                     <>
-                      {/^https?:\/\//.test(src) && (
+                      {w.source_page > 0 ? (
+                        <Link to={`/source?u=${encodeURIComponent(src)}&page=${w.source_page}`}
+                              title="看原文 PDF（唯一真相）——翻到它來自的那頁" className="hover:text-foreground hover:underline">🌐 看原文（第 {w.source_page} 頁）</Link>
+                      ) : /^https?:\/\//.test(src) && (
                         <a href={withTextFragment(src, w.source_quote)} target="_blank" rel="noopener"
                            title="看原文（唯一真相）——跳到它來自的那段並高亮" className="hover:text-foreground hover:underline">🌐 看原文</a>
                       )}

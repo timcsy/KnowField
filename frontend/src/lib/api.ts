@@ -75,6 +75,7 @@ export type WhyNode = {
   src_from: number      // 出處對話則數範圍（階段29第2階段）
   src_to: number
   source_quote: string  // 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
+  source_page: number   // PDF 來源出處頁碼（0=非 PDF/未知）→由來翻到那頁
 }
 export type RootsData = {
   anointed: WhyNode[]
@@ -113,6 +114,7 @@ export const pages = {
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
   source: (u: string): Promise<{
     found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
+    original_url: string; pdf_path: string   // 原文=真相：原站連結／存下的 PDF（防失效＋頁級預覽）
   }> => fetch(`/api/source?u=${encodeURIComponent(u)}`).then(json),
   sourceMeta: (u: string, note: string, ingested_at: string) =>
     post("/api/source/meta", { u, note, ingested_at }),

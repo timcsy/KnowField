@@ -35,6 +35,20 @@ def _ext(url: str, ctype: str) -> str:
     return tail if tail in _EXT_OK else "img"
 
 
+def source_pdf_name(url: str) -> str:
+    """來源 PDF 的本地檔名（由 url 衍生、穩定）：存原始 PDF＝防原文失效＋頁級預覽。"""
+    return "pdf-" + hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:16] + ".pdf"
+
+
+def save_source_pdf(media_dir: str, url: str, data: bytes) -> str:
+    """把原始 PDF 存進 media_dir，回 `/media/<name>` 路徑（供來源頁預覽、由來 #page=N）。"""
+    d = Path(media_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    name = source_pdf_name(url)
+    (d / name).write_bytes(data)
+    return f"/media/{name}"
+
+
 def _decode_data_uri(uri: str) -> tuple[bytes, str, str]:
     """data:image/jpeg;base64,XXXX → (bytes, 副檔名, base64字串)。base64 當內容雜湊、同圖去重。"""
     header, _, b64 = uri.partition(",")

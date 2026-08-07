@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string }
+type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
+             original_url: string; pdf_path: string }
 const KINDS = ["已證實", "推論", "類比", "猜想"]
 
 export default function SourcePage() {
   const [sp] = useSearchParams()
   const u = sp.get("u") || ""
+  const page = Number(sp.get("page") || 0)    // 由來帶來的出處頁碼 → PDF 預覽 #page=N
   const [src, setSrc] = useState<Src | null>(null)
   const [note, setNote] = useState("")
   const [at, setAt] = useState("")
@@ -53,10 +55,19 @@ export default function SourcePage() {
       <div>
         <Link to="/sources" className="text-sm text-muted-foreground hover:underline">← 來源</Link>
         <h1 className="mt-1 text-2xl font-bold">{src.title}</h1>
-        {src.url.startsWith("http") && (
-          <a href={src.url} target="_blank" rel="noopener" className="break-all text-xs text-primary hover:underline">{src.url}</a>
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">收進的原文（供回顧）；聊天引用時會標「📎 你收藏的」。</p>
+        {/* 原文＝唯一真相：原站連結／存下的 PDF；下方的抽取只是萃取參考 */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {src.original_url && (
+            <a href={src.original_url} target="_blank" rel="noopener" className="text-primary hover:underline">🌐 看原文（原站）</a>
+          )}
+          {src.pdf_path && (
+            <a href={`${src.pdf_path}${page ? `#page=${page}` : ""}`} target="_blank" rel="noopener" className="text-primary hover:underline">
+              📄 原始 PDF{page ? `（第 ${page} 頁）` : ""}
+            </a>
+          )}
+          {src.url.startsWith("http") && <span className="break-all text-muted-foreground">{src.url}</span>}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">要看準確內容以上方原文／PDF 為準；下方是自動萃取的參考（給檢索、也能看）。</p>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
           <span>📌</span>
@@ -81,7 +92,20 @@ export default function SourcePage() {
         </section>
       )}
 
+      {/* 原文 PDF 預覽（唯一真相；由來帶頁碼→直接翻到那頁） */}
+      {src.pdf_path && (
+        <div className="rounded-xl border bg-card p-2 shadow-sm">
+          <div className="mb-1 px-1 text-xs font-medium text-muted-foreground">📄 原文 PDF{page ? `（翻到第 ${page} 頁）` : ""}</div>
+          <iframe src={`${src.pdf_path}${page ? `#page=${page}` : ""}`} title="原文 PDF"
+                  className="h-[78vh] w-full rounded-lg border" />
+        </div>
+      )}
+
+      {/* 萃取參考（給檢索、也能看，跟以前一樣漂亮）——誠實標：有損、準確看原文 */}
       <div className="rounded-xl bg-card p-4 shadow-sm">
+        <div className="mb-2 border-b pb-2 text-xs text-muted-foreground">
+          🔍 萃取參考（自動抽取，給檢索用；可能有小誤差{src.pdf_path || src.original_url ? "，準確請看上方原文" : ""}）
+        </div>
         <Markdown text={src.markdown} prefix="src" />
       </div>
     </div>

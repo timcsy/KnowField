@@ -40,6 +40,7 @@ class WhyNode:
     src_from: int = 0                                 # 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）
     src_to: int = 0
     source_quote: str = ""                            # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
+    source_page: int = 0                              # PDF 來源出處頁碼（1-indexed，0=未知）→由來 #page=N
 
 
 @dataclass

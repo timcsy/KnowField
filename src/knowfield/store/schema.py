@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     src_from INTEGER DEFAULT 0,        -- 階段29第2階段：出處對話則數範圍（1-indexed，0=未知）→由來精準定位
     src_to INTEGER DEFAULT 0,
     source_quote TEXT DEFAULT '',      -- 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
+    source_page INTEGER DEFAULT 0,     -- PDF 來源的出處頁碼（1-indexed，0=未知）→由來 #page=N
     status TEXT DEFAULT 'candidate',   -- 'candidate'（候選）| 'anointed'（人冊封的吸引子）
     source_entry_id INTEGER,           -- 來源種子 digest_entries.id
     created_at TEXT,                   -- 建立時間（呼叫端傳入）
@@ -162,9 +163,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if wn_cols and "src_from" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN src_from INTEGER DEFAULT 0")
         conn.execute("ALTER TABLE why_nodes ADD COLUMN src_to INTEGER DEFAULT 0")
-    # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
+    # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）＋ PDF 出處頁碼
     if wn_cols and "source_quote" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN source_quote TEXT DEFAULT ''")
+    if wn_cols and "source_page" not in wn_cols:
+        conn.execute("ALTER TABLE why_nodes ADD COLUMN source_page INTEGER DEFAULT 0")
     if wn_cols and "conversation_id" not in wn_cols:
         conn.execute("ALTER TABLE why_nodes ADD COLUMN conversation_id INTEGER")
         # 一次性回填：既有 conversations.why_node_id → why_nodes.conversation_id（既有「← 由來」不斷）

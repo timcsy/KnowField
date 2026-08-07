@@ -482,7 +482,8 @@ def create_app() -> FastAPI:
                     "ladder": w.ladder, "touchstones": w.touchstones, "fog_flag": w.fog_flag,
                     "kind": getattr(w, "kind", ""),
                     "src_from": getattr(w, "src_from", 0), "src_to": getattr(w, "src_to", 0),
-                    "source_quote": getattr(w, "source_quote", "")}
+                    "source_quote": getattr(w, "source_quote", ""),
+                    "source_page": getattr(w, "source_page", 0)}
         return _JSON({"anointed": [_wn(w) for w in anointed],
                       "candidates": [_wn(w) for w in candidates],
                       "provenance": {str(k): v for k, v in prov.items()},
@@ -519,7 +520,10 @@ def create_app() -> FastAPI:
 
     @app.get("/api/source")
     async def api_source(u: str = Query("")):
+        import re as _re
+
         from ..ingest.chunk import stitch_chunks
+        from ..ingest.media import source_pdf_name
         repo = app.state.repo_factory(app.state.config)
         chunks = repo.get_source_chunks(u)
         title = repo.source_title(u)
@@ -527,8 +531,11 @@ def create_app() -> FastAPI:
         repo.close()
         if not chunks:
             return _JSON({"found": False}, status_code=404)
-        return _JSON({"found": True, "url": u, "title": title,
-                      "markdown": stitch_chunks(chunks),
+        md = _re.sub(r"<!--kf-page:\d+-->", "", stitch_chunks(chunks))   # 去頁碼標記（顯示/複製乾淨）
+        mdir = Path(app.state.config.media_dir).resolve()               # 有存原始 PDF→回預覽路徑
+        pdf_path = f"/media/{source_pdf_name(u)}" if (mdir / source_pdf_name(u)).exists() else ""
+        return _JSON({"found": True, "url": u, "title": title, "markdown": md,
+                      "original_url": u if u.startswith("http") else "", "pdf_path": pdf_path,
                       "note": meta["note"], "ingested_at": meta["ingested_at"]})
 
     @app.post("/api/source/meta")

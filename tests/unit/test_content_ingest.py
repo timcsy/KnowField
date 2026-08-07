@@ -245,6 +245,22 @@ class TestIngestPdf(unittest.TestCase):
         self.assertIn("![img-0.jpeg](data:image/png;base64,AAA)", md)   # 佔位→data URI
         self.assertNotIn("](img-0.jpeg)", md)
 
+    def test_inline_page_images_emits_page_markers(self):
+        from knowfield.ingest.convert import _inline_page_images
+        md = _inline_page_images([{"markdown": "甲頁", "images": []},
+                                  {"markdown": "乙頁", "images": [], "index": 1}])
+        self.assertIn("<!--kf-page:1-->", md)                          # 頁碼標記（顯示隱形、供由來算頁）
+        self.assertIn("<!--kf-page:2-->", md)
+
+    def test_save_source_pdf(self):
+        import tempfile
+        from pathlib import Path
+        from knowfield.ingest.media import save_source_pdf, source_pdf_name
+        with tempfile.TemporaryDirectory() as d:
+            p = save_source_pdf(d, "https://x/paper.pdf", b"%PDF-1.4 fake")
+            self.assertTrue(p.startswith("/media/pdf-"))
+            self.assertTrue((Path(d) / source_pdf_name("https://x/paper.pdf")).exists())
+
     def test_pdf_ocr_image_localized_to_media(self):
         import base64
         import tempfile

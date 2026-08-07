@@ -62,6 +62,25 @@ class TestDistillSource(unittest.TestCase):
         self.assertIn("這是一段夠長的實質內容句子", repo.list_why_nodes("candidate")[0].source_quote)
         repo.close()
 
+    def test_quote_page_from_markers(self):
+        from knowfield.ingest.activate import _quote_page
+        raw = "<!--kf-page:1-->\n\n第一頁內容。\n\n<!--kf-page:3-->\n\n目標句在第三頁。"
+        self.assertEqual(_quote_page(raw, "目標句在第三頁。"), 3)
+        self.assertEqual(_quote_page(raw, "第一頁內容。"), 1)
+        self.assertEqual(_quote_page("無標記純文字", "文字"), 0)     # 非 PDF→0
+
+    def test_distill_records_pdf_source_page(self):
+        # 第二刀：PDF 來源（body 帶頁碼標記）→ 由來記出處頁碼、錨點不含標記
+        repo = Repository(temp_db())
+        body = ("<!--kf-page:1-->\n\n首頁短。\n\n"
+                "<!--kf-page:3-->\n\n這是一段夠長的實質內容句子在第三頁供由來定位測試用。")
+        url = _seed(repo, body=body)
+        distill_source(repo, StubExtractor(), url, now="2026-08-07")
+        w = repo.list_why_nodes("candidate")[0]
+        self.assertEqual(w.source_page, 3)                          # 錨點落在第 3 頁
+        self.assertNotIn("kf-page", w.source_quote)                 # 錨點去了標記
+        self.assertIn("這是一段夠長的實質內容句子", w.source_quote)
+
     def test_source_anchor_skips_markup(self):
         from knowfield.ingest.activate import _source_anchor
         body = "# 標題\n\n| a | b |\n\n這是一段夠長的實質內容句子應該被選為錨點來定位。\n\n下一段"

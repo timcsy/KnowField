@@ -24,16 +24,18 @@ _MAX_PAGES = 30            # Azure Mistral Document AI 單份頁數上限（實�
 
 def _inline_page_images(pages: list[dict]) -> str:
     """把 OCR 每頁的圖 base64 內嵌回 markdown 佔位（`![img-0.jpeg](img-0.jpeg)` → data URI），
-    交給下游 media.localize_images 存檔在地化。佔位在正文對的位置→圖位置精準。純函式、可測。"""
+    交給下游 media.localize_images 存檔在地化。佔位在正文對的位置→圖位置精準。
+    每頁前置 `<!--kf-page:N-->` 頁碼標記（HTML 註解＝顯示隱形；供由來算頁→PDF #page=N）。純函式、可測。"""
     out: list[str] = []
-    for p in pages:
+    for i, p in enumerate(pages):
         md = p.get("markdown", "") or ""
         for im in p.get("images", []) or []:
             iid, b64 = im.get("id"), im.get("image_base64")
             if iid and b64:                       # b64 已是完整 data URI（data:image/...;base64,..）
                 md = md.replace(f"]({iid})", f"]({b64})")
-        out.append(md)
-    return "\n\n---\n\n".join(out)
+        page = int(p.get("index", i)) + 1         # OCR index 0-based → 人類頁碼 1-based
+        out.append(f"<!--kf-page:{page}-->\n\n{md}")
+    return "\n\n".join(out)
 
 
 class DocConverter(Protocol):

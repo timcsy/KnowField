@@ -171,12 +171,23 @@ class ContentIngestService:
     def ingest_pdf(self, pdf_bytes: bytes | None = None, pdf_url: str = "",
                    title: str = "", note: str = "", ingested_at: str = "",
                    store_url: str = "") -> ContentIngestResult:
-        """store_url＝存進庫的網址（arxiv HTML 全敗退 PDF 時＝/abs，保由來穩定）；預設＝pdf_url。"""
+        """store_url＝存進庫的網址（arxiv HTML 全敗退 PDF 時＝/abs，保由來穩定）；預設＝pdf_url。
+        media_dir 有設→存原始 PDF（防原文失效＋來源頁預覽＋由來 #page=N）。"""
         if self.converter is None:
             raise SourceUnavailable("未設定 PDF 轉檔器")
+        if pdf_bytes is None and pdf_url and self.media_dir:   # 先抓 bytes（存檔＋餵轉檔，免雙抓）
+            import urllib.request
+            try:
+                with urllib.request.urlopen(pdf_url, timeout=120) as r:
+                    pdf_bytes = r.read()
+            except Exception:  # noqa: BLE001 - 抓不到→退回讓轉檔器自己用 url（best-effort）
+                pdf_bytes = None
         md = self.converter.to_markdown(pdf_bytes=pdf_bytes, pdf_url=pdf_url or None)
         if not (md or "").strip():
             return ContentIngestResult(status="empty")
         title = self._resolve_title(title, md, "")       # PDF 沒標題→AI 生（勝過用檔名/URL）
         url = store_url or pdf_url or f"pdf:{hashlib.sha1((title or 'pdf').encode('utf-8')).hexdigest()[:16]}"
+        if self.media_dir and pdf_bytes:                 # 存原始 PDF（防失效＋頁級預覽）
+            from .media import save_source_pdf
+            save_source_pdf(self.media_dir, url, pdf_bytes)
         return self._ingest_markdown(md, title, url, note=note, ingested_at=ingested_at)
