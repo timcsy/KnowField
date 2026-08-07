@@ -933,6 +933,25 @@ KnowField 是**「消化＋溯源」工具**：對材料做**完整消化**幫�
 - **Acceptance**：repository 全走 PG、既有 344 測在「核心 DB-less ＋ DB 層 PG」下全綠、**行為零回歸**；
   prod 能以 PG 起、mirrord read-only dev 打得到遠端。
 
+## 階段 32：單人 Google 登入門鎖——部署上「不被看光」（未建）
+
+> 設計源 `draft/2026-07-23-部署與介面路線`（「A 登入牆」＋2026-08-07 定案節②「單人門鎖」）。
+> promote 2026-08-07（使用者 commit，接 /knowie-next）。由來：階段 31 換好 PG 部署 substrate；本階段是讓
+> 「手機能開、公開網址不被路人看光」成真的那道門——部署這條線的目的地，也是階段 30 公開分享的前置。
+
+- [ ] **登入牆（單人 allowlist）**：Starlette `SessionMiddleware` ＋ Authlib Google OIDC ＋
+  **allowlist = 使用者自己的 Google 帳號** ＋ 登入/登出/回呼；未登入擋掉 app＋/api（登入頁/靜態例外）。
+- [ ] **結構保證，非假隱私**（原則 3）：真 session（httponly cookie）＋HTTPS（部署前擺 Caddy 自動 TLS）；
+  密鑰進 env、不進 git。allowlist 在**伺服器端**驗（非前端藏鈕）。
+- **In scope**：單人登入牆。**Out（防蔓延）**：多租戶 `user_id`（B，非本階段）、[[共享的膜與跨base聯邦]] 聯邦、
+  公開分享（下游、本階段解鎖它）、Helm/host 本身（ops 後續，非本 spec）、領域分類。
+- **相依/憲章**：加 Authlib＋SessionMiddleware，**在 plan 說明必要性**（同 PG，非修憲）。
+- **守衛/風險（experience）**：① **AI 不碰憑證**——Google Cloud OAuth client 建立＋同意授權＝**使用者自己做**，
+  spec 要標明哪些是手動步驟。② **假隱私風險**：預設全擋、白名單放行（別不小心放行整個 /api）。
+  ③ **鎖死自己**：allowlist 打錯 → dev 本機 bypass 開關＋清楚錯誤。
+- **Acceptance**：未登入訪 app/api→導 Google 登入；非 allowlist 帳號→拒；本人帳號→全站可用；
+  session httponly；密鑰不進 git；**含「未登入真被擋」負向測試**（experience「別信自報的綠」）；既有 344 測不回歸。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
