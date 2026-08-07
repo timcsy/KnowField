@@ -139,6 +139,9 @@
   不靠 UI**。知識庫管理的「每日流唯讀」由 repo 方法 `WHERE digest_id=種子容器` 結構保證
   （傳流的 id→不動作），而非「UI 不顯示刪除鈕」——後者一個手工 POST 就繞過。**保證做進
   最底層，別靠上層（模型／UI）自律。**
+- **再一面（2026-08-07，history/083）**：同一原則到了「知識的**輸出**」端——**生成文章的 References 由程式從
+  佐證 `evidence_urls` 結構化組**（`_references`），LLM 只寫正文、不碰引用清單。輸入端（RAG 溯源）與輸出端
+  （文章 references）是**同一保證的兩端**：可信度做進程式結構，不論資料流向哪邊都不靠模型自律。
 - **來源**：`history/021-RAG-MVP-實作完成.md`、`specs/005-rag-qa/research.md` R4、
   `concepts/有吸引子的場.md`（根因萃取紀律）；`history/030-知識庫管理完成.md`（唯讀邊界）
 
@@ -321,6 +324,19 @@
   AI「逐字」對數學是最弱保證、卻是最要命的地方。呼應反逢迎的膜（AI 不亂改冊封物）＋捕捉鐵律。AI 只在**真髒的貼上頁**選用清理（預設關）。
 - **來源**：`history/081`；commit `70a5d8d`；`draft/2026-08-04-進料轉檔選型.md`（貼上 clean 鐵律）。
 
+### CJK 輸入法組字中的 Enter 不該送出（isComposing）
+
+- **理論說**：Enter-送出的輸入框，`onKeyDown` 判 `e.key === "Enter"` 就送，直覺又乾淨。
+- **實際發生**：中文（日文/韓文同理）輸入法**組字中**按 Enter 是**確認選字**，卻被當成送出——使用者選字選到一半、
+  文章主題還沒打完就被送出去生成。這對非 CJK 開發直覺是隱形的坑（英文沒有組字階段）。
+- **解決方式**：`onKeyDown` 加 `!e.nativeEvent.isComposing`（＋`e.keyCode !== 229` 給舊瀏覽器 fallback）——
+  **組字中的 Enter 一律放行給輸入法、不 preventDefault、不觸發送出**；組字結束後的 Enter 才送。
+- **教訓**：**任何 Enter-送出的輸入框，CJK app 必須擋 `isComposing`**——這是會反覆重犯的坑（每新增一個輸入框
+  就可能漏，這次一次就漏了聊天送訊＋文章主題兩處）。keep 測試：AI 會不會默默重犯而沒人察覺？會 → 立規。
+  一般化：**針對母語使用者的輸入互動，別用英文鍵盤模型想當然**（同型：組字、全形標點、輸入法候選窗遮擋）。
+- **來源**：`history/083-知識的輸出-高證實文章生成第一刀.md`（順修）；commit `efe08f7`；
+  `frontend/src/ChatPage.tsx`、`frontend/src/pages/RootsPage.tsx`。
+
 <!--
   範例：
 
@@ -348,3 +364,5 @@
 | 觸發關鍵字 | MUST 讀 |
 |---|---|
 | 架構 / 相依 / 後端 / embedding / LLM / 測試策略 | `history/002-架構選型與務實偏離.md` |
+| 知識輸出 / 生成文章 / 高證實 / references / 長度難度 | `history/083-知識的輸出-高證實文章生成第一刀.md` |
+| 輸入法 / IME / isComposing / 前端輸入 / Enter 送出 / CJK | `history/083-知識的輸出-高證實文章生成第一刀.md` |
