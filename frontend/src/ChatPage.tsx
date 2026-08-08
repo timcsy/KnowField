@@ -7,7 +7,7 @@ import { KindBadge } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { Copy, GitBranch, Pencil } from "lucide-react"
+import { Copy, GitBranch, Pencil, RefreshCw } from "lucide-react"
 
 type Chapter = { title: string; start: number; end: number }
 
@@ -27,6 +27,7 @@ export default function ChatPage() {
   const [saveConvo, setSaveConvo] = useState(false)
   const [convTitle, setConvTitle] = useState("")   // 本對話落點標題（抬頭顯示）
   const tempId = useRef<number | null>(null)
+  const referrers = useRef<string[]>([])   // 以本對話為由來的核心理解主張（編輯/重生時擋，護溯源）
   const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
   const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
@@ -47,13 +48,14 @@ export default function ChatPage() {
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
     tempId.current = c.id   // 接回就綁定這筆（永久或暫存）：繼續聊就地更新同一筆，不另開暫存
+    referrers.current = c.referrers || []   // 這段是不是某核心理解的由來（編輯/重生要擋）
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
     pages.segment(id).then((r) =>
       setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
-    setMessages([]); tempId.current = null; setChapters(null); baseCount.current = 0; setFocusFrom(0)
+    setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
   }
@@ -91,15 +93,12 @@ export default function ChatPage() {
     if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }) }
   }
 
-  async function send() {
-    const msg = input.trim()
-    if (!msg || busy) return
+  // 串流一輪：hist＝這句 user 之前的歷史；msg＝這句 user。送出/編輯重問/重新生成共用。
+  async function runStream(hist: Message[], msg: string) {
     setBusy(true)
-    setInput("")
     setStage("思考中…")
     setStreaming("")
-    const hist = messages
-    setMessages([...hist, { role: "user", content: msg }])   // 樂觀顯示：送出當下就看到自己那句（不等回答完）
+    setMessages([...hist, { role: "user", content: msg }])   // 樂觀顯示：送出當下就看到自己那句
     let full = ""
     await streamChat(hist, msg, brainstorm, {
       onStage: (t) => setStage(t),
@@ -121,6 +120,34 @@ export default function ChatPage() {
       },
     })
     setBusy(false)
+  }
+  async function send() {
+    const msg = input.trim()
+    if (!msg || busy) return
+    setInput("")
+    await runStream(messages, msg)
+  }
+
+  // 編輯/重生的護欄：由來→擋（先處理核心理解，護溯源）；會丟後面訊息→確認可取消。
+  function guardMutate(discardCount: number): boolean {
+    if (referrers.current.length > 0) {
+      alert("這段對話是下列核心理解的『由來』，編輯/重新生成會改動它、斷開溯源。\n"
+        + "請先到「💡 核心理解」把它們退回/處理，再改這段：\n\n"
+        + referrers.current.map((s) => "• " + s).join("\n"))
+      return false
+    }
+    if (discardCount > 0 && !confirm(`重新生成會丟掉後面 ${discardCount} 則訊息，確定？`)) return false
+    return true
+  }
+
+  // 重新生成最後一則回覆（用最後一句 user 重跑）
+  async function regenerateLast() {
+    if (busy) return
+    let j = messages.length - 1
+    while (j >= 0 && messages[j].role !== "user") j--
+    if (j < 0) return
+    if (!guardMutate(messages.length - (j + 1))) return
+    await runStream(messages.slice(0, j), messages[j].content)
   }
 
   async function distill() {
@@ -165,8 +192,9 @@ export default function ChatPage() {
     catch { toast("這個瀏覽器不允許自動複製") }
   }
   function editMessage(i: number) {
+    if (!guardMutate(messages.length - (i + 1))) return   // 由來→擋；丟後面訊息→確認
     setInput(messages[i]?.content || "")
-    setMessages(messages.slice(0, i))   // 從這句重問（這串會改）
+    setMessages(messages.slice(0, i))   // 從這句重問（這串會改）；改好按送出即重生
   }
   // 從某章末開分支：載入前綴當新對話（原對話不動），接著聊會存成新暫存
   function branchFrom(upToMsg: number) {
@@ -215,6 +243,9 @@ export default function ChatPage() {
         {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、分支 */}
         <div className="mt-1 flex gap-3 pl-1 text-muted-foreground opacity-0 transition group-hover:opacity-100">
           <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
+          {i === messages.length - 1 && !busy && (
+            <button onClick={regenerateLast} title="重新生成這則回覆" className="hover:text-foreground"><RefreshCw className="size-3.5" /></button>
+          )}
           <button onClick={() => branchFrom(i + 1)} title="從這裡開分支（原對話不動、另開一串接著聊）" className="hover:text-primary"><GitBranch className="size-3.5" /></button>
         </div>
       </div>

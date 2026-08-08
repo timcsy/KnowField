@@ -144,7 +144,7 @@ export const pages = {
   conversations: (): Promise<{ permanent: ConvRow[]; temporary: ConvRow[] }> =>
     fetch("/api/conversations").then(json),
   conversation: (id: number, resume = false): Promise<{
-    found: boolean; id: number; title: string; messages: Message[]; temporary: boolean
+    found: boolean; id: number; title: string; messages: Message[]; temporary: boolean; referrers: string[]
   }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
   renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
   deleteConv: (id: number): Promise<{ deleted: boolean; blocked_by: string[] }> =>

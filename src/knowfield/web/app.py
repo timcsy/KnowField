@@ -739,11 +739,14 @@ def create_app() -> FastAPI:
         conv = repo.get_conversation(cid)
         if conv is not None and resume and conv.temporary:
             repo.touch_conversation(cid, _now_iso())
+        # referrers＝以此對話為由來的核心理解主張（給前端：編輯/重生時擋、護溯源）
+        refs = [r["claim"] for r in repo.conversation_referrers(cid)] if conv is not None else []
         repo.close()
         if conv is None:
             return _JSON({"found": False}, status_code=404)
         return _JSON({"found": True, "id": conv.id, "title": conv.title,
-                      "messages": conv.messages, "temporary": conv.temporary})
+                      "messages": conv.messages, "temporary": conv.temporary,
+                      "referrers": refs})
 
     @app.post("/api/conversations/{cid}/rename")
     async def api_conversation_rename(cid: int, request: Request):
