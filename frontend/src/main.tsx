@@ -4,14 +4,23 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { registerSW } from "virtual:pwa-register"
 import "./index.css"
 
-// PWA 自動更新：切回 App／每小時檢查新版，有就自動換掉（autoUpdate）——改版不用手動清快取。
+// PWA 自動更新：切回 App／定時檢查新版，新 SW 接管後**自動 reload**（否則手機會跑舊快取碼、看不到更新）。
+// 只在「已有舊 controller」時掛 reload（＝這是更新、非首次安裝），避免首安裝多一次 reload。
+if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+  let refreshing = false
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
+}
 registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, reg) {
     if (!reg) return
     const check = () => { if (document.visibilityState === "visible") reg.update() }
     document.addEventListener("visibilitychange", check)
-    setInterval(() => reg.update(), 60 * 60 * 1000)
+    setInterval(() => reg.update(), 5 * 60 * 1000)   // 每 5 分鐘查一次（原一小時太久）
   },
 })
 import Layout from "./Layout"
