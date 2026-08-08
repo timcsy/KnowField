@@ -300,7 +300,8 @@ export default function ChatPage() {
 
         {streaming !== null && (
           <div className="rounded-xl bg-card px-4 py-3 shadow-sm">
-            <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{streaming || "…"}</div>
+            {/* 串流中也走 Markdown → 數學/格式當下就渲染（MathJax typeset 有 debounce；未閉合的 $$ 會留 raw 到收尾） */}
+            {streaming ? <Markdown text={streaming} prefix="stream" /> : <div className="text-[15px]">…</div>}
           </div>
         )}
         {stage && <div className="animate-pulse text-sm text-muted-foreground">{stage}</div>}
