@@ -53,7 +53,8 @@ def make_chat_backend(config: Config):
     from ..chat.field_chat import StubChatBackend
     if config.backend == "openai" and config.api_key:
         from .openai_api import OpenAIChatBackend
-        return OpenAIChatBackend(config.api_base_url, config.api_key, config.chat_model)
+        return OpenAIChatBackend(config.api_base_url, config.api_key, config.chat_model,
+                                 max_tokens=config.chat_max_tokens)
     return StubChatBackend()
 
 

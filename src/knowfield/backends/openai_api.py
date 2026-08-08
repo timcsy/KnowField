@@ -250,15 +250,16 @@ class OpenAIChatBackend:
     """
 
     def __init__(self, base_url: str, api_key: str, model: str, poster=_post,
-                 streamer=_post_stream) -> None:
+                 streamer=_post_stream, max_tokens: int = 4096) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self._poster = poster
         self._streamer = streamer
+        self.max_tokens = max_tokens   # 太小→長回答被截斷「到一半斷掉」；可由 env 調
 
     def _payload(self, messages: list) -> dict:
-        return {"model": self.model, "max_tokens": 1200, "temperature": 0.4,
+        return {"model": self.model, "max_tokens": self.max_tokens, "temperature": 0.4,
                 "messages": messages}
 
     def reply(self, messages: list) -> str:

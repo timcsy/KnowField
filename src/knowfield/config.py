@@ -47,6 +47,7 @@ class Config:
     api_base_url: str = "https://api.openai.com/v1"
     api_key: str = ""
     chat_model: str = "gpt-4o-mini"
+    chat_max_tokens: int = 4096          # 對話回答上限；太小→長回答「到一半斷掉」（env KNOWFIELD_CHAT_MAX_TOKENS）
     embed_model: str = "text-embedding-3-small"
     ocr_model: str = "azure/mistral-document-ai-2512"   # PDF→markdown 文件轉檔（spec 030）
     article_lang: str = "繁體中文"      # 消化散文的輸出語言（預設繁中，可由 --lang 指定）
@@ -99,6 +100,7 @@ class Config:
             api_base_url=base.rstrip("/"),
             api_key=api_key,
             chat_model=os.environ.get("KNOWFIELD_CHAT_MODEL", "gpt-4o-mini"),
+            chat_max_tokens=int(os.environ.get("KNOWFIELD_CHAT_MAX_TOKENS", "4096")),
             embed_model=os.environ.get("KNOWFIELD_EMBED_MODEL", "text-embedding-3-small"),
             ocr_model=os.environ.get("KNOWFIELD_OCR_MODEL", "azure/mistral-document-ai-2512"),
             article_lang=os.environ.get("KNOWFIELD_LANG", "繁體中文"),
