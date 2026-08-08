@@ -46,7 +46,7 @@ export default function ChatPage() {
     setConvTitle(c.title || "")
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
-    tempId.current = c.temporary ? c.id : null
+    tempId.current = c.id   // 接回就綁定這筆（永久或暫存）：繼續聊就地更新同一筆，不另開暫存
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
     pages.segment(id).then((r) =>

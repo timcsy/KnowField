@@ -614,13 +614,13 @@ class Repository:
 
     # --- 暫時存檔＋TTL 衰減（spec 028）---
     def autosave_temporary(self, temp_id, messages: list, now: str):
-        """自動暫存（每輪 upsert 一筆）。空→None。temp_id 存在→更新同筆；否則新建暫存。回 id。"""
+        """自動存（每輪 upsert 一筆）。空→None。temp_id 存在→**就地更新同一筆**（永久維持永久、暫存維持暫存
+        ——接回已存檔對話繼續聊時不再另開暫存）；查無 id→新建暫存。回 id。"""
         if not messages:
             return None
         if temp_id:
             cur = self.conn.execute(
-                "UPDATE conversations SET messages=%s, last_activity_at=%s"
-                " WHERE id=%s AND temporary=1",
+                "UPDATE conversations SET messages=%s, last_activity_at=%s WHERE id=%s",
                 (json.dumps(messages, ensure_ascii=False), now, temp_id))
             if cur.rowcount > 0:
                 self.conn.commit()

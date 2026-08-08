@@ -42,6 +42,19 @@ class TestAutosave(unittest.TestCase):
         self.assertIsNone(r.json().get("temp_id"))
         self.assertEqual(len(Repository(db).list_conversations()), 0)
 
+    def test_autosave_updates_permanent_in_place(self):     # 接回已存檔對話繼續聊→就地更新、不另開暫存
+        repo = Repository(temp_db())
+        cid = repo.save_conversation("存檔的", [{"role": "user", "content": "一"}], None)  # 永久
+        ret = repo.autosave_temporary(
+            cid, [{"role": "user", "content": "一"}, {"role": "assistant", "content": "二"}],
+            "2026-08-08T00:00:00Z")
+        self.assertEqual(ret, cid)                          # 回同一筆、不新建
+        self.assertEqual(len(repo.list_conversations()), 1) # 沒另開暫存
+        c = repo.get_conversation(cid)
+        self.assertFalse(c.temporary)                       # 仍永久
+        self.assertEqual(len(c.messages), 2)                # 訊息就地更新
+        repo.close()
+
 
 class TestLazyPurge(unittest.TestCase):
     def test_purge_expired_only(self):                      # T008 懶清只刪過期暫存
