@@ -99,6 +99,7 @@ export default function ChatPage() {
     setStage("思考中…")
     setStreaming("")
     const hist = messages
+    setMessages([...hist, { role: "user", content: msg }])   // 樂觀顯示：送出當下就看到自己那句（不等回答完）
     let full = ""
     await streamChat(hist, msg, brainstorm, {
       onStage: (t) => setStage(t),
