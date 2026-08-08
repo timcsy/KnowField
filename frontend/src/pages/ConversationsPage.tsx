@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { pages, type ConvRow } from "@/lib/api"
+import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 
 // 對話列表頁（導覽「💬 對話」的落點）：列出所有對話，點一則接著聊、或檢視。
@@ -37,12 +38,12 @@ export default function ConversationsPage() {
 
       {perm.length > 0 && (
         <Section title="對話">
-          {perm.map((c) => <Card key={c.id} c={c} onResume={() => nav(`/?resume=${c.id}`)} />)}
+          {perm.map((c) => <Card key={c.id} c={c} onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
         </Section>
       )}
       {temp.length > 0 && (
-        <Section title="暫存" hint="自動存、7 天沒碰會清；想留就到側欄 📌 轉永久">
-          {temp.map((c) => <Card key={c.id} c={c} temp onResume={() => nav(`/?resume=${c.id}`)} />)}
+        <Section title="暫存" hint="自動存、7 天沒碰會清；想留就 📌 轉永久">
+          {temp.map((c) => <Card key={c.id} c={c} temp onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
         </Section>
       )}
     </div>
@@ -58,9 +59,17 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   )
 }
 
-function Card({ c, temp, onResume }: { c: ConvRow; temp?: boolean; onResume: () => void }) {
+function Card({ c, temp, onResume, onChange }: {
+  c: ConvRow; temp?: boolean; onResume: () => void; onChange: () => void
+}) {
+  const [menu, setMenu] = useState(false)
+  const kebabRef = useRef<HTMLButtonElement>(null)
+  async function rename() {
+    const t = prompt("改名：", c.title || "")
+    if (t && t.trim()) { await pages.renameConv(c.id, t.trim()); onChange() }
+  }
   return (
-    <div className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition hover:border-primary/40 hover:bg-muted/40">
+    <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition hover:border-primary/40 hover:bg-muted/40">
       <button onClick={onResume} className="min-w-0 flex-1 text-left" title="接著聊">
         <div className="truncate font-medium">{c.title || "（未命名對話）"}</div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
@@ -70,10 +79,11 @@ function Card({ c, temp, onResume }: { c: ConvRow; temp?: boolean; onResume: () 
           {c.why_node_id && <span>某條核心理解的由來</span>}
         </div>
       </button>
-      <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-        <button onClick={onResume} className="hover:text-foreground">接著聊 →</button>
-        <Link to={`/conversations/${c.id}`} className="hover:text-foreground">檢視</Link>
-      </div>
+      <button onClick={onResume} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">接著聊 →</button>
+      <button ref={kebabRef} onClick={() => setMenu((v) => !v)} aria-label="更多" title="更多"
+              className="shrink-0 rounded px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">⋮</button>
+      <ConvMenu c={c} temp={temp} open={menu} setOpen={setMenu} anchorRef={kebabRef}
+                onResume={onResume} onRename={rename} onChange={onChange} />
     </div>
   )
 }
