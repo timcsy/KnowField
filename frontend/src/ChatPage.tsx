@@ -229,7 +229,7 @@ export default function ChatPage() {
       <div key={i} className="group flex flex-col items-end gap-0.5">
         <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">{m.content}</div>
         <button onClick={() => editMessage(i)} title="編輯這句重問（改這串）"
-                className="pr-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100">
+                className="pr-1 text-muted-foreground opacity-100 hover:text-foreground md:opacity-0 md:transition md:group-hover:opacity-100">
           <Pencil className="size-3.5" />
         </button>
       </div>
@@ -241,7 +241,7 @@ export default function ChatPage() {
           <FoundExtra extra={m.found_extra || []} />
         </div>
         {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、分支 */}
-        <div className="mt-1 flex gap-3 pl-1 text-muted-foreground opacity-0 transition group-hover:opacity-100">
+        <div className="mt-1 flex gap-3 pl-1 text-muted-foreground opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
           <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
           {i === messages.length - 1 && !busy && (
             <button onClick={regenerateLast} title="重新生成這則回覆" className="hover:text-foreground"><RefreshCw className="size-3.5" /></button>
