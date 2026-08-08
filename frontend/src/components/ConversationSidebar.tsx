@@ -115,14 +115,28 @@ function Row({ c, active, onPick, onChange, onNav, temp }: {
   const [title, setTitle] = useState(c.title)
   const [menu, setMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const pressTimer = useRef<number | null>(null)
+  const longPressed = useRef(false)
 
   // 點選單外→關（SOTA ⋮ 選單慣例）
   useEffect(() => {
     if (!menu) return
-    const h = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false) }
+    const h = (e: Event) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false) }
     document.addEventListener("mousedown", h)
-    return () => document.removeEventListener("mousedown", h)
+    document.addEventListener("touchstart", h)
+    return () => { document.removeEventListener("mousedown", h); document.removeEventListener("touchstart", h) }
   }, [menu])
+
+  // 手機：長按對話也開選單（沒有 hover，⋮ 又小難按）
+  function pressStart() {
+    longPressed.current = false
+    pressTimer.current = window.setTimeout(() => { longPressed.current = true; setMenu(true) }, 450)
+  }
+  function pressCancel() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null } }
+  function handlePick() {
+    if (longPressed.current) { longPressed.current = false; return }  // 剛長按開了選單→這次不接著聊
+    onPick(c.id)
+  }
 
   async function rename() { await pages.renameConv(c.id, title); setRenaming(false); onChange() }
   async function promote() { setMenu(false); await pages.promoteConv(c.id); onChange() }
@@ -147,16 +161,19 @@ function Row({ c, active, onPick, onChange, onNav, temp }: {
   )
   return (
     <div className={cn("group flex items-center gap-0.5 rounded-lg px-2 py-1 hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
-      <button onClick={() => onPick(c.id)}
-              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.why_node_id ? "·某條核心理解的由來" : ""}（點＝接著聊）`}
+      <button onClick={handlePick}
+              onTouchStart={pressStart} onTouchEnd={pressCancel} onTouchMove={pressCancel}
+              onContextMenu={(e) => { e.preventDefault(); setMenu(true) }}
+              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.why_node_id ? "·某條核心理解的由來" : ""}（點＝接著聊、長按＝選單）`}
               className="min-w-0 flex-1 truncate text-left text-sm">
         {c.title || "（未命名對話）"}
       </button>
       <div ref={menuRef} className="relative shrink-0">
         <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v) }}
                 aria-label="更多" title="更多"
-                className={cn("rounded px-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
-                  menu ? "opacity-100" : "opacity-0 transition group-hover:opacity-100")}>⋮</button>
+                className={cn("rounded px-2 py-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+                  // 手機無 hover→常駐可見；桌面維持 hover 才顯示
+                  menu ? "opacity-100" : "opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100")}>⋮</button>
         {menu && (
           <div className="absolute right-0 z-30 mt-1 w-32 overflow-hidden rounded-md border bg-popover py-1 text-sm shadow-md">
             <Link to={`/conversations/${c.id}`} onClick={() => { setMenu(false); onNav?.() }}
