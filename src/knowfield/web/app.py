@@ -753,6 +753,19 @@ def create_app() -> FastAPI:
         repo.close()
         return _JSON({"ok": True})
 
+    @app.post("/api/conversations/{cid}/delete")
+    async def api_conversation_delete(cid: int):
+        """刪對話——但**被核心理解引用（由來）的刪不掉**（護溯源，原則 3）：回 blocked_by＝那些核心理解主張，
+        使用者要先刪掉它們才能刪這段對話。"""
+        repo = app.state.repo_factory(app.state.config)
+        refs = repo.conversation_referrers(cid)
+        if refs:
+            repo.close()
+            return _JSON({"deleted": False, "blocked_by": [r["claim"] for r in refs]})
+        ok = repo.delete_conversation(cid)
+        repo.close()
+        return _JSON({"deleted": ok, "blocked_by": []})
+
     @app.post("/api/conversations/{cid}/promote")
     async def api_conversation_promote_json(cid: int):
         repo = app.state.repo_factory(app.state.config)

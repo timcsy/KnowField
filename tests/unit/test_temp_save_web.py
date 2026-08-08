@@ -56,6 +56,29 @@ class TestAutosave(unittest.TestCase):
         repo.close()
 
 
+class TestDeleteConversation(unittest.TestCase):
+    def test_delete_unreferenced(self):                     # 無核心理解引用→可刪
+        repo = Repository(temp_db())
+        cid = repo.save_conversation("刪我", [{"role": "user", "content": "hi"}], None)
+        self.assertEqual(repo.conversation_referrers(cid), [])
+        self.assertTrue(repo.delete_conversation(cid))
+        self.assertIsNone(repo.get_conversation(cid))
+        repo.close()
+
+    def test_referenced_blocks_delete(self):                # 被核心理解引用（由來）→擋刪，回 blocked_by（護溯源）
+        db = temp_db()
+        repo = Repository(db)
+        wid = repo.add_why_node("根因甲", [], [], False, 0, "2026")
+        cid = repo.save_conversation("由來", [{"role": "user", "content": "x"}], wid)  # 連到 why_node
+        refs = repo.conversation_referrers(cid)
+        self.assertEqual([r["claim"] for r in refs], ["根因甲"])
+        repo.close()
+        r = TestClient(build_app(db)).post(f"/api/conversations/{cid}/delete").json()
+        self.assertFalse(r["deleted"])
+        self.assertIn("根因甲", r["blocked_by"])
+        self.assertIsNotNone(Repository(db).get_conversation(cid))   # 沒被刪
+
+
 class TestLazyPurge(unittest.TestCase):
     def test_purge_expired_only(self):                      # T008 懶清只刪過期暫存
         db = temp_db()

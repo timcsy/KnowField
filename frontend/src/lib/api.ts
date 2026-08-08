@@ -147,6 +147,8 @@ export const pages = {
     found: boolean; id: number; title: string; messages: Message[]; temporary: boolean
   }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
   renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
+  deleteConv: (id: number): Promise<{ deleted: boolean; blocked_by: string[] }> =>
+    post(`/api/conversations/${id}/delete`, {}),
   retitleConv: (id: number): Promise<{ ok: boolean; title: string }> =>
     post(`/api/conversations/${id}/retitle`, {}),
   segment: (id: number, refresh = false): Promise<{ found: boolean; chapters: { title: string; start: number; end: number }[] }> =>

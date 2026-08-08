@@ -677,6 +677,18 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    def conversation_referrers(self, cid: int) -> list[dict]:
+        """哪些核心理解以這段對話為由來（why_node.conversation_id=cid）。回 [{id, claim}]。
+        用於刪除保護：有引用者不可刪（否則核心理解的溯源斷掉，原則 3）。"""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, claim FROM why_nodes WHERE conversation_id=%s ORDER BY id", (cid,))]
+
+    def delete_conversation(self, cid: int) -> bool:
+        """刪一段對話（呼叫端須先以 conversation_referrers 確認無核心理解引用）。回是否刪到。"""
+        cur = self.conn.execute("DELETE FROM conversations WHERE id=%s", (cid,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def dedupe_plan(self):
         """算既有重複對話清理計畫（spec 026）。唯讀、不寫庫。"""
         from ..chat.capture import plan_dedupe

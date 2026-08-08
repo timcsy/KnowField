@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { pages, type ConvRow } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -113,8 +113,31 @@ function Row({ c, active, onPick, onChange, onNav, temp }: {
 }) {
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(c.title)
+  const [menu, setMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // 點選單外→關（SOTA ⋮ 選單慣例）
+  useEffect(() => {
+    if (!menu) return
+    const h = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false) }
+    document.addEventListener("mousedown", h)
+    return () => document.removeEventListener("mousedown", h)
+  }, [menu])
+
   async function rename() { await pages.renameConv(c.id, title); setRenaming(false); onChange() }
-  async function promote() { await pages.promoteConv(c.id); onChange() }
+  async function promote() { setMenu(false); await pages.promoteConv(c.id); onChange() }
+  async function del() {
+    setMenu(false)
+    if (!confirm(`刪除對話「${c.title || "未命名"}」？`)) return
+    const r = await pages.deleteConv(c.id)
+    if (!r.deleted && r.blocked_by?.length) {
+      // 被核心理解引用（由來）→ 刪不掉，先刪那些核心理解（護溯源）
+      alert("這段對話是下列核心理解的『由來』，刪不掉。\n請先到「💡 核心理解」把它們退回/刪掉，再刪這段對話：\n\n"
+        + r.blocked_by.map((s) => "• " + s).join("\n"))
+      return
+    }
+    onChange()
+  }
 
   if (renaming) return (
     <div className="flex items-center gap-1 px-1 py-0.5">
@@ -129,10 +152,23 @@ function Row({ c, active, onPick, onChange, onNav, temp }: {
               className="min-w-0 flex-1 truncate text-left text-sm">
         {c.title || "（未命名對話）"}
       </button>
-      <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
-        <Link to={`/conversations/${c.id}`} onClick={onNav} className="hover:text-foreground" title="唯讀檢視">檢視</Link>
-        {temp && <button onClick={promote} className="hover:text-foreground" title="轉為永久保存">📌</button>}
-        <button onClick={() => setRenaming(true)} className="hover:text-foreground" title="改名">✎</button>
+      <div ref={menuRef} className="relative shrink-0">
+        <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v) }}
+                aria-label="更多" title="更多"
+                className={cn("rounded px-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+                  menu ? "opacity-100" : "opacity-0 transition group-hover:opacity-100")}>⋮</button>
+        {menu && (
+          <div className="absolute right-0 z-30 mt-1 w-32 overflow-hidden rounded-md border bg-popover py-1 text-sm shadow-md">
+            <Link to={`/conversations/${c.id}`} onClick={() => { setMenu(false); onNav?.() }}
+                  className="block px-3 py-1.5 hover:bg-accent">檢視</Link>
+            <button onClick={() => { setMenu(false); setRenaming(true) }}
+                    className="block w-full px-3 py-1.5 text-left hover:bg-accent">改名</button>
+            {temp && <button onClick={promote} className="block w-full px-3 py-1.5 text-left hover:bg-accent">📌 轉永久</button>}
+            <button onClick={() => { setMenu(false); onPick(c.id) }}
+                    className="block w-full px-3 py-1.5 text-left hover:bg-accent">接著聊</button>
+            <button onClick={del} className="block w-full px-3 py-1.5 text-left text-destructive hover:bg-accent">刪除</button>
+          </div>
+        )}
       </div>
     </div>
   )
