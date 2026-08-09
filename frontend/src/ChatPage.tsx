@@ -281,13 +281,16 @@ export default function ChatPage() {
       )}
 
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
-      <div className="shrink-0 pb-2">
-        <h1 className="truncate text-lg font-bold" title={convTitle || undefined}>
+      <div className="shrink-0 pb-1">
+        <h1 className="truncate text-base font-bold md:text-lg" title={convTitle || undefined}>
           {convTitle ? `💬 ${convTitle}` : "🧠 跟你的知識庫聊"}
         </h1>
-        <p className="text-xs text-muted-foreground">
-          從你存下的 {rootCount} 條核心理解出發，有話直說、不順著你講好聽話。
-        </p>
+        {/* 副標只在還沒開始聊時顯示（聊起來就收，省上邊空間） */}
+        {messages.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            從你存下的 {rootCount} 條核心理解出發，有話直說、不順著你講好聽話。
+          </p>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-2">
@@ -397,23 +400,23 @@ export default function ChatPage() {
           <Button size="icon" className="shrink-0 rounded-full" disabled={busy} onClick={send}
                   aria-label="送出">↑</Button>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+        <div className="flex items-center gap-x-4 pt-1">
           <label className="flex items-center gap-1 text-xs text-muted-foreground">
             <input type="checkbox" checked={brainstorm}
                    onChange={(e) => setBrainstorm(e.target.checked)} />
-            🧠 腦力激盪（這輪純聊、不找資料）
+            🧠 腦力激盪
           </label>
+          {/* 其餘動作收進「⋯ 更多」，預設收起（省底部空間，尤其手機） */}
           {messages.length > 0 && (
-            <>
-              <button onClick={distill} disabled={busy}
-                      className="text-xs text-muted-foreground hover:underline">🧵 整理成重點</button>
-              <button onClick={saveConversation} disabled={busy}
-                      className="text-xs text-muted-foreground hover:underline">💾 存下這段</button>
-              <button onClick={() => copyChat("md")}
-                      className="text-xs text-muted-foreground hover:underline">📋 複製 Markdown</button>
-              <button onClick={() => copyChat("urls")}
-                      className="text-xs text-muted-foreground hover:underline">🔗 複製來源</button>
-            </>
+            <details className="relative">
+              <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground">⋯ 更多</summary>
+              <div className="absolute bottom-full left-0 z-30 mb-1 w-40 overflow-hidden rounded-md border bg-popover py-1 shadow-md">
+                <button onClick={distill} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🧵 整理成重點</button>
+                <button onClick={saveConversation} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">💾 存下這段</button>
+                <button onClick={() => copyChat("md")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📋 複製 Markdown</button>
+                <button onClick={() => copyChat("urls")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔗 複製來源</button>
+              </div>
+            </details>
           )}
         </div>
       </div>
