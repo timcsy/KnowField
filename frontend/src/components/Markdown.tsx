@@ -22,7 +22,16 @@ function scheduleTypeset() {
   if (_typesetTimer) clearTimeout(_typesetTimer)
   _typesetTimer = setTimeout(() => {
     _typesetTimer = null
-    const run = () => w.MathJax?.typesetPromise?.().catch(() => {})
+    // 兜底：typeset 後若 DOM 還有沒被 MathJax 包住的 .mathcopy（第一次跑時它還沒進 DOM／MathJax 還在載／
+    // 圖片 reflow／串流剛換節點），400ms 後再跑一次抓漏網（typesetPromise 對已渲染是 no-op，重跑無害）。
+    const stillRaw = () =>
+      !!document.querySelector(".mathcopy:not([data-typeset])")
+    const mark = () => document.querySelectorAll(".mathcopy").forEach((el) => el.setAttribute("data-typeset", "1"))
+    const run = () =>
+      w.MathJax?.typesetPromise?.().then(() => {
+        mark()
+        if (stillRaw()) setTimeout(() => w.MathJax?.typesetPromise?.().then(mark).catch(() => {}), 400)
+      }).catch(() => {})
     if (w.MathJax?.typesetPromise) run()                              // 已 ready
     else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(run)  // 載入中
     else {                                                           // script 還沒執行→輪詢等（10s）
