@@ -49,11 +49,16 @@ export function renderHtml(text: string, prefix = "src"): string {
   const marked = (window as unknown as { marked?: { parse(s: string): string } }).marked
   const math: string[] = []
   // 行內 $..$ 容許單一換行（但不跨空行/段落）——否則含換行的行內數學漏抓、留下落單 $ 造成後續配對連鎖崩壞
-  const t = text.replace(
+  let t = text.replace(
     /\$\$[\s\S]+?\$\$|\$(?:[^\n$]|\n(?!\n))+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/g,
     (m) => { math.push(m); return `@@M${math.length - 1}@@` },
   )
+  // CJK 粗體：marked 的 CommonMark flanking 規則對全形標點失效（如「完整。**真正」的 ** 無法閉合、露出星號）
+  // → 先手動抽 **…** 成佔位、繞過 marked，最後還原成 <strong>（inner 可能含 @@M，於數學步統一還原）。
+  const bold: string[] = []
+  t = t.replace(/\*\*(?!\s)([^\n]+?)\*\*/g, (_m, inner) => { bold.push(inner); return `@@B${bold.length - 1}@@` })
   let html = marked ? marked.parse(t) : t.replace(/\n/g, "<br>")
+  html = html.replace(/@@B(\d+)@@/g, (_m, i) => `<strong>${escHtml(bold[+i])}</strong>`)
   html = html.replace(/@@M(\d+)@@/g, (_m, i) => {
     const tex = math[+i]
     const isBlock = /^\$\$|^\\\[/.test(tex)
