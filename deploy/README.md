@@ -6,7 +6,14 @@
 push 到 `main`（或打 `v*` tag）→ GitHub Actions（`.github/workflows/docker-publish.yml`）自動 build 並推到
 `ghcr.io/timcsy/knowfield:latest`（＋ `sha-xxxx`、tag 版本）。
 - 首次推完，到 GitHub → Packages → 該 package → 設 **Public**，或給叢集一個 `imagePullSecret`（私有時）。
-- 本機手動也行：`docker build -t ghcr.io/timcsy/knowfield:latest . && docker push ...`（先 `docker login ghcr.io`）。
+- 本機手動（Mac→amd64 節點）：
+  ```bash
+  gh auth token | docker login ghcr.io -u <你> --password-stdin   # ⚠ token 會過期，push 前先重登
+  SHA=$(git rev-parse --short HEAD)
+  docker buildx build --platform linux/amd64 -t ghcr.io/timcsy/knowfield:$SHA -t ghcr.io/timcsy/knowfield:latest --push .
+  ```
+  > **⚠ 血淚教訓（history/089）**：token 過期時 `buildx --push` 會 **build 成功、push 靜默失敗**，rollout 照樣「成功」但拉到舊映像。
+  > 用 **git sha 當 tag**（別只靠 latest），部署後**一定核對 digest**（見第 4 步末）。
 
 ## 2. 準備 secrets（別提交真值）
 複製一份覆蓋檔，只放密鑰：
@@ -41,6 +48,16 @@ helm upgrade --install knowfield deploy/helm/knowfield \
 - `StatefulSet` Postgres ＋ headless Service ＋ PVC（5Gi）
 - app media 的 PVC（2Gi）
 - 一個 `Secret`（DB DSN＋auth＋gateway）
+
+> **⚠ PG 密碼固定在 PVC**：`postgres.password` 建庫時寫死進 PVC，之後 `helm upgrade` **必須帶同一個值**，
+> 否則 app 連不上（history/089 曾因密碼放 /tmp 被清、upgrade 用了預設值把站弄掛）。**寫進你的 `my-values.yaml`，別放 /tmp。**
+> 忘了可從舊 ReplicaSet 撈：`kubectl -n knowfield get rs -o jsonpath` 看 `KNOWFIELD_DATABASE_URL`。
+
+**部署後核對真的上新版（別信「rollout 成功」，history/089）**：
+```bash
+kubectl -n knowfield get pod -l app.kubernetes.io/component=app \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'   # digest 要 ＝ 這次 build 的
+```
 
 ## 5. 網域/TLS（你自己接）
 Service 名稱＝`knowfield-knowfield`（release 名 + chart 名），port 80。把你的 Caddy/ingress 指向它即可。

@@ -443,6 +443,30 @@
   尤其單人即時使用的服務，別在他用到一半時重啟。
 - **來源**：`history/087`（遷移）、`history/088`（media 補搬、live rollout）；`deploy/README`。
 
+### 部署要核對「pod 實際 digest」——別信「rollout 成功」（push 會靜默失敗）
+
+- **理論說**：改碼→`buildx --push`→`rollout restart`→`healthz 200`，每步成功就是上線了。
+- **實際發生（燒掉一小時，`history/089`）**：連續數次全綠，但線上**完全沒更新**——`docker login ghcr.io` 的 **token 過期**，
+  `buildx --push` 於是 **build 成功、push 靜默失敗**（結尾無 `pushing manifest done`，但整體 exit 0 不明顯），
+  rollout 每次拉到**同一個舊 digest**、還回報「successfully rolled out」。一路被騙，以為是各種功能 bug。
+- **解決方式**：① 部署後**核對 `kubectl get pod -o jsonpath=…imageID` 的 digest ＝ 這次 build 的 digest**（或在 pod 內
+  驗一個新碼才有的符號）；② 用 **git sha 當唯一不可變 tag**（`:latest` 被覆蓋看不出新舊、還可能拉到 stale）；
+  ③ token 會過期 → 部署前重登 registry。
+- **教訓**：**CD 每一步的「成功」都可能是假的——要驗『線上實際跑的版本』這個 ground truth，不是驗『我以為推了』**。
+  尤其 `latest` tag＋mutable registry＋快取，三重不透明。呼應「別信自報的綠」的部署版：**驗 digest，不驗 log**。
+- **來源**：`history/089`；`deploy/README`；症狀＝pod imageID 一小時不變、`Config.from_env().chat_max_tokens` AttributeError。
+
+### 手機/SOTA 排版：閱讀內容全寬無框，可點項才用卡片
+
+- **理論說**：每塊內容都裝進卡片（框＋shadow＋padding）看起來整齊。
+- **實際發生**：手機上 AI 回覆/文章正文裝卡片 → **雙重內縮**（外層 padding＋卡片 padding）、文字區窄、上下擠。
+  SOTA（ChatGPT/Claude）的 AI 回答**不裝任何容器**，全寬文字流。
+- **解決方式**：**閱讀性內容（AI 回覆、文章正文、來源萃取）→ 全寬無框、用留白＋對齊區分**；
+  **可點的列表項（來源/文章/對話列）→ 才用卡片**（卡片＝「可點單位」訊號）。手機水平 padding 單層且小。
+- **教訓**：**卡片是「可互動單位」的語意，不是「內容分隔」的裝飾**。要讀的東西給它寬度和留白；要點的東西才框起來。
+  分隔用空白，不用線/框。
+- **來源**：`history/089`；`ChatPage.tsx`、`ArticleViewPage.tsx`、`SourcePage.tsx`。
+
 <!--
   範例：
 
