@@ -46,7 +46,7 @@ class TestChatCitesCorpus(unittest.TestCase):
         self.assertEqual(numbered[0]["kind"], "corpus")     # 標「你收藏的」
         self.assertEqual(numbered[0]["url"], "https://a/1")
 
-    def test_brainstorm_skips_corpus(self):                 # 腦力激盪不檢索收進
+    def test_bare_skips_corpus(self):                      # 屏蔽知識庫→不檢索收進
         app = build_app(temp_db())
         called = {"n": 0}
 
@@ -55,7 +55,7 @@ class TestChatCitesCorpus(unittest.TestCase):
             return []
         app.state.chat_backend_for_test = StubChat("純發想。")
         app.state.corpus_search_for_test = _spy
-        app.state.chat_factory([], "隨便聊", True)          # brainstorm=True
+        app.state.chat_factory([], "隨便聊", True)          # bare=True
         self.assertEqual(called["n"], 0)
 
 
@@ -81,7 +81,7 @@ class TestPurityGuard(unittest.TestCase):
         secret = "SECRET_證言層"
         fc = FieldChat(StubChat())
         src = [SimpleNamespace(title="t", snippet=secret, url="https://a/1", kind="corpus")]
-        msgs = fc._messages([], "問", roots=[], sources=src, brainstorm=False, max_history=0)
+        msgs = fc._messages([], "問", roots=[], sources=src, bare=False, max_history=0)
         joined = "\n".join(m["content"] for m in msgs)
         self.assertIn(secret, joined)                       # 有出現（在證言塊）
         self.assertNotIn(secret, msgs[0]["content"])        # 但地基（system[0]）不含它

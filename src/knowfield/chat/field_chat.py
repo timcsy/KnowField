@@ -85,6 +85,12 @@ class CandidateDraft:
     src_to: int = 0
 
 
+# bare 模式（暫時屏蔽知識庫）的場脈絡：明說這輪不接他的知識庫，人格照舊。
+_BARE_NOTE = (
+    "（這輪使用者暫時屏蔽了知識庫：**不參考他存的核心理解、不撒網、不查他收進的資料**，"
+    "就當一般 AI 對話。但人格不變：不說好聽話、不把猜測講成事實、不確定就說不確定。這輪不附佐證 [n]。）")
+
+
 def build_field_system_prompt(roots) -> str:
     """膜指令 ＋ 場脈絡注入（每條已冊封根因的 claim＋ladder）。roots 空 → 註明未接場。"""
     if not roots:
@@ -182,12 +188,14 @@ class FieldChat:
     def __init__(self, chat_backend: ChatBackend) -> None:
         self.backend = chat_backend
 
-    def _messages(self, history, user_msg, roots, sources, brainstorm, max_history,
+    def _messages(self, history, user_msg, roots, sources, bare, max_history,
                   url_contents=None):
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
-        messages = [{"role": "system", "content": build_field_system_prompt(roots)}]
+        # bare＝這輪暫時屏蔽知識庫：不注入核心理解、也不會有 sources；但保留反逢迎人格（膜）。
+        sys_prompt = f"{_MEMBRANE}\n\n{_BARE_NOTE}" if bare else build_field_system_prompt(roots)
+        messages = [{"role": "system", "content": sys_prompt}]
         messages += hist
         if url_contents:   # 使用者貼的網址，已抓到的內容（教訓 3：抓不到就給 note，不假裝讀過）
             blocks = []
@@ -201,10 +209,6 @@ class FieldChat:
             messages.append({"role": "system", "content": (
                 "使用者在訊息裡貼了網址。以下是伺服器端抓到的內容（只依這些，不要杜撰網頁沒有的細節）：\n"
                 + "\n\n".join(blocks))})
-        if brainstorm:
-            messages.append({"role": "system", "content": (
-                "（這輪使用者想純腦力激盪：可以更放得開、多給可能性與大膽的連結；但一樣**不要說好聽話**、"
-                "**不要把猜測講成事實**，該說「這只是發想」就說。這輪不附佐證。）")})
         if sources:
             lines = []
             for i, s in enumerate(sources, 1):
@@ -226,16 +230,17 @@ class FieldChat:
         return messages
 
     def reply(self, history: list[dict], user_msg: str, roots, sources=None,
-              brainstorm: bool = False, max_history: int = 0, url_contents=None) -> str:
-        """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。"""
+              bare: bool = False, max_history: int = 0, url_contents=None) -> str:
+        """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。
+        bare=True＝這輪暫時屏蔽知識庫（不注入核心理解、不撒網）。"""
         return self.backend.reply(
-            self._messages(history, user_msg, roots, sources, brainstorm, max_history, url_contents))
+            self._messages(history, user_msg, roots, sources, bare, max_history, url_contents))
 
     def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
-                     brainstorm: bool = False, max_history: int = 0, url_contents=None):
-        """串流版 reply：yield 逐段 token。"""
+                     bare: bool = False, max_history: int = 0, url_contents=None):
+        """串流版 reply：yield 逐段 token。bare=True＝這輪暫時屏蔽知識庫。"""
         yield from self.backend.stream(
-            self._messages(history, user_msg, roots, sources, brainstorm, max_history, url_contents))
+            self._messages(history, user_msg, roots, sources, bare, max_history, url_contents))
 
     def title(self, messages: list[dict]) -> str:
         """為一段對話生一句反映**落點/全貌**的標題（≤20 字）。取材首尾並取（spec 027，

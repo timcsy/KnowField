@@ -17,7 +17,7 @@ const notifyConversations = () => window.dispatchEvent(new Event("kf-conversatio
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
-  const [brainstorm, setBrainstorm] = useState(false)
+  const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -100,7 +100,7 @@ export default function ChatPage() {
     setStreaming("")
     setMessages([...hist, { role: "user", content: msg }])   // 樂觀顯示：送出當下就看到自己那句
     let full = ""
-    await streamChat(hist, msg, brainstorm, {
+    await streamChat(hist, msg, bare, {
       onStage: (t) => setStage(t),
       onToken: (t) => { full += t; setStage(null); setStreaming(full) },
       onError: (t) => {
@@ -401,10 +401,11 @@ export default function ChatPage() {
                   aria-label="送出">↑</Button>
         </div>
         <div className="flex items-center gap-x-4 pt-1">
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            <input type="checkbox" checked={brainstorm}
-                   onChange={(e) => setBrainstorm(e.target.checked)} />
-            🧠 腦力激盪
+          <label className="flex items-center gap-1 text-xs text-muted-foreground"
+                 title="這輪暫時不參考你的核心理解與收藏、也不撒網，就當一般 AI 聊（隨時可取消）">
+            <input type="checkbox" checked={bare}
+                   onChange={(e) => setBare(e.target.checked)} />
+            🔌 不接知識庫
           </label>
           {/* 其餘動作收進「⋯ 更多」，預設收起（省底部空間，尤其手機） */}
           {messages.length > 0 && (

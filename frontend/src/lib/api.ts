@@ -180,7 +180,7 @@ export type StreamHandlers = {
 export async function streamChat(
   history: Message[],
   message: string,
-  brainstorm: boolean,
+  bare: boolean,   // 這輪暫時屏蔽知識庫（不注入核心理解、不撒網、不查收藏）
   h: StreamHandlers,
 ) {
   let resp: Response
@@ -188,7 +188,7 @@ export async function streamChat(
     resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, message, brainstorm }),
+      body: JSON.stringify({ history, message, bare }),
     })
   } catch {
     h.onError?.("連線中斷，請重試。")

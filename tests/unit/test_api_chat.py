@@ -48,19 +48,19 @@ class TestApiChat(unittest.TestCase):
         app.state.corpus_search_for_test = _corpus(("超導文", "電子配對", "https://a/1"))
         text = TestClient(app).post(
             "/api/chat/stream",
-            json={"history": [], "message": "超導為何 work", "brainstorm": False}).text
+            json={"history": [], "message": "超導為何 work", "bare": False}).text
         self.assertIn("data:", text)          # SSE
         self.assertIn("token", text)          # 逐字
         self.assertIn("done", text)           # 完成
         self.assertIn("corpus", text)         # 你收藏的＝結構化來源（原則 3 溯源靠結構）
 
-    def test_stream_brainstorm_skips_search(self):
+    def test_stream_bare_skips_search(self):
         app = build_app(temp_db())
         app.state.chat_backend_for_test = StubChat("純發想。")
         spy = []
         app.state.corpus_search_for_test = lambda q: (spy.append(q) or [])
         TestClient(app).post("/api/chat/stream",
-                             json={"history": [], "message": "隨便聊", "brainstorm": True}).text
+                             json={"history": [], "message": "隨便聊", "bare": True}).text
         self.assertEqual(spy, [])             # 腦力激盪不撒網（沙盒，原則 6）
 
     def test_distill_returns_candidates(self):

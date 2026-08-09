@@ -191,22 +191,26 @@ def create_app() -> FastAPI:
                 out.append({"url": u, "title": "", "body": ""})
         return out
 
-    def _default_chat(history, message, brainstorm=False):
+    def _default_chat(history, message, bare=False):
         from ..chat.field_chat import FieldChat
-        repo = app.state.repo_factory(app.state.config)
-        try:
-            roots = repo.list_why_nodes("anointed")
-        finally:
-            repo.close()
+        # bare＝這輪屏蔽知識庫：不查核心理解、不撒網、不查收藏
+        if bare:
+            roots = []
+        else:
+            repo = app.state.repo_factory(app.state.config)
+            try:
+                roots = repo.list_why_nodes("anointed")
+            finally:
+                repo.close()
         fc = FieldChat(_chat_backend())
         url_contents = _fetch_message_urls(message)   # 貼的網址→讀進來（best-effort）
-        if brainstorm:
+        if bare:
             sources = []
         else:
             q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
             # web 撒網＋收進的文章併成一個連號來源清單（web 在前、收進在後，帶 kind）
             sources = list(_chat_search(q)) + _chat_corpus(message)
-        text = fc.reply(history, message, roots, sources, brainstorm=brainstorm,
+        text = fc.reply(history, message, roots, sources, bare=bare,
                         max_history=app.state.config.chat_context_messages,
                         url_contents=url_contents)
         # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
@@ -297,24 +301,28 @@ def create_app() -> FastAPI:
         return {"from": gap[0], "to": gap[1]} if gap else None
 
 
-    def _stream_gen(hist, message, bs):
-        """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。"""
+    def _stream_gen(hist, message, bare):
+        """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
+        bare＝這輪暫時屏蔽知識庫：不注入核心理解、不撒網、不查收藏。"""
         from ..chat.field_chat import FieldChat
         cfg = app.state.config
         if not message:
             yield _sse({"type": "done", "text": ""})
             return
-        repo = app.state.repo_factory(cfg)
-        try:
-            roots = repo.list_why_nodes("anointed")
-        finally:
-            repo.close()
+        if bare:
+            roots = []
+        else:
+            repo = app.state.repo_factory(cfg)
+            try:
+                roots = repo.list_why_nodes("anointed")
+            finally:
+                repo.close()
         fc = FieldChat(_chat_backend())
         try:
             url_contents = _fetch_message_urls(message)
             if url_contents:
                 yield _sse({"type": "stage", "text": "讀取你貼的網址…"})
-            if bs:
+            if bare:
                 sources = []
             else:
                 yield _sse({"type": "stage", "text": "找關鍵字…"})
@@ -325,7 +333,7 @@ def create_app() -> FastAPI:
                 sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
             yield _sse({"type": "stage", "text": "回答中…"})
             full = ""
-            for delta in fc.reply_stream(hist, message, roots, sources, brainstorm=bs,
+            for delta in fc.reply_stream(hist, message, roots, sources, bare=bare,
                                          max_history=cfg.chat_context_messages,
                                          url_contents=url_contents):
                 full += delta
@@ -402,7 +410,7 @@ def create_app() -> FastAPI:
         body = await request.json()
         hist = body.get("history") or []
         message = (body.get("message") or "").strip()
-        return StreamingResponse(_stream_gen(hist, message, bool(body.get("brainstorm"))),
+        return StreamingResponse(_stream_gen(hist, message, bool(body.get("bare"))),
                                  media_type="text/event-stream")
 
     @app.post("/api/chat/distill")

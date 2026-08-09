@@ -208,3 +208,22 @@ class TestOpenAIChatBackend(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBareMode(unittest.TestCase):
+    """bare＝這輪暫時屏蔽知識庫：不注入核心理解，但反逢迎人格仍在。"""
+
+    def test_bare_skips_knowledge_field(self):
+        spy = _SpyBackend()
+        roots = [_root(1, "注意力是被置換對稱逼出來的", ["置換不變⇒加總"])]
+        FieldChat(spy).reply([], "隨便問", roots, bare=True)
+        sysmsg = spy.seen[0]["content"]
+        self.assertNotIn("注意力是被置換對稱逼出來的", sysmsg)   # 知識庫沒被注入
+        self.assertIn("屏蔽", sysmsg)                          # 有說明這輪不接知識庫
+        self.assertIn("好聽話", sysmsg)                        # 反逢迎人格（膜）仍在
+
+    def test_non_bare_still_injects(self):
+        spy = _SpyBackend()
+        roots = [_root(1, "注意力是被置換對稱逼出來的", ["置換不變⇒加總"])]
+        FieldChat(spy).reply([], "隨便問", roots, bare=False)
+        self.assertIn("注意力是被置換對稱逼出來的", spy.seen[0]["content"])
