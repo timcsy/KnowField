@@ -234,14 +234,13 @@ export default function ChatPage() {
         </button>
       </div>
     ) : (
+      // SOTA：AI 回覆＝全寬無框文字流（不裝卡片），文字區最大化；用留白＋對齊區分你我，不用框
       <div key={i} className="group">
-        <div className="rounded-xl bg-card px-4 py-3 shadow-sm">
-          <Markdown text={m.content} prefix={`m${i}`} />
-          <Sources sources={m.sources || []} prefix={`m${i}`} />
-          <FoundExtra extra={m.found_extra || []} />
-        </div>
-        {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、分支 */}
-        <div className="mt-1 flex gap-3 pl-1 text-muted-foreground opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
+        <Markdown text={m.content} prefix={`m${i}`} />
+        <Sources sources={m.sources || []} prefix={`m${i}`} />
+        <FoundExtra extra={m.found_extra || []} />
+        {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支 */}
+        <div className="mt-2 flex gap-4 text-muted-foreground opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
           <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
           {i === messages.length - 1 && !busy && (
             <button onClick={regenerateLast} title="重新生成這則回覆" className="hover:text-foreground"><RefreshCw className="size-3.5" /></button>
@@ -291,7 +290,7 @@ export default function ChatPage() {
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-2">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-2">
         {empty && (
           <div className="flex flex-col items-center gap-3 pt-16 text-center text-muted-foreground">
             <div className="text-5xl">🧠</div>
@@ -331,9 +330,9 @@ export default function ChatPage() {
         )}
 
         {streaming !== null && (
-          <div className="rounded-xl bg-card px-4 py-3 shadow-sm">
-            {/* 串流中也走 Markdown → 數學/格式當下就渲染（MathJax typeset 有 debounce；未閉合的 $$ 會留 raw 到收尾） */}
-            {streaming ? <Markdown text={streaming} prefix="stream" /> : <div className="text-[15px]">…</div>}
+          // 串流中也全寬無框（與完成的 AI 回覆一致）；走 Markdown → 數學/格式當下就渲染
+          <div>
+            {streaming ? <Markdown text={streaming} prefix="stream" /> : <div className="text-[15px] text-muted-foreground">…</div>}
           </div>
         )}
         {stage && <div className="animate-pulse text-sm text-muted-foreground">{stage}</div>}

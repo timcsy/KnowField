@@ -39,7 +39,8 @@ export default function ArticleViewPage() {
       ) : art === "missing" ? (
         <p className="text-sm text-muted-foreground">找不到這篇文章。<Link to="/articles" className="text-primary hover:underline">← 回文章</Link></p>
       ) : (
-        <article className="rounded-xl border bg-card p-6 shadow-sm">
+        // 文章正文＝閱讀內容→全寬無框（像讀文章，不裝卡片）
+        <article>
           <Markdown text={art.markdown} prefix="artv" />
         </article>
       )}

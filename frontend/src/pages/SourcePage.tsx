@@ -116,9 +116,9 @@ export default function SourcePage() {
         </div>
       )}
 
-      {/* 萃取參考（給檢索、也能看，跟以前一樣漂亮）——誠實標：有損、準確看原文 */}
-      <div className="rounded-xl bg-card p-4 shadow-sm">
-        <div className="mb-2 border-b pb-2 text-xs text-muted-foreground">
+      {/* 萃取參考＝閱讀內容→全寬無框（只用分隔線＋標籤區分，不裝卡片）——誠實標：有損、準確看原文 */}
+      <div>
+        <div className="mb-3 border-b pb-2 text-xs text-muted-foreground">
           🔍 萃取參考（自動抽取，給檢索用；可能有小誤差{src.pdf_path || src.original_url ? "，準確請看上方原文" : ""}）
         </div>
         <Markdown text={src.markdown} prefix="src" />
