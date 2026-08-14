@@ -13,4 +13,5 @@ build/
 .env.*
 !.env.example
 *.bak-rename*
+*.db.bak*
 media/
