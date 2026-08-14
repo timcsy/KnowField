@@ -4,8 +4,19 @@
 
 ## 1. 映像（ghcr）
 push 到 `main`（或打 `v*` tag）→ GitHub Actions（`.github/workflows/docker-publish.yml`）自動 build 並推到
-`ghcr.io/timcsy/knowfield:latest`（＋ `sha-xxxx`、tag 版本）。
-- 首次推完，到 GitHub → Packages → 該 package → 設 **Public**，或給叢集一個 `imagePullSecret`（私有時）。
+`ghcr.io/timcsy/knowfield:latest`（＋ short sha、tag 版本；sha tag 無前綴，與下方手動路徑一致）。
+
+> **⚠ 前置（做過一次就好，2026-08-14 才補上）**：package 若是**本機手動推出來的**，它掛在個人帳號底下、
+> **沒有連到 repo** → CI 推不上去（`denied: permission_denied: read_package`／改 public 後變 `write_package`）。
+> **改 public 不能解決——那是 pull 權限，這裡缺的是 push 權限。** 正解：
+> GitHub → Packages → `knowfield` → **Package settings → Manage Actions access → Add repository**
+> → 選 `timcsy/KnowField`、Role 設 **Write**。
+> 授權後 CI 推成功一次，`docker/metadata-action` 帶的 `org.opencontainers.image.source` label 會把 package
+> **自動連回 repo**，之後就自給自足。
+> （這條 README 原本宣稱 CI 會自動 build，實際上**從沒成功過一次**——手動 fallback 一直能用，所以沒人發現。
+> 見 `knowledge/history/093`。）
+
+- 叢集拉私有映像用 `imagePullSecret`（本專案為 `ghcr-pull`）；package 設 public 則不需要。
 - 本機手動（Mac→amd64 節點）：
   ```bash
   gh auth token | docker login ghcr.io -u <你> --password-stdin   # ⚠ token 會過期，push 前先重登

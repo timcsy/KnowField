@@ -33,7 +33,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=tag
-            type=sha,format=short
+            type=sha,format=short,prefix=      # 無前綴，與 README 手動路徑的 $SHA 對齊（一種格式少出錯）
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/setup-buildx-action@v3
