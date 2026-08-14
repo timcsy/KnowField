@@ -63,6 +63,55 @@ class TestApiChat(unittest.TestCase):
                              json={"history": [], "message": "隨便聊", "bare": True}).text
         self.assertEqual(spy, [])             # 腦力激盪不撒網（沙盒，原則 6）
 
+    def test_done_marks_length_truncation(self):
+        """撞 max_tokens 被切 → done 帶 truncated=length（否則靜默半句、看起來像講完了）。"""
+        class _Cut:
+            def reply(self, m): return "半截"
+            def stream(self, m):
+                yield "被切一半"
+                return "length"
+        app = build_app(temp_db())
+        app.state.chat_backend_for_test = _Cut()
+        text = TestClient(app).post(
+            "/api/chat/stream", json={"history": [], "message": "問", "bare": True}).text
+        self.assertIn('"truncated": "length"', text)
+        self.assertIn("被切一半", text)
+
+    def test_midstream_break_keeps_partial_and_marks(self):
+        """中途斷線 → 保留已收到的字＋標 connection，而不是整條 SSE 裸死。"""
+        class _Drop:
+            def reply(self, m): return "x"
+            def stream(self, m):
+                yield "已經講到一半"
+                raise ConnectionResetError("斷了")
+        app = build_app(temp_db())
+        app.state.chat_backend_for_test = _Drop()
+        text = TestClient(app).post(
+            "/api/chat/stream", json={"history": [], "message": "問", "bare": True}).text
+        self.assertIn("已經講到一半", text)                 # 已收到的不丟
+        self.assertIn('"truncated": "connection"', text)
+        self.assertIn('"type": "done"', text)
+
+    def test_failure_before_any_token_is_error_event(self):
+        """一個字都沒吐就失敗 → error 事件（沒有半截可留），且不是未攔的例外。"""
+        class _Dead:
+            def reply(self, m): return "x"
+            def stream(self, m):
+                raise ConnectionResetError("一開始就斷")
+                yield  # pragma: no cover
+        app = build_app(temp_db())
+        app.state.chat_backend_for_test = _Dead()
+        text = TestClient(app).post(
+            "/api/chat/stream", json={"history": [], "message": "問", "bare": True}).text
+        self.assertIn('"type": "error"', text)
+
+    def test_normal_stream_not_marked_truncated(self):
+        app = build_app(temp_db())
+        app.state.chat_backend_for_test = StubChat("正常講完了。")
+        text = TestClient(app).post(
+            "/api/chat/stream", json={"history": [], "message": "問", "bare": True}).text
+        self.assertIn('"truncated": ""', text)
+
     def test_distill_returns_candidates(self):
         app = build_app(temp_db())
         app.state.distill_factory = lambda hist: [

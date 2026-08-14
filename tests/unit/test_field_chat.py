@@ -4,6 +4,7 @@
 """
 
 import unittest
+from unittest import mock
 
 from knowfield.backends.openai_api import OpenAIError
 from knowfield.chat.field_chat import (
@@ -48,6 +49,17 @@ class TestSystemPrompt(unittest.TestCase):
     def test_empty_field_noted(self):                            # T001
         p = build_field_system_prompt([])
         self.assertTrue("場還空" in p or "未接場" in p or "還空" in p)
+
+    def test_has_brevity_discipline(self):
+        """膜必須含長度紀律。實測：沒有這句，同一題 2732 字；有這句 447 字（品質不掉）。
+
+        真因不是「有東西在推長」，是模型預設就話多、而膜從來沒叫它短（`history/092`）。
+        """
+        p = build_field_system_prompt([_root(1, "某條理解", ["階梯"])])
+        self.assertIn("長度紀律", p)
+        self.assertIn("精簡", p)
+        # 反逢迎的判準是給模型用的，不是拿來逐條演給使用者看（＝回答變長的機制之一）
+        self.assertIn("判準", p)
 
 
 class TestReplyWithSources(unittest.TestCase):
@@ -210,6 +222,79 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def _drain(gen):
+    """把 generator 吐完，回 (chunks, return 值)——截斷原因走 generator 的回傳值傳上來。"""
+    out = []
+    while True:
+        try:
+            out.append(next(gen))
+        except StopIteration as stop:
+            return out, (stop.value or "")
+
+
+class TestTruncationVisible(unittest.TestCase):
+    """截斷要看得見（憲章 V）：finish_reason 一路傳到呼叫端；中途斷線統一成 OpenAIError。
+
+    兩種截斷（撞上限／連線斷）在畫面上長得一模一樣，分不出來就會像上次那樣只治到一種。
+    """
+
+    def test_backend_stream_propagates_finish_reason(self):
+        def streamer(base, path, key, payload, **kw):
+            yield "半句"
+            return "length"
+        chunks, reason = _drain(OpenAIChatBackend("b", "k", "m", streamer=streamer).stream(
+            [{"role": "user", "content": "u"}]))
+        self.assertEqual(chunks, ["半句"])
+        self.assertEqual(reason, "length")                        # 撞 max_tokens 被切
+
+    def test_field_chat_propagates_finish_reason(self):
+        class _Cut:
+            def stream(self, messages):
+                yield "半"
+                return "length"
+        _, reason = _drain(FieldChat(_Cut()).reply_stream([], "問", []))
+        self.assertEqual(reason, "length")                        # 穿過 FieldChat 不掉
+
+    def test_normal_finish_has_no_truncation(self):
+        _, reason = _drain(FieldChat(_StreamSpy()).reply_stream([], "問", []))
+        self.assertEqual(reason, "")                              # 正常講完＝不標截斷
+
+
+class TestPostStreamRobust(unittest.TestCase):
+    """`_post_stream` 的兩個洞：finish_reason 沒讀、迭代不在 try 內。"""
+
+    @staticmethod
+    def _resp(lines):
+        class _R:
+            def __iter__(self):
+                yield from lines
+        return _R()
+
+    def test_reads_finish_reason_length(self):
+        from knowfield.backends import openai_api as oa
+        lines = [b'data: {"choices":[{"delta":{"content":"\xe5\x8d\x8a\xe5\x8f\xa5"}}]}\n',
+                 b'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n',
+                 b'data: [DONE]\n']
+        with mock.patch.object(oa.urllib.request, "urlopen", return_value=self._resp(lines)):
+            chunks, reason = _drain(oa._post_stream("http://x", "/p", "k", {}))
+        self.assertEqual(chunks, ["半句"])
+        self.assertEqual(reason, "length")
+
+    def test_midstream_break_becomes_openai_error(self):
+        """迭代途中斷線＝目前在 try 外面、會裸奔穿出去（教訓：邊界要攔所有失敗，不只一種）。"""
+        from knowfield.backends import openai_api as oa
+
+        class _Boom:
+            def __iter__(self):
+                yield b'data: {"choices":[{"delta":{"content":"\xe5\x8d\x8a"}}]}\n'
+                raise ConnectionResetError("連線被切")
+        with mock.patch.object(oa.urllib.request, "urlopen", return_value=_Boom()):
+            gen = oa._post_stream("http://x", "/p", "k", {})
+            self.assertEqual(next(gen), "半")
+            with self.assertRaises(OpenAIError):
+                next(gen)
+
+
 class TestBareMode(unittest.TestCase):
     """bare＝這輪暫時屏蔽知識庫：不注入核心理解，但反逢迎人格仍在。"""
 
@@ -221,6 +306,7 @@ class TestBareMode(unittest.TestCase):
         self.assertNotIn("注意力是被置換對稱逼出來的", sysmsg)   # 知識庫沒被注入
         self.assertIn("屏蔽", sysmsg)                          # 有說明這輪不接知識庫
         self.assertIn("好聽話", sysmsg)                        # 反逢迎人格（膜）仍在
+        self.assertIn("長度紀律", sysmsg)                      # bare 走另一條路，長度紀律別漏掉
 
     def test_non_bare_still_injects(self):
         spy = _SpyBackend()

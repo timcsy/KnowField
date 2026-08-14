@@ -5,6 +5,9 @@ export type Message = {
   content: string
   sources?: Source[]
   found_extra?: Source[]
+  // 這則回答不完整的原因："length"＝撞長度上限被切、"connection"＝中途斷線（空＝正常講完）。
+  // 兩種在畫面上長得一樣，不標就分不出來、也修不對（憲章 V）。
+  truncated?: string
 }
 export type Candidate = {
   claim: string
@@ -172,7 +175,7 @@ export const pages = {
 export type StreamHandlers = {
   onStage?: (t: string) => void
   onToken?: (t: string) => void
-  onDone?: (text: string, sources: Source[], found_extra: Source[]) => void
+  onDone?: (text: string, sources: Source[], found_extra: Source[], truncated: string) => void
   onError?: (t: string) => void
 }
 
@@ -210,7 +213,7 @@ export async function streamChat(
     for (const p of parts) {
       const line = p.trim()
       if (!line.startsWith("data:")) continue
-      let d: { type: string; text?: string; sources?: Source[]; found_extra?: Source[] }
+      let d: { type: string; text?: string; sources?: Source[]; found_extra?: Source[]; truncated?: string }
       try {
         d = JSON.parse(line.slice(5).trim())
       } catch {
@@ -218,7 +221,7 @@ export async function streamChat(
       }
       if (d.type === "stage") h.onStage?.(d.text || "")
       else if (d.type === "token") h.onToken?.(d.text || "")
-      else if (d.type === "done") h.onDone?.(d.text || "", d.sources || [], d.found_extra || [])
+      else if (d.type === "done") h.onDone?.(d.text || "", d.sources || [], d.found_extra || [], d.truncated || "")
       else if (d.type === "error") h.onError?.(d.text || "發生錯誤")
     }
   }

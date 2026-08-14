@@ -38,6 +38,31 @@ def _sse(obj: dict) -> str:
     return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
 
 
+def _pump(gen):
+    """把 token 逐段轉成 SSE 吐出，回 `(全文, 截斷原因)`。
+
+    截斷有兩種、在畫面上長得一模一樣，所以**都要標出來**（憲章 V）——分不出來就會像上次一樣
+    只治到其中一種（調大 max_tokens 治的是 length，連線斷的完全沒被看見）：
+    - `"length"`：模型撞 max_tokens 被切（來自 `finish_reason`，走 generator 回傳值上來）。
+    - `"connection"`：上游中途斷線——**已收到的字保留**、標明不完整，不整段丟掉。
+    一個 token 都還沒吐就失敗 → 往上拋，由呼叫端攔成 error 事件（沒有半截可留，報錯才對）。
+    """
+    full = ""
+    try:
+        while True:
+            try:
+                delta = next(gen)
+            except StopIteration as stop:
+                return full, ("length" if (stop.value or "") == "length" else "")
+            full += delta
+            yield _sse({"type": "token", "text": delta})
+    except Exception as e:  # noqa: BLE001 - 邊界要攔所有失敗，不只預期的那種
+        if not full:
+            raise
+        _log.error("對話串流中途斷", extra={"extra": {"reason": str(e), "chars": len(full)}})
+        return full, "connection"
+
+
 def _default_repo_factory(config: Config) -> Repository:
     from ..cli.fetchers import DEFAULT_SOURCES
     repo = Repository(config.database_url or None)   # spec 034：PG DSN（env）
@@ -332,12 +357,10 @@ def create_app() -> FastAPI:
                 yield _sse({"type": "stage", "text": "翻你收進的資料…"})
                 sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
             yield _sse({"type": "stage", "text": "回答中…"})
-            full = ""
-            for delta in fc.reply_stream(hist, message, roots, sources, bare=bare,
-                                         max_history=cfg.chat_context_messages,
-                                         url_contents=url_contents):
-                full += delta
-                yield _sse({"type": "token", "text": delta})
+            full, truncated = yield from _pump(
+                fc.reply_stream(hist, message, roots, sources, bare=bare,
+                                max_history=cfg.chat_context_messages,
+                                url_contents=url_contents))
             cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
             numbered = [{"n": i, "url": s.url, "title": s.title or s.url,
                          "kind": getattr(s, "kind", "web")}
@@ -346,10 +369,14 @@ def create_app() -> FastAPI:
             extra = [{"n": i, "url": s.url, "title": s.title or s.url,
                       "kind": getattr(s, "kind", "web")}
                      for i, s in enumerate(sources, 1) if i not in cited]
-            yield _sse({"type": "done", "text": full, "sources": numbered, "found_extra": extra})
+            yield _sse({"type": "done", "text": full, "sources": numbered, "found_extra": extra,
+                        "truncated": truncated})
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("場對話串流失敗", extra={"extra": {"reason": str(e)}})
             yield _sse({"type": "error", "text": str(e)})
+        except Exception as e:  # noqa: BLE001 - 邊界要攔所有失敗，不只預期那種（同 digest builder 那條教訓）
+            _log.error("場對話串流未預期失敗", extra={"extra": {"reason": str(e)}})
+            yield _sse({"type": "error", "text": "對話中斷了，請重試。"})
 
 
     def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id, kind="",

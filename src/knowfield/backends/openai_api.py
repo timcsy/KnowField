@@ -207,7 +207,13 @@ class OpenAIAnswerer:
 
 
 def _post_stream(base_url: str, path: str, api_key: str, payload: dict, timeout: int = 120):
-    """串流版 chat：yield 逐段 token（OpenAI SSE delta）。失敗拋 OpenAIError。"""
+    """串流版 chat：yield 逐段 token（OpenAI SSE delta），**return finish_reason**。
+
+    回傳值（generator return，呼叫端用 `yield from` 就拿得到）＝最後一個 chunk 的 `finish_reason`；
+    `"length"` ＝撞 max_tokens 被切。**不讀它就是靜默半句、看起來像好好講完了**（憲章 V 可觀測性）。
+    迭代**整段**都在 try 內：中途斷線（IncompleteRead／reset／timeout）也統一成 OpenAIError——
+    原本迭代在 try 外面，這類例外會裸奔穿出去（教訓：邊界要攔**所有**失敗，不只你想到的那種）。
+    """
     body = {**payload, "stream": True}
     req = urllib.request.Request(
         f"{base_url}{path}", data=json.dumps(body).encode("utf-8"),
@@ -219,28 +225,37 @@ def _post_stream(base_url: str, path: str, api_key: str, payload: dict, timeout:
         raise OpenAIError(f"對話串流失敗：{e}") from e
     saw_sse = False
     buf = b""
-    for raw in resp:
-        line = raw.decode("utf-8", "ignore").strip()
-        if line.startswith("data:"):
-            saw_sse = True
-            data = line[len("data:"):].strip()
-            if data == "[DONE]":
-                break
-            try:
-                delta = json.loads(data)["choices"][0]["delta"].get("content")
-            except Exception:  # noqa: BLE001 - 心跳/非內容行跳過
-                continue
-            if delta:
-                yield delta
-        else:
-            buf += raw          # 非 SSE：後端忽略了 stream，收整包稍後一次吐
+    finish = ""
+    try:
+        for raw in resp:
+            line = raw.decode("utf-8", "ignore").strip()
+            if line.startswith("data:"):
+                saw_sse = True
+                data = line[len("data:"):].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    choice = json.loads(data)["choices"][0]
+                except Exception:  # noqa: BLE001 - 心跳/非內容行跳過
+                    continue
+                finish = choice.get("finish_reason") or finish   # 結束原因多半在最後一個 chunk
+                delta = (choice.get("delta") or {}).get("content")
+                if delta:
+                    yield delta
+            else:
+                buf += raw          # 非 SSE：後端忽略了 stream，收整包稍後一次吐
+    except Exception as e:  # noqa: BLE001 - 中途斷線也要收成友善的 OpenAIError（教訓 3）
+        raise OpenAIError(f"對話串流中斷：{e}") from e
     if not saw_sse and buf.strip():   # 後端不支援串流 → 退回解析整包 completion（穩健）
         try:
-            content = json.loads(buf.decode("utf-8", "ignore"))["choices"][0]["message"]["content"]
+            choice = json.loads(buf.decode("utf-8", "ignore"))["choices"][0]
+            content = choice["message"]["content"]
+            finish = choice.get("finish_reason") or finish
         except Exception as e:  # noqa: BLE001
             raise OpenAIError(f"對話回應無法解析：{e}") from e
         if content:
             yield content
+    return finish
 
 
 class OpenAIChatBackend:
@@ -273,6 +288,9 @@ class OpenAIChatBackend:
             raise OpenAIError(f"對話失敗：{e}") from e
 
     def stream(self, messages: list):
-        """yield 逐段 token；失敗拋 OpenAIError（由路由攔成 SSE error 事件）。"""
-        yield from self._streamer(self.base_url, "/chat/completions", self.api_key,
-                                  self._payload(messages))
+        """yield 逐段 token，**return finish_reason**（`"length"`＝撞上限被切，供上層標示截斷）。
+
+        失敗拋 OpenAIError（由路由攔成 SSE error 事件）。
+        """
+        return (yield from self._streamer(self.base_url, "/chat/completions", self.api_key,
+                                          self._payload(messages)))

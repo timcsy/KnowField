@@ -108,9 +108,9 @@ export default function ChatPage() {
         setMessages([...hist, { role: "user", content: msg },
           { role: "assistant", content: "⚠ " + t }])
       },
-      onDone: (text, sources, extra) => {
+      onDone: (text, sources, extra, truncated) => {
         const next: Message[] = [...hist, { role: "user", content: msg },
-          { role: "assistant", content: text || full, sources, found_extra: extra }]
+          { role: "assistant", content: text || full, sources, found_extra: extra, truncated }]
         setMessages(next); setStreaming(null); setStage(null)
         api.autosave(next, tempId.current).then((r) => {
           tempId.current = r.temp_id
@@ -237,6 +237,14 @@ export default function ChatPage() {
       // SOTA：AI 回覆＝全寬無框文字流（不裝卡片），文字區最大化；用留白＋對齊區分你我，不用框
       <div key={i} className="group">
         <Markdown text={m.content} prefix={`m${i}`} />
+        {/* 不完整就明說是哪一種——靜默半句看起來像講完了，兩種斷法也得分得出來（憲章 V） */}
+        {m.truncated && (
+          <div className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+            {m.truncated === "length"
+              ? "⚠ 這則回答到長度上限被截斷了（沒講完）。可以請它「接著上面繼續」。"
+              : "⚠ 這則回答中途斷線，只收到一半。可以重新生成。"}
+          </div>
+        )}
         <Sources sources={m.sources || []} prefix={`m${i}`} />
         <FoundExtra extra={m.found_extra || []} />
         {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支 */}

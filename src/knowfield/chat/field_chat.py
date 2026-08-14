@@ -30,7 +30,9 @@ _MEMBRANE = """你是使用者的思考夥伴——幫他把新東西接到他�
 8. 若有一條想法夠紮實、值得長期留著，可以**建議**他存起來，但只是建議；要不要存是他決定，你不能自己存。
 分清資料的**三層份量**：**他精選的核心理解＝地基**（從這往下推）；**他收藏的文章/論文＝外部證言**
 （可引用，但比核心理解軟、可能是他人觀點或有誤，別當成他的地基、別自動當成他的想法）；**web＝最外圈的外部資料**。
-可用 Markdown（粗體、清單、$數學$）讓回答好讀。"""
+可用 Markdown（粗體、清單、$數學$）讓回答好讀。
+**長度紀律**：預設精簡。先用 3–5 句給出核心答案，只有在使用者要求或問題真的需要時才展開細節。
+不要為了展示上面每一條原則而把它們逐條演出來——那些是你的判準，不是要寫給使用者看的段落。"""
 
 _SEARCH_Q = """使用者在對話中問了下面的內容。請給出**一個**最適合拿去 web 搜尋、能找到相關優質資料的
 查詢字串：精簡、含關鍵術語，**必要時用英文或補上領域脈絡以消除歧義**（例如只寫「flow matching」會搜到
@@ -238,9 +240,12 @@ class FieldChat:
 
     def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
                      bare: bool = False, max_history: int = 0, url_contents=None):
-        """串流版 reply：yield 逐段 token。bare=True＝這輪暫時屏蔽知識庫。"""
-        yield from self.backend.stream(
-            self._messages(history, user_msg, roots, sources, bare, max_history, url_contents))
+        """串流版 reply：yield 逐段 token，**return finish_reason**（`"length"`＝被上限切）。
+
+        bare=True＝這輪暫時屏蔽知識庫。截斷原因原樣穿過去，讓路由層標給使用者看（憲章 V）。
+        """
+        return (yield from self.backend.stream(
+            self._messages(history, user_msg, roots, sources, bare, max_history, url_contents)))
 
     def title(self, messages: list[dict]) -> str:
         """為一段對話生一句反映**落點/全貌**的標題（≤20 字）。取材首尾並取（spec 027，
