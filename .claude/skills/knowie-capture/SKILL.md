@@ -21,7 +21,7 @@ argument-hint: "[the idea; or empty to capture the current discussion]"
 - `history/` = causal trail (why things became what they are).
 - `draft/` = short-term memory: undecided things; decays by default, consolidated only when repeatedly used.
 - `episodes/` = episodic memory: full lived experiences worth recalling — the scene behind an experience lesson, **or the brainstorming behind a consolidated draft** (*why* we explored it this way). Most fade; only the recall-worthy are kept.
-- **Filenames follow the base's language** (`knowledge/.knowie.json` → `language`): for a `zh-TW` base, name new `concepts/` / `episodes/` / `history/` / `draft/` files in that language (Han characters), not English (`distillation.md`), matching what's already there. Exception: `skills/` folders and canonical filenames (`SKILL.md`, `README.md`, `.knowie.json`) stay as English identifiers — they're invocable/symlinked, not prose. Content language follows the same setting.
+- **Filenames follow the base's language** (`knowledge/.knowie.json` → `language`): for a `zh-TW` base, name new `concepts/` / `episodes/` / `history/` / `draft/` files in that language (Han characters), not English (`distillation.md`), matching what's already there. Exception: `skills/` folders and canonical filenames (`SKILL.md`, `README.md`, `.knowie.json`) stay as English identifiers — they're invocable/symlinked, not prose. Content language follows the same setting. **Never a space in a filename** — use `-`: a space makes `%20`-encoded and literal links disagree, so half the pointers to that file break silently.
 
 ## Two intake lines
 - **Thinking → `draft`**: undecided thoughts (problems / designs / insights) — incubate, then **dispatch on exit** (next bullet).
@@ -41,7 +41,12 @@ When anything leaves `draft/` (or an item finishes), **disperse it across every 
 - **Qualifies as a concept?** → Does it project onto all three perspectives? Strong in only one → still a single lesson/principle; keep in `draft/`.
 - **Record the causality?** → Would a future reader be confused ("didn't we say X?")? Yes → record.
 - **Real parent-concept or fake?** → Does it have pruning power? Vague enough to hold anything = bad abstraction.
+- **Named well?** → Is the name a **claim you can judge text against** ("copying a truth schedules the day it expires") rather than a noun you can file text under ("projection")? A noun only files; a claim prunes — it makes the pruning-power test fire at naming time, instead of months later when the concept turns out to hold nothing.
+- **A lesson worth keeping?** → Does it change how some **criterion** is written? A lesson phrased as a *practice* ("split the binding layer from rendering and it becomes testable") expires with the stack; phrased as a *criterion* ("a measurer that changes what it measures isn't measuring it") it travels. Same rule as these skills: tests, not steps.
 - **Keep or cut (any mechanism / phrase)?** → If cut, could an AI quietly skip it and no one notice? Yes → keep; No → cut.
+
+## Emphasis is a budget
+Bold marks **the criterion itself**; ⚠️ marks "I got this wrong right here". Everything else stays plain prose. Emphasis is a signal aimed at the reader's attention — human *and* AI — so spending it everywhere buys nothing and drags recall precision down with it. A file past ~5 ⚠️ has zero.
 
 ## Division of labor
 - **AI does the reversible, mechanical**: move, index, prune, detect, draft.
@@ -60,12 +65,13 @@ Take a chunk of thinking (a finished discussion, an idea) and **dispatch** it in
 Split the input into *which kinds* of knowledge it produced, then route each piece by maturity. Writing ≠ dumping into one file.
 
 ## Tests — per piece of the input
-- **Which perspective?** normative → `principles` · situational → `vision` · existential → `experience` · a recurring root → a `concepts/` file · a "why it changed" → `history/`.
+- **Which perspective?** normative → `principles` · situational → `vision` · existential → `experience` · a recurring root → a `concepts/` file · a decision that *supersedes* a prior one, or a rejected option → `history/` (a **transition**, not a completion — see below).
 - **Which kind → which exit?** (recognition chain: problem → design → experience)
   - *Experience* (a verified lesson / a pitfall hit) → `experience`; its full scene, if recall-worthy → `episodes` (link them, and link the episode out to the *how* it produced — spec / PR / commit — point out, don't copy; pin a commit for a regenerable spec). Note experience's main source is *doing*'s reflow, not draft.
   - *Design* (a proposal / mechanism) → can't be settled until built+used → park as a `draft/` topic block; **when mature, its exit is the vision roadmap** (a human commits to building it), not direct consolidation. On promotion the roadmap item gets **acceptance criteria** and a **two-way link** to the draft; the draft stays as the in-flight rationale (don't delete it) until the item is done, then it reflows + retires (see judge §4).
   - *Problem* (an open question) → `draft/` topic block; its exit is finding an answer (→ becomes a design or experience).
   - *Rejected option* → tombstone in `history/` with the reason — the richest why; don't drop it for the conclusion alone.
+  - *Completion ≠ transition.* "Shipped X / tests green / increment done" is **not** `history/` — even under a "Transition" heading. Its home is the commit / CHANGELOG (the *how*-leg) + the exploration scene (`episodes`); its lesson reflows to `experience`. A milestone earns a `history/` entry **only when it revealed a pivot** — a prior decision or assumption changed — and then the entry records *that pivot*, not the delivery list. **Test:** delete the delivery/test lines; if an "old → new, and why it changed" remains, it's history — if only "we finished it" remains, it isn't (one `history/` entry per shipped increment is the smell).
 
 ## Two reflexes
 - **Don't collapse dimensions.** One discussion usually spans perspectives — don't shove it all into `vision`. Route each piece to where it belongs.
@@ -80,7 +86,7 @@ The misses come from never running capture, not from running it wrong. Two signa
 A second mode: not dispatching a discussion, but noticing you've done the **same operation repeatedly** (scrape-build a dataset, batch-translate…). That's procedural memory forming — capture it.
 - **Notice + record a candidate** → a `draft/` block: what the task is + *how* you did it this time. (A candidate is still data/undecided → it incubates in `draft/` like anything else.)
 - **On repetition + maturity → the human confirms → consolidate into `knowledge/skills/`** (the cerebellum, source of truth) as one skill: a folder + `SKILL.md` (agentskills.io format) carrying its *why*.
-- **Then project it into the present tools' skill dirs so it's usable now.** The source of truth stays in `knowledge/skills/`; *project* it — per-skill **symlink** into each present tool's skill location (`.claude/skills/`, the cross-tool `.agents/skills/`), so edits to the source reach every tool with no drift. **Where symlinks fail (e.g. Windows), copy instead** and note it needs re-sync. It's reversible → **do it yourself; don't make the user run a CLI** for a skill they just made — the AI is present, so the AI does it (CLI is only for AI-absent bootstrap; see core). (judge §5 re-ensures these projections after a fresh clone or when a new tool appears.)
+- **Then project it into the present tools' skill dirs so it's usable now.** The source of truth stays in `knowledge/skills/`; *project* it — per-skill **relative symlink** (`../../knowledge/skills/<name>`; an absolute path breaks on every other machine) into **every** dir listed in `knowledge/.knowie.json` → `skillDirs`, so edits to the source reach every tool with no drift. **Enumerate that list** — projecting only into the dir you read yourself is why `.agents/skills/` was never created on real bases, leaving Codex/Gemini blind to every skill the project learned. (No `skillDirs` key = a base predating it → `npx knowie update` fills it in.) **Where symlinks fail (e.g. Windows), copy instead** and note it needs re-sync. It's reversible → **do it yourself; don't make the user run a CLI** for a skill they just made — the AI is present, so the AI does it (CLI is only for AI-absent bootstrap; see core). (judge §5 re-ensures these projections after a fresh clone or when a new tool appears.)
 - **Stricter gate than knowledge**: a skill is *executed* (it acts, can fail silently) → consolidating needs firmer human confirmation than committing knowledge.
 - **Form**: a *domain* skill automates a mechanical task → it may be procedural/rote (steps), unlike a *meta* skill (judgment). Don't force domain skills into judgment-form.
 
