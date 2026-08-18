@@ -1,5 +1,9 @@
 # 本地 SQLite ＋ prod PG：可攜資料層（re-route「全部 PG 不騎牆」）
 
+> 狀態：**已兌現、保留為設計源**——決策轉移（re-route）見
+> [history/086-可攜資料層雙後端-reroute不騎牆.md](../history/086-可攜資料層雙後端-reroute不騎牆.md)，
+> 部署面見 [history/087](../history/087-部署上線-k3s-ghcr-網域.md)。
+
 > 狀態：**draft／設計提案（thinking-line）**。日期：2026-08-07。
 > 怎麼冒出來的：階段 31 剛把資料層全部遷到 PG（`history/084`、`e7dcbec`），使用者隨即提「本地還是想支援 SQLite」。
 > 追問後真正的痛＝**「不想在本地跑任何 server」**（Docker 最近怪怪的、也不想跑原生 PG server）。

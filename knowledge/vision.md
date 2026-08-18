@@ -113,7 +113,7 @@ embedding／摘要藏在可插拔介面（`Embedder`／`Summarizer`）後：預�
 | 階段 30：知識的輸出——高證實文章生成（第一刀 B，完成） | [079](history/079-IA收斂導覽5到3.md)、[083](history/083-知識的輸出-高證實文章生成第一刀.md) | [2026-08-03-共享的膜與跨base聯邦](draft/2026-08-03-共享的膜與跨base聯邦.md) |
 | 階段 31：全部 PG——資料層從 SQLite 遷到 Postgres | [084](history/084-全部PG-資料層遷移定案.md) | [2026-08-07-領域知識分類與場的分區](draft/2026-08-07-領域知識分類與場的分區.md) |
 | 階段 32：單人 Google 登入門鎖——部署上「不被看光」 | [085](history/085-單人Google登入門鎖.md)、[087](history/087-部署上線-k3s-ghcr-網域.md)（spec 035） | [2026-08-03-共享的膜與跨base聯邦](draft/2026-08-03-共享的膜與跨base聯邦.md) |
-| 階段 33：本地 SQLite ＋ prod PG——可攜資料層 | [084](history/084-全部PG-資料層遷移定案.md) | — |
+| 階段 33：本地 SQLite ＋ prod PG——可攜資料層 | [086](history/086-可攜資料層雙後端-reroute不騎牆.md)（re-route 轉移）、[084](history/084-全部PG-資料層遷移定案.md) | [2026-08-07-本地SQLite與prod-PG雙後端](draft/2026-08-07-本地SQLite與prod-PG雙後端.md) |
 
 ## 關鍵延伸（主題觸發必讀）
 
