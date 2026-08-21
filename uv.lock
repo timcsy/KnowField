@@ -474,15 +474,13 @@ dev = [
     { name = "pytest" },
     { name = "testcontainers" },
 ]
-s2t = [
-    { name = "opencc-python-reimplemented" },
-]
 web = [
     { name = "authlib" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "itsdangerous" },
     { name = "jinja2" },
+    { name = "opencc-python-reimplemented" },
     { name = "python-multipart" },
     { name = "uvicorn" },
 ]
@@ -495,14 +493,14 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'web'", specifier = ">=0.27" },
     { name = "itsdangerous", marker = "extra == 'web'", specifier = ">=2.2" },
     { name = "jinja2", marker = "extra == 'web'", specifier = ">=3.1" },
-    { name = "opencc-python-reimplemented", marker = "extra == 's2t'", specifier = ">=0.1.7" },
+    { name = "opencc-python-reimplemented", marker = "extra == 'web'", specifier = ">=0.1.7" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.12" },
     { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4" },
     { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.29" },
 ]
-provides-extras = ["dev", "web", "s2t"]
+provides-extras = ["dev", "web"]
 
 [[package]]
 name = "markupsafe"

@@ -118,3 +118,17 @@ mirrord exec -t deployment/knowfield-knowfield -n knowfield -- .venv/bin/python 
 
 ## 備份（你的全部家當）
 內建 PG 的資料在它的 PVC。定期 `pg_dump` 出來（可另開一支 CronJob）。media PVC 同理。
+
+
+## 部署後核對（兩件，缺一不可）
+
+1. **pod 實際 digest ＝ 這次 build**——別信 `rollout successfully`（`history/089`，燒過一小時）。
+2. **`/healthz` 的 `capabilities` 全為預期值**——digest 對了功能仍可能是啞的：
+   可選相依沒進執行期時，可插拔介面會靜默降級（`history/099`，spec 037 上線後在 prod 完全沒作用）。
+
+```bash
+POD=$(kubectl -n knowfield get pod -l app.kubernetes.io/component=app -o jsonpath='{.items[0].metadata.name}')
+kubectl -n knowfield get pod $POD -o jsonpath='{.status.containerStatuses[0].imageID}{"\n"}'
+kubectl -n knowfield exec $POD -- python -c \
+  "import urllib.request,json;print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/healthz')))"
+```

@@ -118,6 +118,23 @@ MathJax 排版很吃 CPU（那篇 Flow Matching 有 161 條公式），截圖工
 - **機器轉換／生成的輸出要逐詞讀，不是掃過**：整段看起來通順，錯的是其中一兩個詞。
   掃過去只會覺得「好像對」。
 
+## 部署後要核對兩件事，不是一件
+
+`history/089` 教過「別信 rollout 成功、要核對 pod digest」。⚠️ 2026-08-21 又學到第二件：
+**digest 對了，功能仍然可能是啞的**——spec 037 上線後在 prod 完全沒作用，因為 OpenCC 被放進
+可選 extra、Dockerfile 只裝 `.[web]`，identity fallback 靜默生效。
+
+```bash
+# 1. 跑的是不是這次建的映像
+kubectl -n knowfield get pod -l app.kubernetes.io/component=app \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
+
+# 2. 該活的能力有沒有活（/healthz 免登入可探）
+kubectl -n knowfield exec <pod> -- python -c \
+  "import urllib.request,json;print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/healthz')))"
+# → capabilities 裡該為 true 的若是 false，就是相依沒進執行期
+```
+
 ## 之後
 
 看到問題 → 先補一條會失敗的測試再修（憲章 I），別直接修。

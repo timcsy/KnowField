@@ -118,7 +118,22 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz")   # k8s liveness/readiness 探針；門鎖豁免（見 auth gate），免登入可探
     async def healthz():
-        return {"ok": True}
+        """健康 ＋ **可選能力是否活著**。
+
+        ⚠️ 為什麼要有 capabilities：spec 037 上線後在 prod 完全沒作用——OpenCC 被放進可選
+        extra、Dockerfile 只裝 `.[web]`，identity fallback 生效：不轉換、不報錯，
+        而 `/healthz` 照樣回 `{"ok": true}`。**一個對「功能是不是啞的」不敏感的健康檢查，
+        沒有在檢查健康。** 這裡只回布林，不回任何設定內容（免登入可探）。
+
+        `ok` 與能力分開：能力缺席是降級不是掛掉，探針不該因此重啟 pod。
+        """
+        from ..backends.factory import make_translate_backend
+        from ..text import s2t
+        return {"ok": True,
+                "capabilities": {
+                    "s2t": s2t.available(),                                   # 簡→繁（spec 037）
+                    "translate": make_translate_backend(app.state.config) is not None,  # 英→繁（spec 038）
+                }}
 
     def _content_ingest(kind, **kw):
         """貼上/PDF/URL 收進：切塊→存成 corpus（spec 030）。轉檔器/抓取器可注入。"""
