@@ -39,6 +39,7 @@ export default function ChatPage() {
   const [nudgeDismissed, setNudgeDismissed] = useState(false)        // 分章提醒關掉了
   const chapterRefs = useRef<(HTMLDetailsElement | null)[]>([])   // 各章 <details>，供大綱跳章＋預設展開
   const bottomRef = useRef<HTMLDivElement>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)   // 起手式要把游標交回給人（填字≠替人開口）
   const [sp, setSp] = useSearchParams()
 
   useEffect(() => {
@@ -241,6 +242,24 @@ export default function ChatPage() {
   }
 
   const empty = messages.length === 0 && streaming === null && stage === null
+
+  // spec 041：文章＝第一則，所以「空白狀態」不該再擺一顆大腦——那是**沒有開場**時才對的畫面。
+  // 有文章時該說的是「換你了」，並給三個起手式：感想／反對／追問，正好是使用者描述的三種用法。
+  // ⚠️ 沒有「幫我改這段」——FR-008 明訂帶入不得修改文章；給一顆會落空的按鈕比不給更糟。
+  const STARTERS = [
+    { icon: "💭", label: "我的想法是", text: "我看完的想法是：" },
+    { icon: "🤔", label: "我不同意", text: "這篇裡我不同意的是：" },
+    { icon: "🔍", label: "再深一層", text: "這一段能不能再深一層：" },
+  ]
+  // 只填進輸入框、不直接送出（憲法 VI：使用者保有決策主權），游標擺到句尾接著打。
+  const useStarter = (t: string) => {
+    setInput(t)
+    requestAnimationFrame(() => {
+      const el = taRef.current
+      if (!el) return
+      el.focus(); el.setSelectionRange(t.length, t.length)
+    })
+  }
   const freshCands = (candidates || []).filter((c) => !c.already)
 
   const renderMsg = (m: Message, i: number) =>
@@ -310,7 +329,7 @@ export default function ChatPage() {
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
       <div className="shrink-0 pb-1">
         <h1 className="truncate text-base font-bold md:text-lg" title={convTitle || undefined}>
-          {convTitle ? `💬 ${convTitle}` : "🧠 跟你的知識庫聊"}
+          {convTitle ? `💬 ${convTitle}` : article ? "💬 讀完這篇，接著聊" : "🧠 跟你的知識庫聊"}
         </h1>
         {/* 副標只在還沒開始聊時顯示（聊起來就收，省上邊空間） */}
         {messages.length === 0 && (
@@ -350,13 +369,32 @@ export default function ChatPage() {
             )}
           </div>
         )}
-        {empty && (
+        {empty && !article && (
           <div className="flex flex-col items-center gap-3 pt-16 text-center text-muted-foreground">
             <div className="text-5xl">🧠</div>
             <p className="max-w-sm text-sm">
               丟一個想法、一個「為什麼 X 要這樣」，或接著上一句往下問。
               <br />它有話直說，不順著你講好聽話。
             </p>
+          </div>
+        )}
+        {empty && article && (
+          <div className="space-y-3 pt-1">
+            {/* 一條「換你說」的分隔線：把文章收成上一則、把場子交出去 */}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              <span>換你說</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {STARTERS.map((st) => (
+                <button key={st.label} onClick={() => useStarter(st.text)}
+                        className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground
+                                   transition hover:border-foreground/30 hover:bg-muted hover:text-foreground">
+                  {st.icon} {st.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -444,6 +482,7 @@ export default function ChatPage() {
       <div className="shrink-0 pt-2">
         <div className="flex items-end gap-2 rounded-2xl bg-muted px-3 py-2 focus-within:ring-1 focus-within:ring-ring">
           <Textarea
+            ref={taRef}
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
