@@ -51,6 +51,19 @@ class TestSourceS2TContract(unittest.TestCase):
         else:
             self.assertFalse(d["s2t_applied"])
 
+    def test_title_also_converted(self):
+        """FR-001：標題也是使用者在讀的內容，不能只轉正文。
+        （這條是把 app 真的跑起來、看到頁面標題還是「技术」才補的——T024 的收穫。）"""
+        db = temp_db()
+        url = _seed(db)
+        c = TestClient(build_app(db))
+        d = c.get(f"/api/source?u={url}").json()
+        if s2t.available():
+            self.assertIn("技術", d["title"])
+            self.assertNotIn("技术", d["title"])
+        raw = c.get(f"/api/source?u={url}&raw=1").json()
+        self.assertIn("技术", raw["title"], "raw=1 的標題必須是原文")
+
     def test_protected_url_survives(self):
         """FR-006：URL 不得被轉換破壞。"""
         db = temp_db()

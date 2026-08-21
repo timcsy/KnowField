@@ -639,8 +639,10 @@ def create_app() -> FastAPI:
         s2t_applied = False
         if not want_raw:
             converted = s2t.convert(md)
-            s2t_applied = converted != md          # 內容本非簡體時也是 false，前端據此決定顯不顯示切換
-            md = converted
+            # 標題也是使用者在讀的內容（T024 真跑才照出：正文轉了、標題還留著簡體）
+            conv_title = s2t.convert(title)
+            s2t_applied = converted != md or conv_title != title   # 本非簡體→false，前端據此決定顯不顯示切換
+            md, title = converted, conv_title
         mdir = Path(app.state.config.media_dir).resolve()               # 有存原始 PDF→回預覽路徑
         pdf_path = f"/media/{source_pdf_name(u)}" if (mdir / source_pdf_name(u)).exists() else ""
         paper = load_paper_meta(str(mdir), u)                          # 論文 metadata（Abstract/作者/日期）
