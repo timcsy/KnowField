@@ -48,6 +48,7 @@ export default function ChatPage() {
   async function loadConversation(id: number, from = 0) {
     const c = await pages.conversation(id, true)
     if (!c.found) return
+    setArticle(null); setArtBody(null)   // 接回舊對話 → 文章不殘留（FR-001c：不在對話間常駐）
     setMessages(c.messages)
     setConvTitle(c.title || "")
     baseCount.current = c.messages.length
@@ -60,6 +61,7 @@ export default function ChatPage() {
       setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
+    setArticle(null); setArtOpen(true); setArtBody(null)   // 文章不跨對話殘留（FR-001c）
     setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
@@ -67,13 +69,17 @@ export default function ChatPage() {
 
   // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回（?from&to＝核心理解定位）
   useEffect(() => {
-    // spec 041：/?article=<id>&atitle=<標題> → 帶著這篇文章開一輪（人明確按的，非自動）
+    // spec 041：/?article=<id>&atitle=<標題> → **開一段新對話給這篇文章**（人明確按的，非自動）。
+    // ⚠️ 不是把文章掛到當前那段對話上——文章不該在對話間常駐（FR-001c，使用者裁決 2026-08-21）：
+    // 一篇文章激發的想法自成一條線，混進既有對話會讓兩條線互相污染，也讓那段對話的由來變得不純。
     const aid = Number(sp.get("article") || 0)
     if (aid) {
+      newChat()                       // 先清空，這是新的一段
       setArticle({ id: aid, title: sp.get("atitle") || "文章" })
       setArtOpen(true); setArtBody(null)
       pages.getArticle(aid).then((a) => setArtBody(a?.markdown || "")).catch(() => setArtBody(""))
       sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
+      return                          // 不再往下走 resume（那會把舊對話載回來）
     }
     if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
     const rid = Number(sp.get("resume") || 0)
