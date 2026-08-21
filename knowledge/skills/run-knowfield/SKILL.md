@@ -72,17 +72,23 @@ curl -s localhost:8000/api/library | python3 -m json.tool | head -40
 的變體）。
 
 ```bash
-pkill -f "uvicorn knowfield.web.app"   # 然後重跑步驟 1，並確認舊 process 真的沒了：
-ps aux | grep -c "[u]vicorn knowfield.web.app"      # 應為 0
+pkill -f "uvicorn knowfield.web.app"
+lsof -nP -iTCP:8000 -sTCP:LISTEN                    # 應為空，才算殺乾淨；然後重跑步驟 1
 ```
 
 前端不用：vite 會熱更新。
 
-⚠️⚠️ **殺完要確認真的殺掉了**。啟動時寫成 `uvicorn 'knowfield.web.app:create_app'`（帶引號）
-但 shell 會把引號吃掉，process 命令列裡**沒有**引號——所以 `pkill -f "uvicorn 'knowfield..."`
-永遠匹配不到。舊 server 繼續佔著 8000，新的起不來就默默退出，**而你以為你在看新版**。
-這個坑在本 skill 第一版的指令裡真的發生過：驗證出來的結果全是舊碼跑的。
-`ps aux | grep -c "[u]vicorn knowfield.web.app"` 要是 0 才算殺乾淨。
+⚠️⚠️ **殺完要確認真的殺掉了，而且要用「誰在聽 port」來確認。**
+
+兩個坑，本 skill 的前兩版各踩一個：
+
+1. **pkill 樣式帶了字面引號**：啟動寫成 `uvicorn 'knowfield.web.app:create_app'`，但 shell 會吃掉引號，
+   process 命令列裡**沒有**引號 → `pkill -f "uvicorn 'knowfield..."` 永遠匹配不到。舊 server 續佔
+   8000、新的默默退出，**而你以為你在看新版**——那次驗證結果全是舊碼跑的。
+2. **用 `ps | grep -c` 判斷**：`uv run` 是包裝器，**一個 server 佔 2 行**（`uv run …` ＋ python 子行程），
+   加上 `uv` 自己的暫態行程，數字會虛高。我照著它讀成「殺不掉、還有 4 個」，實際只有剛起的那 1 個。
+
+⇒ 唯一不會騙人的檢查是 **`lsof -nP -iTCP:8000 -sTCP:LISTEN`**——問「誰在聽」，不問「有幾個像樣的行程」。
 
 ### 5. 收工
 

@@ -66,3 +66,22 @@ def make_article_backend(config: Config):
         return OpenAIArticleWriter(config.api_base_url, config.api_key, config.chat_model,
                                    lang=config.article_lang)
     return StubArticleBackend()
+
+
+def make_translate_backend(config):
+    """英→繁翻譯後端（spec 038）：真實走 OpenAI 格式 chat，否則 None（呼叫端全部降級為原文）。
+
+    回 None 而非 stub：離線 stub 沒有翻譯能力，硬給一個假譯文會讓使用者以為翻過了
+    ——那比顯示原文糟（原文為真相）。
+    """
+    if config.backend == "openai" and config.api_key:
+        from .openai_api import OpenAIChatBackend
+        be = OpenAIChatBackend(config.api_base_url, config.api_key, config.chat_model)
+        sys_prompt = (
+            "你是技術文件翻譯。把英文翻成繁體中文（台灣用語）。"
+            "逐句對應原文，不增不減不改寫；專有名詞保留英文；"
+            "看到 @@KFPROTECT<數字>@@ 這種佔位符，原封不動照抄、位置不變、不要翻譯它；"
+            "只輸出譯文，不要任何說明。")
+        return lambda masked: be.reply([{"role": "system", "content": sys_prompt},
+                                        {"role": "user", "content": masked}])
+    return None

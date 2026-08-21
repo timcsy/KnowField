@@ -109,6 +109,41 @@ def stitch_chunks(chunks: list[str], max_overlap: int = 120) -> str:
     return out
 
 
+def dedupe_for_translate(chunks: list[str], max_overlap: int = 120
+                         ) -> tuple[list[str], list[str]]:
+    """把塊間重疊裁掉，回 `(pieces, seps)`；`pieces[0]+seps[0]+pieces[1]+…` 逐字等於
+    `stitch_chunks(chunks)`。
+
+    **為什麼需要它**（spec 038）：`stitch_chunks` 靠**精確字串比對**去重疊，那對原文成立；
+    但每塊若被**獨立翻譯**，同一段重疊文字在前後塊會翻成不同的中文，比對就失敗，
+    兩份都會留下——接縫出現「條件式 Generat … 條件式生成」這種殘影。
+    ⇒ 重疊要在**翻譯前**裁掉，翻完照原本的分隔接回。
+
+    與 `stitch_chunks` 共用同一套判斷（同樣的 `max_overlap`、同樣的 `\n\n` 後備），
+    兩者必須一起改，否則重組會對不上。
+    """
+    parts = [c for c in chunks if c and c.strip()]
+    if not parts:
+        return [], []
+    pieces, seps = [parts[0]], []
+    tail = parts[0]
+    for ch in parts[1:]:
+        k = min(len(tail), len(ch), max_overlap)
+        ov = 0
+        for j in range(k, 0, -1):
+            if tail[-j:] == ch[:j]:
+                ov = j
+                break
+        if ov:
+            pieces.append(ch[ov:])
+            seps.append("")
+        else:
+            pieces.append(ch)
+            seps.append("\n\n")
+        tail = ch
+    return pieces, seps
+
+
 def chunk_markdown(md: str, target: int = 400, overlap: int = 40) -> list[str]:
     """把 markdown 切成 chunk 清單。target＝目標字元數、overlap＝prose 跨塊重疊字元數。"""
     md = (md or "").strip()

@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils"
 
 type Paper = { title: string; authors: string[]; abstract: string; published: string; source: string }
 type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
-             original_url: string; pdf_path: string; paper: Paper | null; s2t_applied: boolean }
+             original_url: string; pdf_path: string; paper: Paper | null; s2t_applied: boolean
+             is_english: boolean }
 const KINDS = ["已證實", "推論", "類比", "猜想"]
 
 export default function SourcePage() {
@@ -26,6 +27,28 @@ export default function SourcePage() {
   // ⚠️ 文案用「轉換前」不用「原文」：這一頁的「原文」已經指原站連結／PDF（見上方 :74、:125），
   // 同一畫面用兩次會讓人以為點了會跳出去。
   const [raw, setRaw] = useState(false)
+  // spec 038：英→繁一鍵全文翻譯。譯文是**生成物**，所以三件事缺一不可（憲章 VI）：
+  // 人明確觸發、標明「AI 翻譯」、隨時切得回原文。
+  const [zh, setZh] = useState<string | null>(null)      // 譯文（null＝還沒翻）
+  const [showZh, setShowZh] = useState(false)
+  const [prog, setProg] = useState<{ done: number; total: number; failed: number } | null>(null)
+
+  function translate() {
+    setProg({ done: 0, total: 0, failed: 0 })
+    const es = new EventSource(`/api/source/translate?u=${encodeURIComponent(u)}`)
+    es.onmessage = (e) => {
+      const d = JSON.parse(e.data)
+      if (d.type === "stage") setProg({ done: d.done, total: d.total, failed: d.failed })
+      else if (d.type === "done") {
+        setZh(d.markdown); setShowZh(true)
+        setProg({ done: d.total, total: d.total, failed: d.failed })
+        es.close()
+      } else if (d.type === "error") {
+        setMsg(d.message || "翻譯失敗"); setProg(null); es.close()
+      }
+    }
+    es.onerror = () => { setMsg("翻譯連線中斷"); setProg(null); es.close() }
+  }
 
   // 這份來源蒸餾出的候選（evidence_urls 帶著來源網址）→ 直接在這頁精選
   const loadCands = () =>
@@ -126,6 +149,35 @@ export default function SourcePage() {
         <div className="mb-3 border-b pb-2 text-xs text-muted-foreground">
           🔍 萃取參考（自動抽取，給檢索用；可能有小誤差{src.pdf_path || src.original_url ? "，準確請看上方原文" : ""}）
         </div>
+        {src.is_english && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+            {zh === null ? (
+              <>
+                <Button variant="outline" size="sm" onClick={translate} disabled={!!prog}>
+                  {prog ? "翻譯中…" : "🌐 翻成繁中"}
+                </Button>
+                {prog && prog.total > 0 && (
+                  <span className="text-muted-foreground">
+                    {prog.done}/{prog.total} 塊{prog.failed ? `（${prog.failed} 塊保留原文）` : ""}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {/* 譯文是生成物、會失真——這個標示是必要的，不是裝飾（憲章 VI） */}
+                <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">
+                  {showZh ? "🤖 AI 翻譯（可能失真）" : "顯示英文原文"}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setShowZh(!showZh)}>
+                  {showZh ? "看英文原文" : "看中文翻譯"}
+                </Button>
+                {prog?.failed ? (
+                  <span className="text-muted-foreground">{prog.failed} 塊翻譯失敗、保留原文</span>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
         {(src.s2t_applied || raw) && (
           <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
             <span>{raw ? "顯示轉換前的文字" : "已自動轉為繁體"}</span>
@@ -134,7 +186,7 @@ export default function SourcePage() {
             </Button>
           </div>
         )}
-        <Markdown text={src.markdown} prefix="src" />
+        <Markdown text={showZh && zh !== null ? zh : src.markdown} prefix="src" />
       </div>
     </div>
   )

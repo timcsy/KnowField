@@ -623,7 +623,7 @@ def create_app() -> FastAPI:
         import re as _re
 
         from ..ingest.chunk import stitch_chunks
-        from ..text import s2t
+        from ..text import lang, s2t
         from ..ingest.media import load_paper_meta, source_pdf_name
         repo = app.state.repo_factory(app.state.config)
         chunks = repo.get_source_chunks(u)
@@ -649,7 +649,8 @@ def create_app() -> FastAPI:
         return _JSON({"found": True, "url": u, "title": title, "markdown": md,
                       "original_url": u if u.startswith("http") else "", "pdf_path": pdf_path,
                       "paper": paper, "note": meta["note"], "ingested_at": meta["ingested_at"],
-                      "s2t_applied": s2t_applied})
+                      "s2t_applied": s2t_applied,
+                      "is_english": lang.is_english(md)})
 
     @app.post("/api/source/meta")
     async def api_source_meta(request: Request):
@@ -660,6 +661,47 @@ def create_app() -> FastAPI:
             repo.set_source_meta(u, b.get("note", ""), b.get("ingested_at", ""))
             repo.close()
         return _JSON({"ok": True})
+
+    @app.get("/api/source/translate")
+    async def api_source_translate(u: str = Query("")):
+        """英→繁一鍵全文翻譯（spec 038）。SSE，協定沿用 /chat/stream 的 type-in-data。
+
+        並行 8 路（實測 11.1 分 → 1.8 分）；單塊失敗或保護片段不完整 → 該塊退回原文。
+        **不寫回儲存層**——譯文是衍生物，原文才是真相。
+        """
+        import re as _re
+
+        from ..ingest.chunk import dedupe_for_translate, stitch_chunks
+        from ..text import lang, translate as _tr
+
+        def gen():
+            repo = app.state.repo_factory(app.state.config)
+            chunks = [_re.sub(r"<!--kf-page:\d+-->", "", c) for c in repo.get_source_chunks(u)]
+            repo.close()
+            if not chunks:
+                yield _sse({"type": "error", "message": "找不到這份來源。"})
+                return
+            if not lang.is_english(stitch_chunks(chunks)):
+                yield _sse({"type": "error", "message": "這份來源不是英文，不需要翻譯。"})
+                return
+            from ..backends.factory import make_translate_backend
+            backend = make_translate_backend(app.state.config)
+            # ⚠️ 翻譯**前**先裁掉塊間重疊：stitch_chunks 靠精確比對去重疊，而獨立翻譯後
+            # 前後塊的重疊段會翻成不同中文、比對失敗 → 接縫留下殘影（真跑才看得到）。
+            pieces, seps = dedupe_for_translate(chunks)
+            # 串流邏輯在 text/translate.py（那裡測得到時機）；這裡只負責包成 SSE。
+            for kind, payload in _tr.translate_stream(pieces, backend):
+                if kind == "stage":
+                    yield _sse({"type": "stage", **payload})
+                else:
+                    out = payload["chunks"]
+                    md_out = out[0] if out else ""
+                    for piece, sep in zip(out[1:], seps):   # 照原本的分隔接回，不再比對
+                        md_out += sep + piece
+                    yield _sse({"type": "done", "total": payload["total"],
+                                "failed": payload["failed"], "markdown": md_out})
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.post("/api/source/distill")
     async def api_source_distill(request: Request):
