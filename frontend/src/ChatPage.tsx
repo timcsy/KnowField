@@ -18,6 +18,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
+  // spec 041：使用者**明確**帶進來的一篇生成文章（讀完想接著想）。不自動注入。
+  const [article, setArticle] = useState<{ id: number; title: string } | null>(null)
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -62,6 +64,12 @@ export default function ChatPage() {
 
   // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回（?from&to＝核心理解定位）
   useEffect(() => {
+    // spec 041：/?article=<id>&atitle=<標題> → 帶著這篇文章開一輪（人明確按的，非自動）
+    const aid = Number(sp.get("article") || 0)
+    if (aid) {
+      setArticle({ id: aid, title: sp.get("atitle") || "文章" })
+      sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
+    }
     if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
     const rid = Number(sp.get("resume") || 0)
     if (rid) {
@@ -118,7 +126,7 @@ export default function ChatPage() {
           notifyConversations()
         }).catch(() => {})
       },
-    })
+    }, article?.id || 0)
     setBusy(false)
   }
   async function send() {
@@ -339,6 +347,23 @@ export default function ChatPage() {
         ) : (
           messages.map(renderMsg)
         )}
+
+        {/* spec 041：已帶的文章——標明是 AI 產物、可隨時取消（憲章 VI：人保有控制） */}
+
+        {article && (
+
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm">
+
+            <span>📄 帶著這篇一起想：<b>{article.title}</b></span>
+
+            <span className="text-xs text-muted-foreground">（AI 依你的核心理解生成，比核心理解軟）</span>
+
+            <button onClick={() => setArticle(null)} className="ml-auto text-xs text-muted-foreground hover:underline">取消</button>
+
+          </div>
+
+        )}
+
 
         {streaming !== null && (
           // 串流中也全寬無框（與完成的 AI 回覆一致）；走 Markdown → 數學/格式當下就渲染

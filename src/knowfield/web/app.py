@@ -341,14 +341,29 @@ def create_app() -> FastAPI:
         return {"from": gap[0], "to": gap[1]} if gap else None
 
 
-    def _stream_gen(hist, message, bare):
+    def _stream_gen(hist, message, bare, article_id=0):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
-        bare＝這輪暫時屏蔽知識庫：不注入核心理解、不撒網、不查收藏。"""
+        bare＝這輪暫時屏蔽知識庫：不注入核心理解、不撒網、不查收藏。
+        article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。"""
         from ..chat.field_chat import FieldChat
         cfg = app.state.config
         if not message:
             yield _sse({"type": "done", "text": ""})
             return
+        # spec 041：使用者明確帶的一篇生成文章。找不到就明講，不靜默略過（憲章 V）。
+        _article = None
+        if article_id and not bare:
+            _r = app.state.repo_factory(cfg)
+            try:
+                _a = _r.get_article(article_id)      # 回 dict | None（非物件）
+            finally:
+                _r.close()
+            if not _a:
+                yield _sse({"type": "error", "message": "找不到那篇文章（可能已刪除）。"})
+                return
+            _article = {"id": _a.get("id", article_id),
+                        "title": _a.get("title") or "",
+                        "markdown": _a.get("markdown") or ""}
         if bare:
             roots = []
         else:
@@ -373,7 +388,7 @@ def create_app() -> FastAPI:
                 sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
             yield _sse({"type": "stage", "text": "回答中…"})
             full, truncated = yield from _pump(
-                fc.reply_stream(hist, message, roots, sources, bare=bare,
+                fc.reply_stream(hist, message, roots, sources, bare=bare, article=_article,
                                 max_history=cfg.chat_context_messages,
                                 url_contents=url_contents))
             cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
@@ -451,8 +466,10 @@ def create_app() -> FastAPI:
         body = await request.json()
         hist = body.get("history") or []
         message = (body.get("message") or "").strip()
-        return StreamingResponse(_stream_gen(hist, message, bool(body.get("bare"))),
-                                 media_type="text/event-stream")
+        return StreamingResponse(
+            _stream_gen(hist, message, bool(body.get("bare")),
+                        int(body.get("article_id") or 0)),
+            media_type="text/event-stream")
 
     @app.post("/api/chat/distill")
     async def api_chat_distill(request: Request):

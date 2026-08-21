@@ -27,6 +27,14 @@ export default function ArticleViewPage() {
           {art && art !== "missing" && (
             <button onClick={copy} className="hover:text-foreground">📋 複製 Markdown</button>
           )}
+          {/* spec 041：讀完想接著想 → 帶著這篇開一輪對話（人明確按，非自動注入） */}
+          {art && art !== "missing" && (
+            <Link to={`/?article=${art.id}&atitle=${encodeURIComponent(art.title || "文章")}`}
+                  className="rounded-md border px-3 py-1.5 font-medium hover:bg-accent"
+                  title="讀完有想法？帶著這篇接著想——它會進這輪的脈絡，但不會蓋過你的核心理解">
+              💬 帶著這篇聊
+            </Link>
+          )}
           <Link to="/roots" className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:opacity-90">
             ✍️ 生成新文章
           </Link>

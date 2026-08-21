@@ -185,13 +185,14 @@ export async function streamChat(
   message: string,
   bare: boolean,   // 這輪暫時屏蔽知識庫（不注入核心理解、不撒網、不查收藏）
   h: StreamHandlers,
+  articleId = 0,   // spec 041：使用者明確帶進來的一篇生成文章（0＝沒帶）
 ) {
   let resp: Response
   try {
     resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, message, bare }),
+      body: JSON.stringify({ history, message, bare, article_id: articleId }),
     })
   } catch {
     h.onError?.("連線中斷，請重試。")
