@@ -124,6 +124,13 @@ export default function SourcePage() {
           <Button size="sm" disabled={busy} onClick={distill}>🧠 整理成核心理解</Button>
           <span className="text-xs text-muted-foreground">AI 從這份來源抽候選，你在下面挑認同的收進——不會自動變地基。</span>
         </div>
+        {/* spec 042：帶著這份開**一段新對話**（形狀與「帶著這篇聊」逐項相同）。
+            與撒網的差別：撒網是它猜哪些相關、可能沉默地漏掉；這裡是你指定就一定進得去。 */}
+        <div className="mt-2">
+          <Link to={`/?source=${encodeURIComponent(u)}&stitle=${encodeURIComponent(src.title || "來源")}`}
+                className="text-sm text-primary hover:underline">💬 帶著這份聊</Link>
+          <span className="ml-2 text-xs text-muted-foreground">開一段新對話，這份就是開場。</span>
+        </div>
         {msg && <div className="mt-2 rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
       </div>
 

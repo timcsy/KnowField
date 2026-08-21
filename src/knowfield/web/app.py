@@ -34,6 +34,12 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# spec 042：帶入來源的脈絡預算。比文章的 6000 寬——來源是這一輪明講的談話對象，
+# 而且實測一份 20k–38k 字；但仍要留空間給核心理解與對話本身。
+_SOURCE_CAP = 12000
+_SOURCE_HEAD = 2500        # 開頭保底：沒有它就答不出「這篇整體在講什麼」
+
+
 # spec 039：譯文快取的存活門檻。遠比 spec 028 的 7 天寬鬆——譯文能重生，
 # 清掉的代價只是下次要再等一次翻譯，不是資料遺失。
 _TRANSLATION_TTL_DAYS = 180
@@ -351,10 +357,70 @@ def create_app() -> FastAPI:
         return {"from": gap[0], "to": gap[1]} if gap else None
 
 
-    def _stream_gen(hist, message, bare, article_id=0):
+    def _load_source_context(u: str, query: str):
+        """spec 042：把一份收進的來源整理成可注入的脈絡。找不到回 None。
+
+        ⚠️ 注入的是**儲存層原文**——不是 `/api/source` 那條顯示路徑的繁體化／翻譯結果。
+        譯文是 AI 產物，餵回去是回灌線的縮小版；餵原文反而讓模型替使用者抓翻譯的失真（FR-004）。
+        ⚠️ 長來源**不硬切**——切點一律落在原始塊邊界，並在脈絡裡明講節錄了多少（FR-005）。
+        """
+        from ..chat.source_context import select_source_context
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            chunks = [re.sub(r"<!--kf-page:\d+-->", "", c) for c in repo.get_source_chunks(u)]
+            if not chunks:
+                return None
+            title = repo.source_title(u)
+            ranked: list[int] = []
+            if len("\n\n".join(chunks)) > _SOURCE_CAP:
+                ranked = _rank_chunks_in_source(repo, u, chunks, query)
+        finally:
+            repo.close()
+        ctx = select_source_context(chunks, ranked, _SOURCE_CAP, _SOURCE_HEAD)
+        _log.info("帶入來源", extra={"extra": {"url": u, "units": ctx.total_units,
+                                              "shown": ctx.shown_units,
+                                              "excerpted": ctx.excerpted}})
+        return {"url": u, "title": title, "body": ctx.body,
+                "total_units": ctx.total_units, "shown_units": ctx.shown_units,
+                "excerpted": ctx.excerpted}
+
+    def _rank_chunks_in_source(repo, u: str, chunks: list[str], query: str) -> list[int]:
+        """份內檢索：把既有的語料檢索**範圍縮到這一份**。失敗→空（退化成只給開頭，不擋聊天）。
+
+        不新增檢索機制——來源的每個塊本來就是一列 `digest_entries`（YAGNI）。
+        """
+        try:
+            from ..backends.factory import make_embedder
+            from ..ranking.embeddings import cosine
+            from ..rag.service import embedder_tag
+            emb = getattr(app.state, "embedder_for_test", None) or make_embedder(app.state.config)
+            entries = [e for e in repo.list_corpus_entries() if e.url == u]
+            if not entries:
+                return []
+            vecs = repo.ensure_embeddings(entries, emb, embedder_tag(emb))
+            qv = emb.embed(query)
+            order = sorted(entries, key=lambda e: cosine(qv, vecs[e.entry_id]), reverse=True)
+            # ⚠️ 塊已去過頁碼標記，語料條目的 body 沒有——比對前要用同一把尺，
+            # 否則對不上、靜默退化成「只給開頭」（真跑時就是這樣被日誌照出來的）。
+            by_body = {re.sub(r"<!--kf-page:\d+-->", "", c): i for i, c in enumerate(chunks)}
+            hits = [by_body[k] for e in order
+                    if (k := re.sub(r"<!--kf-page:\d+-->", "", e.body or "")) in by_body]
+            if not hits:
+                _log.info("份內檢索沒對上任何塊，退回只給開頭",
+                          extra={"extra": {"url": u, "entries": len(entries)}})
+            return hits
+        except Exception as exc:  # noqa: BLE001 - 檢索失敗不該擋住聊天（教訓 3）
+            # ⚠️ 原因一定要寫出來。第一版只寫「失敗」，真跑時我看得到它退化、
+            # 卻看不出是 import 路徑錯——那是憲章 V 要擋的靜默（同 history/102）。
+            _log.info("份內檢索失敗，退回只給開頭",
+                      extra={"extra": {"url": u, "reason": f"{type(exc).__name__}: {exc}"}})
+            return []
+
+    def _stream_gen(hist, message, bare, article_id=0, source_url=""):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
         bare＝這輪暫時屏蔽知識庫：不注入核心理解、不撒網、不查收藏。
-        article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。"""
+        article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。
+        source_url＝使用者**明確**帶進來的一份收進來源（spec 042），空＝沒帶。"""
         from ..chat.field_chat import FieldChat
         cfg = app.state.config
         if not message:
@@ -374,6 +440,11 @@ def create_app() -> FastAPI:
             _article = {"id": _a.get("id", article_id),
                         "title": _a.get("title") or "",
                         "markdown": _a.get("markdown") or ""}
+        # spec 042：使用者明確帶的一份來源。⚠️ 這一步**與撒網無關**——帶了就進得去，
+        # 那正是本刀與現況的全部差別（撒網的失敗是沉默的：沒撈到你不會知道）。
+        _source = None
+        if source_url and not bare:
+            _source = _load_source_context(source_url, message)
         if bare:
             roots = []
         else:
@@ -396,9 +467,15 @@ def create_app() -> FastAPI:
                 web = _chat_search(q)
                 yield _sse({"type": "stage", "text": "翻你收進的資料…"})
                 sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
+                if _source:
+                    # ⚠️ FR-007：同一份既被帶入又被撒網命中 → 只算一份證言。
+                    # 不去重的話模型會把同一段當成**兩個獨立佐證**，而畫面上完全看不出來。
+                    sources = [s for s in sources
+                               if (getattr(s, "url", "") or "") != _source["url"]]
             yield _sse({"type": "stage", "text": "回答中…"})
             full, truncated = yield from _pump(
                 fc.reply_stream(hist, message, roots, sources, bare=bare, article=_article,
+                                source=_source,
                                 max_history=cfg.chat_context_messages,
                                 url_contents=url_contents))
             cited = {int(n) for n in re.findall(r"\[(\d+)\]", full)}
@@ -478,7 +555,8 @@ def create_app() -> FastAPI:
         message = (body.get("message") or "").strip()
         return StreamingResponse(
             _stream_gen(hist, message, bool(body.get("bare")),
-                        int(body.get("article_id") or 0)),
+                        int(body.get("article_id") or 0),
+                        str(body.get("source_url") or "").strip()),
             media_type="text/event-stream")
 
     @app.post("/api/chat/distill")

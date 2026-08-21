@@ -56,7 +56,12 @@ export function scheduleTypeset() {
       attempts++
       w.MathJax?.typesetPromise?.().then(() => {
         if (rawMathNodes().length > 0 && attempts < MAX_ATTEMPTS) setTimeout(run, 400)
-      }).catch(() => {})
+      }).catch((e) => {
+        // ⚠️ 原本是 `.catch(() => {})` ——失敗**既不重試也不出聲**，於是一次暫時性失敗
+        // 就讓整頁公式停在原始碼，而且沒有任何線索。失敗要重試，放棄要說。
+        if (attempts < MAX_ATTEMPTS) setTimeout(run, 400)
+        else console.warn("[KnowField] MathJax typeset 連續失敗，公式會停在原始碼", e)
+      })
     }
     if (w.MathJax?.typesetPromise) run()                              // 已 ready
     else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(run)  // 載入中
@@ -98,10 +103,16 @@ export function renderHtml(text: string, prefix = "src"): string {
 
 export function Markdown({ text, prefix = "src" }: { text: string; prefix?: string }) {
   const ref = useRef<HTMLDivElement>(null)
+  // ⚠️ **無依賴**：每次 render 都排一次。
+  // 理由（2026-08-21 真跑照出）：React 重新套用 innerHTML 會把 MathJax 的 `mjx-container`
+  // **擦掉**，而重繪未必伴隨 `text` 改變——例如收合帶入來源的 `<details>`（改的是 state）。
+  // 綁 `[text]` 的話那次重繪之後**永遠不會再排**，於是公式永久卡成原始碼。
+  // 實測：68 個公式全部排好 → 收合 → 立刻掉到 0，等 4 秒仍是 0。
+  // scheduleTypeset 自己 debounce 且冪等，所以每次 render 呼叫是便宜的。
+  useEffect(() => { scheduleTypeset() })
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    scheduleTypeset()   // MathJax：內容變化後 debounce typeset 整頁
     // 圖 hotlink 失效→替代連結（不留破圖）
     el.querySelectorAll("img").forEach((im) => {
       im.addEventListener("error", () => {

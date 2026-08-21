@@ -14,15 +14,23 @@ type Chapter = { title: string; start: number; end: number }
 // 通知側欄（Layout 內）重載對話歷史
 const notifyConversations = () => window.dispatchEvent(new Event("kf-conversations-changed"))
 
+// 帶入物：文章（AI 依核心理解生成的衍生物）或來源（使用者收進的一手素材）。
+// 兩者在**畫面上同形**，但在**脈絡裡分層**——分層在後端 field_chat._messages 做。
+type Carried =
+  | { kind: "article"; id: number; title: string }
+  | { kind: "source"; url: string; title: string }
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
-  // spec 041：使用者**明確**帶進來的一篇生成文章（讀完想接著想）。不自動注入。
-  const [article, setArticle] = useState<{ id: number; title: string } | null>(null)
-  // FR-001a：帶進脈絡卻看不到，等於只有 AI 讀得到它——就地展開，預設收合（不佔走對話視線）
-  const [artOpen, setArtOpen] = useState(true)   // 它是「第一則」，預設就看得到
-  const [artBody, setArtBody] = useState<string | null>(null)
+  // 使用者**明確**帶進來的東西：一篇生成文章（spec 041）或一份收進的來源（spec 042）。
+  // ⚠️ **共用同一條呈現路徑**——那是「形狀差異＝0 處」最強的保證：
+  // 只有一個 render 分支，就不可能長出兩套形狀（spec 042 SC-006）。
+  const [carried, setCarried] = useState<Carried | null>(null)
+  // 帶進脈絡卻看不到，等於只有 AI 讀得到它——就地展開（041 FR-001a）
+  const [carriedOpen, setCarriedOpen] = useState(true)   // 它是「第一則」，預設就看得到
+  const [carriedBody, setCarriedBody] = useState<string | null>(null)
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -48,7 +56,7 @@ export default function ChatPage() {
   async function loadConversation(id: number, from = 0) {
     const c = await pages.conversation(id, true)
     if (!c.found) return
-    setArticle(null); setArtBody(null)   // 接回舊對話 → 文章不殘留（FR-001c：不在對話間常駐）
+    setCarried(null); setCarriedBody(null)   // 接回舊對話 → 文章不殘留（FR-001c：不在對話間常駐）
     setMessages(c.messages)
     setConvTitle(c.title || "")
     baseCount.current = c.messages.length
@@ -61,7 +69,7 @@ export default function ChatPage() {
       setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
-    setArticle(null); setArtOpen(true); setArtBody(null)   // 文章不跨對話殘留（FR-001c）
+    setCarried(null); setCarriedOpen(true); setCarriedBody(null)   // 文章不跨對話殘留（FR-001c）
     setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
@@ -75,11 +83,23 @@ export default function ChatPage() {
     const aid = Number(sp.get("article") || 0)
     if (aid) {
       newChat()                       // 先清空，這是新的一段
-      setArticle({ id: aid, title: sp.get("atitle") || "文章" })
-      setArtOpen(true); setArtBody(null)
-      pages.getArticle(aid).then((a) => setArtBody(a?.markdown || "")).catch(() => setArtBody(""))
+      setCarried({ kind: "article", id: aid, title: sp.get("atitle") || "文章" })
+      setCarriedOpen(true); setCarriedBody(null)
+      pages.getArticle(aid).then((a) => setCarriedBody(a?.markdown || "")).catch(() => setCarriedBody(""))
       sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
       return                          // 不再往下走 resume（那會把舊對話載回來）
+    }
+    // spec 042：/?source=<url>&stitle=<標題> → 開一段新對話給這份來源。規則與文章逐項相同。
+    const surl = (sp.get("source") || "").trim()
+    if (surl) {
+      newChat()
+      setCarried({ kind: "source", url: surl, title: sp.get("stitle") || "來源" })
+      setCarriedOpen(true); setCarriedBody(null)
+      // ⚠️ 畫面顯示的是**顯示路徑**的結果（可能已繁體化），而送進模型脈絡的是**儲存層原文**
+      //（spec 042 FR-004）。這是刻意的不一致：人要讀得順，模型要看得到原文才抓得出翻譯失真。
+      pages.source(surl).then((r) => setCarriedBody(r?.markdown || "")).catch(() => setCarriedBody(""))
+      sp.delete("source"); sp.delete("stitle"); setSp(sp, { replace: true })
+      return
     }
     if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
     const rid = Number(sp.get("resume") || 0)
@@ -137,7 +157,8 @@ export default function ChatPage() {
           notifyConversations()
         }).catch(() => {})
       },
-    }, article?.id || 0)
+    }, carried?.kind === "article" ? carried.id : 0,
+       carried?.kind === "source" ? carried.url : "")
     setBusy(false)
   }
   async function send() {
@@ -327,36 +348,38 @@ export default function ChatPage() {
             ⚠️ **看起來是第一則，但絕不進 `messages`**——`history` 會被持久化並餵進 distill()，
             文章一旦進去就破掉 FR-003 那道閘門（冊封候選不得由文章原文生成）。
             這是刻意讓「視覺隱喻」與「資料模型」不一致的地方。 */}
-        {article && (
+        {carried && (
           // 展開收合比照章節：同一組 <details>／▸▾／樣式。人只要學一次。
           // （章節是 uncontrolled、用 ref 開；這裡用受控 open，否則每次打字重繪都會把它掰回展開）
-          <details open={artOpen} onToggle={(e) => setArtOpen(e.currentTarget.open)}
+          <details open={carriedOpen} onToggle={(e) => setCarriedOpen(e.currentTarget.open)}
                    className="group rounded-xl bg-card shadow-sm">
             <summary className="flex cursor-pointer list-none items-center px-4 py-2.5 text-sm font-medium hover:bg-muted/40">
               <span className="mr-1 text-muted-foreground group-open:hidden">▸</span>
               <span className="mr-1 hidden text-muted-foreground group-open:inline">▾</span>
-              📄 {article.title}
+              {carried.kind === "article" ? "📄" : "📚"} {carried.title}
               <span className="ml-2 truncate text-xs font-normal text-muted-foreground">
-                AI 依你的核心理解生成，比核心理解軟
+                {carried.kind === "article"
+                  ? "AI 依你的核心理解生成，比核心理解軟"
+                  : "你收進的來源，外部證言——比核心理解軟"}
               </span>
-              <button onClick={(e) => { e.preventDefault(); setArticle(null) }}
+              <button onClick={(e) => { e.preventDefault(); setCarried(null) }}
                       className="ml-auto shrink-0 pl-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:underline">
                 移除
               </button>
             </summary>
             <div className="border-t px-4 py-3">
-              {artBody === null ? (
+              {carriedBody === null ? (
                 <p className="text-sm text-muted-foreground">載入中…</p>
-              ) : artBody === "" ? (
-                <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
+              ) : carriedBody === "" ? (
+                <p className="text-sm text-muted-foreground">找不到內容（可能已刪除）。</p>
               ) : (
-                <Markdown text={artBody} prefix="chatart" />
+                <Markdown text={carriedBody} prefix="chatart" />
               )}
             </div>
           </details>
         )}
-        {/* 有文章時不顯示——文章就是這一輪的開場，再擺一個「還沒有開場」的提示是自相矛盾 */}
-        {empty && !article && (
+        {/* 有帶入物時不顯示——它就是這一輪的開場，再擺一個「還沒有開場」的提示是自相矛盾 */}
+        {empty && !carried && (
           <div className="flex flex-col items-center gap-3 pt-16 text-center text-muted-foreground">
             <div className="text-5xl">🧠</div>
             <p className="max-w-sm text-sm">

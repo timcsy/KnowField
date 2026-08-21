@@ -193,7 +193,7 @@ class FieldChat:
     _ARTICLE_CAP = 6000        # 長文不得吃掉整個脈絡預算（同 sources 的 cap 精神）
 
     def _messages(self, history, user_msg, roots, sources, bare, max_history,
-                  url_contents=None, article=None):
+                  url_contents=None, article=None, source=None):
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
@@ -216,6 +216,30 @@ class FieldChat:
                 "・**與核心理解衝突時以核心理解為準**，不要用文章來蓋過他的地基。\n"
                 "・他要的多半是**接著想**，不是要你改這篇文章——除非他明講。\n"
                 f"【{article.get('title') or '（無標題）'}】\n{body}")})
+
+        # spec 042：使用者明確帶進來的**一份收進的來源**。它與文章是不同層——
+        # 來源是**他挑進來的一手素材**（可能是他人觀點、也可能有誤，但不是 AI 產物），
+        # 文章則是自家衍生物。⚠️ 這一層**比核心理解軟、比文章硬**。
+        # ⚠️ FR-010：spec 041 對文章那道「冊封候選不得由它生成」的閘門**不套用在這裡**
+        # ——那道閘門擋的是 model collapse，前提是文章為 AI 產物；來源不是，
+        # 而且從來源冊封（/api/source/distill）本來就是既有的合法功能。
+        # 這裡不寫回 history 純粹是脈絡衛生（同 article 的形狀），不是閘門。
+        if source and not bare:
+            note = ""
+            if source.get("excerpted"):
+                note = (f"（本份共 {source.get('total_units')} 段，此處是開頭 ＋ 與問題最相關的"
+                        f" {source.get('shown_units')} 段；沒給你的段落**不代表它沒寫**，"
+                        f"不確定時請說「這份我只看到部分」。）\n")
+            messages.append({"role": "system", "content": (
+                "使用者帶了**一份他收進的來源**進來，因為他想針對這一份談。\n"
+                "・這是**外部證言**，不是他的地基：引用時說「你收的這份說…」，"
+                "**與核心理解衝突時以核心理解為準**。\n"
+                "・⚠️ 他在頁面上看到的可能是**繁體化或翻譯後**的版本，"
+                "以下給你的是**原文**——他引用某句時，必要時替他做原文↔他看到的版本的對應，"
+                "也可以指出翻譯失真的地方。\n"
+                f"{note}"
+                f"【{source.get('title') or '（無標題）'}】（{source.get('url') or ''}）\n"
+                f"{source.get('body') or ''}")})
 
         if url_contents:   # 使用者貼的網址，已抓到的內容（教訓 3：抓不到就給 note，不假裝讀過）
             blocks = []
@@ -251,23 +275,23 @@ class FieldChat:
 
     def reply(self, history: list[dict], user_msg: str, roots, sources=None,
               bare: bool = False, max_history: int = 0, url_contents=None,
-              article=None) -> str:
+              article=None, source=None) -> str:
         """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。
         bare=True＝這輪暫時屏蔽知識庫（不注入核心理解、不撒網）。"""
         return self.backend.reply(
             self._messages(history, user_msg, roots, sources, bare, max_history,
-                           url_contents, article))
+                           url_contents, article, source))
 
     def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
                      bare: bool = False, max_history: int = 0, url_contents=None,
-                     article=None):
+                     article=None, source=None):
         """串流版 reply：yield 逐段 token，**return finish_reason**（`"length"`＝被上限切）。
 
         bare=True＝這輪暫時屏蔽知識庫。截斷原因原樣穿過去，讓路由層標給使用者看（憲章 V）。
         """
         return (yield from self.backend.stream(
             self._messages(history, user_msg, roots, sources, bare, max_history,
-                           url_contents, article)))
+                           url_contents, article, source)))
 
     def title(self, messages: list[dict]) -> str:
         """為一段對話生一句反映**落點/全貌**的標題（≤20 字）。取材首尾並取（spec 027，

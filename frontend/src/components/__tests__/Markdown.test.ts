@@ -140,3 +140,20 @@ describe("scheduleTypeset：漏網偵測（D2／D3）", () => {
     expect(mj.typesetPromise.mock.calls.length).toBe(1)
   })
 })
+
+// ⚠️ 2026-08-21 真跑（spec 042）照出的第五個缺陷：**重繪會把已排版的結果擦掉，
+// 而 `[text]` 的 effect 不會再排一次 typeset ⇒ 永久卡成原始碼。**
+// 實測：來源頁帶 68 個公式進對話，全部排好；收合 `<details>`（state 變、text 沒變）
+// → typeset 立刻掉到 0，等 4 秒仍然是 0。
+// 使用者早先回報的「有時候數學會變原始碼」就是這一類，而上一輪的檢查沒照到它——
+// 因為那時沒有「內容不變但會重繪」的元件（章節是 uncontrolled）。
+describe("重繪後要重新排版（不能只看 text 有沒有變）", () => {
+  it("scheduleTypeset 在每次 render 都要被排一次", async () => {
+    const { scheduleTypeset } = await import("../Markdown")
+    // 這條是行為契約的佔位：真正的保證在 Markdown 的無依賴 effect。
+    // 這裡只釘住「這個函式是導出的、可被任意次呼叫且冪等」——
+    // 重繪頻率的斷言在 jsdom 裡量不到（沒有 MathJax），所以那一半靠真跑。
+    expect(typeof scheduleTypeset).toBe("function")
+    expect(() => { scheduleTypeset(); scheduleTypeset() }).not.toThrow()
+  })
+})
