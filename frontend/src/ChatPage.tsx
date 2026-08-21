@@ -21,7 +21,7 @@ export default function ChatPage() {
   // spec 041：使用者**明確**帶進來的一篇生成文章（讀完想接著想）。不自動注入。
   const [article, setArticle] = useState<{ id: number; title: string } | null>(null)
   // FR-001a：帶進脈絡卻看不到，等於只有 AI 讀得到它——就地展開，預設收合（不佔走對話視線）
-  const [artOpen, setArtOpen] = useState(false)
+  const [artOpen, setArtOpen] = useState(true)   // 它是「第一則」，預設就看得到
   const [artBody, setArtBody] = useState<string | null>(null)
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
@@ -71,7 +71,7 @@ export default function ChatPage() {
     const aid = Number(sp.get("article") || 0)
     if (aid) {
       setArticle({ id: aid, title: sp.get("atitle") || "文章" })
-      setArtOpen(false); setArtBody(null)
+      setArtOpen(true); setArtBody(null)
       pages.getArticle(aid).then((a) => setArtBody(a?.markdown || "")).catch(() => setArtBody(""))
       sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
     }
@@ -315,6 +315,35 @@ export default function ChatPage() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-2">
+        {/* spec 041：已帶的文章＝**這一輪的第一則**（使用者裁決 2026-08-21）。
+            它讀起來像對話的開場白，隨對話自然捲動，不跟版面搶位置。
+            ⚠️ **看起來是第一則，但絕不進 `messages`**——`history` 會被持久化並餵進 distill()，
+            文章一旦進去就破掉 FR-003 那道閘門（冊封候選不得由文章原文生成）。
+            這是刻意讓「視覺隱喻」與「資料模型」不一致的地方。 */}
+        {article && (
+          <div className="group">
+            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>📄 <b className="text-foreground">{article.title}</b></span>
+              <span>· AI 依你的核心理解生成，比核心理解軟</span>
+              <button onClick={() => setArtOpen(!artOpen)} className="ml-auto hover:underline">
+                {artOpen ? "收合" : "展開"}
+              </button>
+              <button onClick={() => { setArticle(null); setArtOpen(false) }}
+                      className="hover:underline">移除</button>
+            </div>
+            {artOpen && (
+              <div className="max-h-[52vh] overflow-y-auto rounded-xl border-l-2 border-amber-300 bg-amber-50/40 px-4 py-3">
+                {artBody === null ? (
+                  <p className="text-sm text-muted-foreground">載入中…</p>
+                ) : artBody === "" ? (
+                  <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
+                ) : (
+                  <Markdown text={artBody} prefix="chatart" />
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {empty && (
           <div className="flex flex-col items-center gap-3 pt-16 text-center text-muted-foreground">
             <div className="text-5xl">🧠</div>
@@ -351,31 +380,6 @@ export default function ChatPage() {
           })
         ) : (
           messages.map(renderMsg)
-        )}
-
-        {/* spec 041：已帶的文章——標明是 AI 產物、可展開閱讀、可隨時取消（憲章 VI：人保有控制） */}
-        {article && (
-          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm">
-            <span>📄 帶著這篇一起想：<b>{article.title}</b></span>
-            <span className="text-xs text-muted-foreground">（AI 依你的核心理解生成，比核心理解軟）</span>
-            <button onClick={() => setArtOpen(!artOpen)} className="ml-auto text-xs hover:underline">
-              {artOpen ? "收合" : "展開看"}
-            </button>
-            <button onClick={() => { setArticle(null); setArtOpen(false) }}
-                    className="text-xs text-muted-foreground hover:underline">取消</button>
-          </div>
-        )}
-        {/* FR-001a：帶進脈絡卻看不到，等於只有 AI 讀得到它。預設收合，不佔走對話視線。 */}
-        {article && artOpen && (
-          <div className="mb-2 max-h-[46vh] overflow-y-auto rounded-lg border bg-card px-4 py-3">
-            {artBody === null ? (
-              <p className="text-sm text-muted-foreground">載入中…</p>
-            ) : artBody === "" ? (
-              <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
-            ) : (
-              <Markdown text={artBody} prefix="chatart" />
-            )}
-          </div>
         )}
 
 
