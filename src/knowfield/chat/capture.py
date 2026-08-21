@@ -167,30 +167,3 @@ def _cget(o, key, default=None):
     return getattr(o, key, default)
 
 
-def expired_temp_ids(convos: list, now: str, ttl_days: int = 7) -> list:
-    """回過期暫存的 id（spec 028，純函式）：temporary 為真且 now - last_activity > ttl_days。
-
-    時間缺/壞 → 保守**不選**（不誤刪）；永久（temporary 假）一律不選。
-    """
-    from datetime import datetime, timedelta
-
-    def _parse(s):
-        if not s or not isinstance(s, str):
-            return None
-        try:
-            return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
-        except (ValueError, TypeError):
-            return None
-
-    now_dt = _parse(now)
-    if now_dt is None:
-        return []
-    cutoff = now_dt - timedelta(days=ttl_days)
-    out = []
-    for c in convos or []:
-        if not _cget(c, "temporary"):
-            continue
-        la = _parse(_cget(c, "last_activity_at"))
-        if la is not None and la < cutoff:     # 嚴格 < cutoff ＝ 閒置 > ttl
-            out.append(_cget(c, "id"))
-    return out

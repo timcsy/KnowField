@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 // 開新對話走「＋新對話」（→ 聊天頁）。與側欄歷史共用 pages.conversations()＋事件同步。
 export default function ConversationsPage() {
   const nav = useNavigate()
-  const [perm, setPerm] = useState<ConvRow[]>([])
-  const [temp, setTemp] = useState<ConvRow[]>([])
-  const load = () => pages.conversations().then((r) => { setPerm(r.permanent); setTemp(r.temporary) }).catch(() => {})
+  // spec 040：不再分暫存/永久——對話就是對話。
+  const [convs, setConvs] = useState<ConvRow[]>([])
+  const load = () => pages.conversations().then((r) => setConvs(r.conversations)).catch(() => {})
   useEffect(() => {
     load()
     const h = () => load()
@@ -18,7 +18,7 @@ export default function ConversationsPage() {
     return () => window.removeEventListener("kf-conversations-changed", h)
   }, [])
 
-  const empty = perm.length === 0 && temp.length === 0
+  const empty = convs.length === 0
 
   return (
     <div className="space-y-6 pb-8">
@@ -32,18 +32,13 @@ export default function ConversationsPage() {
 
       {empty && (
         <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          還沒有對話。<button onClick={() => nav("/?new=" + Date.now())} className="text-primary hover:underline">開一段新對話</button>，聊一句就會自動暫存到這裡。
+          還沒有對話。<button onClick={() => nav("/?new=" + Date.now())} className="text-primary hover:underline">開一段新對話</button>，聊一句就會自動存到這裡。
         </div>
       )}
 
-      {perm.length > 0 && (
+      {convs.length > 0 && (
         <Section title="對話">
-          {perm.map((c) => <Card key={c.id} c={c} onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
-        </Section>
-      )}
-      {temp.length > 0 && (
-        <Section title="暫存" hint="自動存、7 天沒碰會清；想留就 📌 轉永久">
-          {temp.map((c) => <Card key={c.id} c={c} temp onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
+          {convs.map((c) => <Card key={c.id} c={c} onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
         </Section>
       )}
     </div>
@@ -75,7 +70,6 @@ function Card({ c, temp, onResume, onChange }: {
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
           <span>{c.created_at.slice(0, 10)}</span>
           <span>{c.count} 則</span>
-          {temp && <span>暫存</span>}
           {c.why_node_id && <span>某條核心理解的由來</span>}
         </div>
       </button>

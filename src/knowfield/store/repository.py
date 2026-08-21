@@ -642,30 +642,23 @@ class Repository:
 
     def promote_conversation(self, cid: int, title: str | None = None,
                              why_node_id: int | None = None) -> bool:
-        """升永久（spec 028，人按）：temporary→0（＋可設 title、連根因）。同一筆、不新增。"""
-        sets = ["temporary=0"]
-        args: list = []
+        """設標題／連根因（同一筆、不新增）。
+
+        ⚠️ spec 040 起**不再翻動 `temporary`**——分層已移除。名字保留是因為呼叫端語義未變
+        （「存這段」＝給它一個名字），但它不再有「升級」的意思。
+        `temporary` 欄位刻意留在 schema：移除的是機制，不是資料。
+        """
+        touched = False
         if title and title.strip():
-            sets.append("title=%s")
-            args.append(title.strip())
-        args.append(cid)
-        cur = self.conn.execute(
-            f"UPDATE conversations SET {', '.join(sets)} WHERE id=%s", tuple(args))
+            self.conn.execute("UPDATE conversations SET title=%s WHERE id=%s",
+                              (title.strip(), cid))
+            touched = True
         if why_node_id is not None:
             self.conn.execute(
                 "UPDATE why_nodes SET conversation_id=%s WHERE id=%s", (cid, why_node_id))
+            touched = True
         self.conn.commit()
-        return cur.rowcount > 0
-
-    def purge_expired_temporary(self, now: str, ttl_days: int = 7) -> int:
-        """懶清：刪閒置 >ttl_days 的暫存（只暫存、永久不動）。回刪除數。"""
-        from ..chat.capture import expired_temp_ids
-        ids = expired_temp_ids(self.list_conversations(), now, ttl_days)
-        for cid in ids:
-            self.conn.execute("DELETE FROM conversations WHERE id=%s AND temporary=1", (cid,))
-        if ids:
-            self.conn.commit()
-        return len(ids)
+        return touched
 
     def rename_conversation(self, cid: int, title: str) -> bool:
         """改對話標題（spec 027，人按才呼叫）。只動 title 欄。回是否有更新。"""

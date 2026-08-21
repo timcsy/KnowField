@@ -5,9 +5,8 @@ import { pages, type ConvRow } from "@/lib/api"
 
 // 對話 ⋮ 選單（側欄＋總對話頁共用）。portal 到 body＋fixed 定位 → 不被捲動容器裁切（暫存在最底時的 bug）；
 // 靠底自動往上開。刪除：被核心理解引用（由來）→擋刪、提示先刪核心理解（護溯源，原則 3）。
-export function ConvMenu({ c, temp, open, setOpen, anchorRef, onResume, onRename, onChange, onNav }: {
+export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onChange, onNav }: {
   c: ConvRow
-  temp?: boolean
   open: boolean
   setOpen: (v: boolean) => void
   anchorRef: React.RefObject<HTMLElement | null>
@@ -66,11 +65,6 @@ export function ConvMenu({ c, temp, open, setOpen, anchorRef, onResume, onRename
       <Link to={`/conversations/${c.id}`} onClick={() => { setOpen(false); onNav?.() }} className={item}>檢視</Link>
       <button onClick={() => { setOpen(false); onResume() }} className={item}>接著聊</button>
       <button onClick={() => { setOpen(false); onRename() }} className={item}>改名</button>
-      {temp && (
-        <button onClick={async () => { setOpen(false); await pages.promoteConv(c.id); onChange() }} className={item}>
-          📌 轉永久
-        </button>
-      )}
       <button onClick={del} className={item + " text-destructive"}>刪除</button>
     </div>,
     document.body,

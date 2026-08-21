@@ -19,11 +19,11 @@ const NAV = [
 export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const [perm, setPerm] = useState<ConvRow[]>([])
-  const [temp, setTemp] = useState<ConvRow[]>([])
+  // spec 040：不再分暫存/永久——對話就是對話。
+  const [convs, setConvs] = useState<ConvRow[]>([])
   const [msg, setMsg] = useState<string | null>(null)
   const [me, setMe] = useState<{ user: string | null; auth_enabled: boolean }>({ user: null, auth_enabled: false })
-  const load = () => pages.conversations().then((r) => { setPerm(r.permanent); setTemp(r.temporary) }).catch(() => {})
+  const load = () => pages.conversations().then((r) => setConvs(r.conversations)).catch(() => {})
   useEffect(() => {
     load()
     pages.me().then(setMe).catch(() => {})
@@ -67,24 +67,19 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
 
       <div className="mt-1 flex items-center justify-between border-t px-2 pt-2">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">對話紀錄</span>
-        {(perm.length > 0 || temp.length > 0) && (
+        {convs.length > 0 && (
           <button onClick={dedupe} className="text-[11px] text-muted-foreground hover:underline">🧹 清理重複</button>
         )}
       </div>
       {msg && <div className="rounded-md bg-muted px-2 py-1 text-xs">{msg}</div>}
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-        {perm.length === 0 && temp.length === 0 && (
-          <p className="px-2 text-xs text-muted-foreground">還沒有對話。聊一段會自動暫存到這裡。</p>
+        {convs.length === 0 && (
+          <p className="px-2 text-xs text-muted-foreground">還沒有對話。聊一段會自動存到這裡。</p>
         )}
-        {perm.length > 0 && (
+        {convs.length > 0 && (
           <Group title="對話">
-            {perm.map((c) => <Row key={c.id} c={c} active={pathname === `/conversations/${c.id}`} onPick={goResume} onChange={load} onNav={onNavigate} />)}
-          </Group>
-        )}
-        {temp.length > 0 && (
-          <Group title="暫存" hint="自動存、7 天沒碰會清；想留就 📌 轉永久">
-            {temp.map((c) => <Row key={c.id} c={c} active={false} onPick={goResume} onChange={load} onNav={onNavigate} temp />)}
+            {convs.map((c) => <Row key={c.id} c={c} active={pathname === `/conversations/${c.id}`} onPick={goResume} onChange={load} onNav={onNavigate} />)}
           </Group>
         )}
       </div>

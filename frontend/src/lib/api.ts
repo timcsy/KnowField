@@ -102,7 +102,6 @@ export type ConvRow = {
   id: number
   title: string
   created_at: string
-  temporary: boolean
   why_node_id: number | null
   count: number
 }
@@ -146,10 +145,10 @@ export const pages = {
     post("/api/ingest/url", b),
   ingestYoutube: (b: { url: string; title?: string }): Promise<{ status: string; count: number; err?: string }> =>
     post("/api/ingest/youtube", b),
-  conversations: (): Promise<{ permanent: ConvRow[]; temporary: ConvRow[] }> =>
+  conversations: (): Promise<{ conversations: ConvRow[] }> =>
     fetch("/api/conversations").then(json),
   conversation: (id: number, resume = false): Promise<{
-    found: boolean; id: number; title: string; messages: Message[]; temporary: boolean; referrers: string[]
+    found: boolean; id: number; title: string; messages: Message[]; referrers: string[]
   }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
   renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
   deleteConv: (id: number): Promise<{ deleted: boolean; blocked_by: string[] }> =>
@@ -158,7 +157,6 @@ export const pages = {
     post(`/api/conversations/${id}/retitle`, {}),
   segment: (id: number, refresh = false): Promise<{ found: boolean; chapters: { title: string; start: number; end: number }[] }> =>
     fetch(`/api/conversations/${id}/segment${refresh ? "?refresh=1" : ""}`).then(json),
-  promoteConv: (id: number) => post(`/api/conversations/${id}/promote`, {}),
   dedupePreview: (): Promise<{ n_groups: number; n_extra: number; n_roots: number }> =>
     fetch("/api/conversations-dedupe/preview").then(json),
   dedupeApply: (): Promise<{ removed: number; repointed: number }> =>

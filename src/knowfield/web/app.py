@@ -424,8 +424,7 @@ def create_app() -> FastAPI:
     @app.get("/api/chat/state")
     async def api_chat_state():
         repo = app.state.repo_factory(app.state.config)
-        repo.purge_expired_temporary(_now_iso())
-        temps = [c for c in repo.list_conversations() if c.temporary]
+        temps = [c for c in repo.list_conversations()]
         repo.close()
         recent = temps[0] if temps else None
         return _JSON({"root_count": _root_count(),
@@ -491,7 +490,6 @@ def create_app() -> FastAPI:
         if not messages:
             return _JSON({"saved": False, "msg": "這段對話還是空的，沒有東西可存。"})
         repo = app.state.repo_factory(app.state.config)
-        repo.purge_expired_temporary(_now_iso())
         tid = _temp_id(str(b.get("temp_id") or ""))
         if tid:                         # 有暫存→升永久同一筆＋生落點標題（不新增）
             repo.promote_conversation(tid, _convo_title(messages))
@@ -812,31 +810,26 @@ def create_app() -> FastAPI:
     @app.get("/api/conversations")
     async def api_conversations():
         repo = app.state.repo_factory(app.state.config)
-        repo.purge_expired_temporary(_now_iso())
+        # spec 040：不再分暫存/永久，也不再依時間清理——移除的是機制，不是資料。
         convs = repo.list_conversations()
         repo.close()
 
         def _cv(c):
             return {"id": c.id, "title": c.title, "created_at": c.created_at,
-                    "temporary": c.temporary, "why_node_id": c.why_node_id,
-                    "count": len(c.messages)}
-        return _JSON({"permanent": [_cv(c) for c in convs if not c.temporary],
-                      "temporary": [_cv(c) for c in convs if c.temporary]})
+                    "why_node_id": c.why_node_id, "count": len(c.messages)}
+        return _JSON({"conversations": [_cv(c) for c in convs]})
 
     @app.get("/api/conversations/{cid}")
     async def api_conversation(cid: int, resume: int = Query(0)):
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
-        if conv is not None and resume and conv.temporary:
-            repo.touch_conversation(cid, _now_iso())
         # referrers＝以此對話為由來的核心理解主張（給前端：編輯/重生時擋、護溯源）
         refs = [r["claim"] for r in repo.conversation_referrers(cid)] if conv is not None else []
         repo.close()
         if conv is None:
             return _JSON({"found": False}, status_code=404)
         return _JSON({"found": True, "id": conv.id, "title": conv.title,
-                      "messages": conv.messages, "temporary": conv.temporary,
-                      "referrers": refs})
+                      "messages": conv.messages, "referrers": refs})
 
     @app.post("/api/conversations/{cid}/rename")
     async def api_conversation_rename(cid: int, request: Request):
@@ -858,19 +851,6 @@ def create_app() -> FastAPI:
         ok = repo.delete_conversation(cid)
         repo.close()
         return _JSON({"deleted": ok, "blocked_by": []})
-
-    @app.post("/api/conversations/{cid}/promote")
-    async def api_conversation_promote_json(cid: int):
-        repo = app.state.repo_factory(app.state.config)
-        conv = repo.get_conversation(cid)
-        if conv is not None:
-            try:
-                t = (app.state.title_factory(conv.messages) or "").strip()
-            except Exception:  # noqa: BLE001
-                t = ""
-            repo.promote_conversation(cid, t or conv.title)
-        repo.close()
-        return _JSON({"ok": True})
 
     @app.post("/api/conversations/{cid}/retitle")
     async def api_conversation_retitle(cid: int):

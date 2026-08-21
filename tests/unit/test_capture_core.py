@@ -7,7 +7,6 @@ from knowfield.chat.capture import (
     cheap_title,
     conversation_fingerprint,
     distill_gap,
-    expired_temp_ids,
     normalize_chapters,
     plan_dedupe,
     title_material,
@@ -154,40 +153,8 @@ class TestNormalizeChapters(unittest.TestCase):
         self.assertEqual(normalize_chapters([{"start": 1}], 0), [])
 
 
-class TestExpiredTempIds(unittest.TestCase):
-    NOW = "2026-08-10T00:00:00Z"
-
-    def _c(self, cid, temp, days_ago):
-        # days_ago 天前的 last_activity（相對 NOW）
-        from datetime import datetime, timedelta, timezone
-        base = datetime(2026, 8, 10, tzinfo=timezone.utc) - timedelta(days=days_ago)
-        return {"id": cid, "temporary": temp,
-                "last_activity_at": base.strftime("%Y-%m-%dT%H:%M:%SZ")}
-
-    def test_expired_selected(self):                        # T002 過期暫存選中
-        convos = [self._c(1, 1, 8), self._c(2, 1, 3)]       # #1 過期(8天)、#2 未過期(3天)
-        self.assertEqual(expired_temp_ids(convos, self.NOW, 7), [1])
-
-    def test_permanent_never_selected(self):                # T002 永久不選（即使很舊）
-        self.assertEqual(expired_temp_ids([self._c(1, 0, 99)], self.NOW, 7), [])
-
-    def test_boundary_exactly_ttl_not_expired(self):        # T002 剛好 7 天→未過期（>才過期）
-        self.assertEqual(expired_temp_ids([self._c(1, 1, 7)], self.NOW, 7), [])
-
-    def test_just_over_ttl(self):                           # T002 剛過 7 天
-        c = self._c(1, 1, 7);
-        # 再往前 1 秒讓它 > 7 天
-        from datetime import datetime, timedelta, timezone
-        c["last_activity_at"] = (datetime(2026,8,10,tzinfo=timezone.utc)
-                                 - timedelta(days=7, seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.assertEqual(expired_temp_ids([c], self.NOW, 7), [1])
-
-    def test_missing_or_bad_time_conservative(self):        # T002 缺/壞時間→保守不選
-        self.assertEqual(expired_temp_ids(
-            [{"id": 1, "temporary": 1, "last_activity_at": ""},
-             {"id": 2, "temporary": 1, "last_activity_at": "壞掉的時間"}], self.NOW, 7), [])
-
-
+# ⚠️ spec 040：暫存分層已移除，`expired_temp_ids`（依時間挑過期暫存）連同機制一起刪。
+# 移除的是機制不是資料——舊的暫存對話全數保留為一般對話（見 history/097）。
 class TestCheapTitle(unittest.TestCase):
     def test_first_user_truncated(self):                    # T003
         t = cheap_title([{"role": "user", "content": "為什麼殘差要用加法而不是別的" * 3}])

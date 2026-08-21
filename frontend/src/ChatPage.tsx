@@ -47,7 +47,7 @@ export default function ChatPage() {
     setConvTitle(c.title || "")
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
-    tempId.current = c.id   // 接回就綁定這筆（永久或暫存）：繼續聊就地更新同一筆，不另開暫存
+    tempId.current = c.id   // 接回就綁定這筆：繼續聊就地更新同一筆，不另開（spec 040 起無分層）
     referrers.current = c.referrers || []   // 這段是不是某核心理解的由來（編輯/重生要擋）
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
@@ -196,7 +196,7 @@ export default function ChatPage() {
     setInput(messages[i]?.content || "")
     setMessages(messages.slice(0, i))   // 從這句重問（這串會改）；改好按送出即重生
   }
-  // 從某章末開分支：載入前綴當新對話（原對話不動），接著聊會存成新暫存
+  // 從某章末開分支：載入前綴當新對話（原對話不動），接著聊會自動存成新的一筆
   function branchFrom(upToMsg: number) {
     setMessages(messages.slice(0, upToMsg))
     tempId.current = null; baseCount.current = 0

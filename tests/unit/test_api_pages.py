@@ -105,12 +105,12 @@ class TestApiConversations(unittest.TestCase):
         cid = self._save(db)
         c = TestClient(build_app(db))
         lst = c.get("/api/conversations").json()
-        self.assertEqual(len(lst["permanent"]), 1)
+        self.assertEqual(len(lst["conversations"]), 1)
         d = c.get(f"/api/conversations/{cid}").json()
         self.assertTrue(d["found"])
         self.assertEqual(len(d["messages"]), 2)
         c.post(f"/api/conversations/{cid}/rename", json={"title": "改了名"})
-        self.assertEqual(c.get("/api/conversations").json()["permanent"][0]["title"], "改了名")
+        self.assertEqual(c.get("/api/conversations").json()["conversations"][0]["title"], "改了名")
 
     def test_dedupe_preview_and_apply(self):
         db = temp_db()

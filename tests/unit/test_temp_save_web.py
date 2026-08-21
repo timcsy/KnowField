@@ -32,7 +32,6 @@ class TestAutosave(unittest.TestCase):
         repo = Repository(db)
         convs = repo.list_conversations()
         self.assertEqual(len(convs), 1)                     # 只 1 筆
-        self.assertTrue(convs[0].temporary)                 # 暫存
         self.assertEqual(len(convs[0].messages), 3)         # 更新為最新
         repo.close()
 
@@ -51,7 +50,6 @@ class TestAutosave(unittest.TestCase):
         self.assertEqual(ret, cid)                          # 回同一筆、不新建
         self.assertEqual(len(repo.list_conversations()), 1) # 沒另開暫存
         c = repo.get_conversation(cid)
-        self.assertFalse(c.temporary)                       # 仍永久
         self.assertEqual(len(c.messages), 2)                # 訊息就地更新
         repo.close()
 
@@ -79,34 +77,11 @@ class TestDeleteConversation(unittest.TestCase):
         self.assertIsNotNone(Repository(db).get_conversation(cid))   # 沒被刪
 
 
-class TestLazyPurge(unittest.TestCase):
-    def test_purge_expired_only(self):                      # T008 懶清只刪過期暫存
-        db = temp_db()
-        Repository(db).close()
-        repo = Repository(db)
-        # 過期暫存（8 天前）
-        repo.conn.execute(
-            "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('過期暫存','[]',1,%s,%s)", (_iso(8), _iso(8)))
-        # 新暫存（今天）
-        repo.conn.execute(
-            "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('新暫存','[]',1,%s,%s)", (_iso(0), _iso(0)))
-        # 永久（很舊）
-        repo.conn.execute(
-            "INSERT INTO conversations (title, messages, temporary, last_activity_at, created_at)"
-            " VALUES ('永久','[]',0,%s,%s)", (_iso(99), _iso(99)))
-        repo.conn.commit()
-        repo.close()
-        TestClient(build_app(db)).get("/api/conversations")   # 載入時懶清
-        titles = [c.title for c in Repository(db).list_conversations()]
-        self.assertNotIn("過期暫存", titles)                # 過期暫存被刪
-        self.assertIn("新暫存", titles)                     # 新暫存留
-        self.assertIn("永久", titles)                       # 永久留
+# ⚠️ spec 040：TestLazyPurge 連同「依時間清理過期暫存」的機制一起移除。
+# 移除的是機制不是資料——舊暫存全數保留為一般對話（history/097）。
 
-
-class TestPromote(unittest.TestCase):
-    def test_save_promotes_temp(self):                      # T010 存這段→升永久同一筆
+class TestSaveAndLink(unittest.TestCase):
+    def test_save_names_conversation(self):                 # spec 040：存這段＝給它名字（同一筆、不新增）
         db = temp_db()
         app = build_app(db)
         app.state.title_factory = lambda m: "落點標題"
@@ -116,18 +91,16 @@ class TestPromote(unittest.TestCase):
         repo = Repository(db)
         convs = repo.list_conversations()
         self.assertEqual(len(convs), 1)                     # 不新增
-        self.assertFalse(convs[0].temporary)               # 升永久
         self.assertEqual(convs[0].title, "落點標題")        # 生落點標題
         repo.close()
 
-    def test_promote_route(self):                           # T010 轉永久鈕
+    def test_save_route_sets_title(self):                   # spec 040：該路由現在只設標題
         db = temp_db()
         app = build_app(db)
         app.state.title_factory = lambda m: "落點X"
         c = TestClient(app)
         tid = c.post("/api/chat/autosave", json={"history": _H2, "temp_id": None}).json()["temp_id"]
         c.post(f"/api/conversations/{tid}/promote")
-        self.assertFalse(Repository(db).get_conversation(tid).temporary)
 
     def test_anoint_all_share_one_conversation(self):       # 全部精選：多條候選連同存→共用一份由來
         db = temp_db()
@@ -147,7 +120,7 @@ class TestPromote(unittest.TestCase):
         self.assertEqual(next(iter(cids)), int(tid))
         repo.close()
 
-    def test_anoint_promotes_temp_and_links(self):          # T010 冊封連同存→升永久＋連根因
+    def test_anoint_links_conversation(self):               # 冊封連同存→同一筆＋連根因
         db = temp_db()
         app = build_app(db)
         app.state.title_factory = lambda m: "由來標題"
@@ -157,7 +130,6 @@ class TestPromote(unittest.TestCase):
                                          "save_convo": True, "history": _H2, "temp_id": tid})
         repo = Repository(db)
         self.assertEqual(len(repo.list_conversations()), 1)          # 同一筆、不新增
-        self.assertFalse(repo.get_conversation(tid).temporary)      # 升永久
         anointed = repo.list_why_nodes("anointed")
         self.assertEqual(repo.why_node_provenance().get(anointed[0].id), tid)  # 連到它
         repo.close()
