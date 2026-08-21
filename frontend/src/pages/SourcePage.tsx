@@ -21,8 +21,10 @@ export default function SourcePage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [cands, setCands] = useState<WhyNode[]>([])
-  // spec 037／憲章 VI：自動轉繁改變了使用者所見，所以必須留一個看回原文的出口。
+  // spec 037／憲章 VI：自動轉繁改變了使用者所見，所以必須留一個看回未轉換文字的出口。
   // 這是「擇一顯示」不是並置對照——對照是第二刀（英→繁）的事。
+  // ⚠️ 文案用「轉換前」不用「原文」：這一頁的「原文」已經指原站連結／PDF（見上方 :74、:125），
+  // 同一畫面用兩次會讓人以為點了會跳出去。
   const [raw, setRaw] = useState(false)
 
   // 這份來源蒸餾出的候選（evidence_urls 帶著來源網址）→ 直接在這頁精選
@@ -126,9 +128,9 @@ export default function SourcePage() {
         </div>
         {(src.s2t_applied || raw) && (
           <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{raw ? "顯示原文（未轉換）" : "已自動轉為繁體"}</span>
+            <span>{raw ? "顯示轉換前的文字" : "已自動轉為繁體"}</span>
             <Button variant="ghost" size="sm" onClick={() => setRaw(!raw)}>
-              {raw ? "看繁體" : "看原文"}
+              {raw ? "看繁體" : "看轉換前"}
             </Button>
           </div>
         )}
