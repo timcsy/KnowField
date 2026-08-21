@@ -20,6 +20,9 @@ export default function ChatPage() {
   const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
   // spec 041：使用者**明確**帶進來的一篇生成文章（讀完想接著想）。不自動注入。
   const [article, setArticle] = useState<{ id: number; title: string } | null>(null)
+  // FR-001a：帶進脈絡卻看不到，等於只有 AI 讀得到它——就地展開，預設收合（不佔走對話視線）
+  const [artOpen, setArtOpen] = useState(false)
+  const [artBody, setArtBody] = useState<string | null>(null)
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -68,6 +71,8 @@ export default function ChatPage() {
     const aid = Number(sp.get("article") || 0)
     if (aid) {
       setArticle({ id: aid, title: sp.get("atitle") || "文章" })
+      setArtOpen(false); setArtBody(null)
+      pages.getArticle(aid).then((a) => setArtBody(a?.markdown || "")).catch(() => setArtBody(""))
       sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
     }
     if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
@@ -348,20 +353,29 @@ export default function ChatPage() {
           messages.map(renderMsg)
         )}
 
-        {/* spec 041：已帶的文章——標明是 AI 產物、可隨時取消（憲章 VI：人保有控制） */}
-
+        {/* spec 041：已帶的文章——標明是 AI 產物、可展開閱讀、可隨時取消（憲章 VI：人保有控制） */}
         {article && (
-
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm">
-
+          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm">
             <span>📄 帶著這篇一起想：<b>{article.title}</b></span>
-
             <span className="text-xs text-muted-foreground">（AI 依你的核心理解生成，比核心理解軟）</span>
-
-            <button onClick={() => setArticle(null)} className="ml-auto text-xs text-muted-foreground hover:underline">取消</button>
-
+            <button onClick={() => setArtOpen(!artOpen)} className="ml-auto text-xs hover:underline">
+              {artOpen ? "收合" : "展開看"}
+            </button>
+            <button onClick={() => { setArticle(null); setArtOpen(false) }}
+                    className="text-xs text-muted-foreground hover:underline">取消</button>
           </div>
-
+        )}
+        {/* FR-001a：帶進脈絡卻看不到，等於只有 AI 讀得到它。預設收合，不佔走對話視線。 */}
+        {article && artOpen && (
+          <div className="mb-2 max-h-[46vh] overflow-y-auto rounded-lg border bg-card px-4 py-3">
+            {artBody === null ? (
+              <p className="text-sm text-muted-foreground">載入中…</p>
+            ) : artBody === "" ? (
+              <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
+            ) : (
+              <Markdown text={artBody} prefix="chatart" />
+            )}
+          </div>
         )}
 
 
