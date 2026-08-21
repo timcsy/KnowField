@@ -70,6 +70,46 @@ class TestConversion:
         assert s2t.convert(src) == s2t.convert(src)
 
 
+class TestVocabularyOverrides:
+    """FR-010：s2twp 的詞彙層會轉到錯的領域義。這 8 個是在實際語料上觀察到的錯義／不成詞。"""
+
+    @needs_engine
+    @pytest.mark.parametrize("src,must_contain,must_not_contain", [
+        ("模型的参数需要学习", "參數", "引數"),          # 模型參數 ≠ 函式引數
+        ("由此推导出结论", "推導出", "推匯出"),           # 推匯出不成詞
+        ("检索范式的转变", "範式", "正規化"),             # paradigm ≠ normalization
+        ("CNFs是NFs的扩展", "擴展", "擴充套件"),          # 數學擴展 ≠ 軟體擴充套件
+        ("在图像生成中", "圖像", "影象"),                # 影象不成詞
+        ("寻找全局最优解", "全局", "全域性"),
+        ("多任务学习", "多任務", "多工"),
+        ("需要更高的权限", "權限", "許可權"),
+    ])
+    def test_known_bad_mapping_corrected(self, src, must_contain, must_not_contain):
+        out = s2t.convert(src)
+        assert must_contain in out, f"{src!r} → {out!r}"
+        assert must_not_contain not in out, f"錯誤映射未修正：{src!r} → {out!r}"
+
+    @needs_engine
+    def test_override_does_not_break_traditional_input(self):
+        """FR-008 不得被 FR-010 破壞：作者本來就寫「引數」時那是他的用字，不動。"""
+        src = "函式的引數列表"
+        assert s2t.convert(src) == src
+
+    @needs_engine
+    def test_override_skips_when_both_forms_present(self):
+        """原文同時出現兩種寫法 → 保守跳過（少修比改壞安全，同 FR-006 方向）。"""
+        src = "函式的引數與模型的参数不同"
+        out = s2t.convert(src)
+        assert "引數" in out          # 原文那個保留
+
+    @needs_engine
+    def test_correct_localisations_still_apply(self):
+        """別修過頭——正確的台灣用語轉換必須留著。"""
+        out = s2t.convert("优化目标函数中的数据和概率与网络")
+        for w in ["最佳化", "函式", "資料", "機率", "網路"]:
+            assert w in out, f"正確的在地化被誤傷：{w} 不在 {out!r}"
+
+
 class TestFallback:
     """US4：引擎不可用時退回 identity，不得中斷。"""
 

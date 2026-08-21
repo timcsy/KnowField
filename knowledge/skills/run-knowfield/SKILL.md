@@ -72,15 +72,22 @@ curl -s localhost:8000/api/library | python3 -m json.tool | head -40
 的變體）。
 
 ```bash
-pkill -f "uvicorn 'knowfield.web.app" ; # 然後重跑步驟 1
+pkill -f "uvicorn knowfield.web.app"   # 然後重跑步驟 1，並確認舊 process 真的沒了：
+ps aux | grep -c "[u]vicorn knowfield.web.app"      # 應為 0
 ```
 
 前端不用：vite 會熱更新。
 
+⚠️⚠️ **殺完要確認真的殺掉了**。啟動時寫成 `uvicorn 'knowfield.web.app:create_app'`（帶引號）
+但 shell 會把引號吃掉，process 命令列裡**沒有**引號——所以 `pkill -f "uvicorn 'knowfield..."`
+永遠匹配不到。舊 server 繼續佔著 8000，新的起不來就默默退出，**而你以為你在看新版**。
+這個坑在本 skill 第一版的指令裡真的發生過：驗證出來的結果全是舊碼跑的。
+`ps aux | grep -c "[u]vicorn knowfield.web.app"` 要是 0 才算殺乾淨。
+
 ### 5. 收工
 
 ```bash
-pkill -f "uvicorn 'knowfield.web.app"
+pkill -f "uvicorn knowfield.web.app"
 pkill -f "vite"
 ```
 
