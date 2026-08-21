@@ -114,6 +114,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     chapters TEXT DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS translation_units (
+    unit_key TEXT PRIMARY KEY,
+    markdown TEXT NOT NULL,
+    last_used_at TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS articles (
     id SERIAL PRIMARY KEY,
     topic TEXT DEFAULT '',

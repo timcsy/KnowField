@@ -326,3 +326,18 @@ class TestUnitMerging:
         md = _re.sub(r"<!--kf-page:\d+-->", "", stitch_chunks(raw))
         units, _ = split_units(md, target=600)
         assert len(units) < 125, f"單位數 {len(units)} 不該多於檢索切出的 125 塊"
+
+
+class TestContentKey:
+    """spec 039 T002：快取以**原文內容**的雜湊判新舊（不用時間戳）。"""
+
+    def test_same_text_same_key(self):
+        assert translate.content_key("hello world") == translate.content_key("hello world")
+
+    def test_one_char_differs_key_differs(self):
+        # SC-004「0% 機率拿到舊譯文」靠的就是這個——內容動一個字就對不上
+        assert translate.content_key("hello world") != translate.content_key("hello worle")
+
+    def test_key_is_hex_digest(self):
+        k = translate.content_key("x")
+        assert len(k) == 64 and all(c in "0123456789abcdef" for c in k)

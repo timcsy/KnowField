@@ -13,6 +13,7 @@ LLM 呼叫走**注入的 backend**（`str -> str`），讓上面這些邏輯在�
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import queue
 import re
@@ -25,6 +26,17 @@ from . import protect
 _log = logging.getLogger(__name__)
 
 Backend = Callable[[str], str]
+
+
+
+def content_key(md: str) -> str:
+    """原文內容的 SHA-256（spec 039）。快取以**內容**判新舊，不用時間戳——
+    編修內容不一定動時間戳，而 SC-004 要求「0% 機率拿到舊譯文」。
+
+    ⚠️ 呼叫端必須餵**與丟給翻譯器完全相同的那個字串**，否則會出現
+    「雜湊算的跟翻的不是同一份」這種沉默錯誤。
+    """
+    return hashlib.sha256(md.encode("utf-8")).hexdigest()
 
 
 def split_units(md: str, target: int = 600) -> tuple[list[str], list[str]]:
@@ -164,11 +176,12 @@ def translate_stream(chunks: list[str], backend: Backend | None, max_workers: in
     """
     total = len(chunks)
     if not chunks:
-        yield ("done", {"chunks": [], "total": 0, "failed": 0})
+        yield ("done", {"chunks": [], "ok": [], "total": 0, "failed": 0})
         return
     if backend is None:
         yield ("stage", {"done": total, "total": total, "failed": total})
-        yield ("done", {"chunks": list(chunks), "total": total, "failed": total})
+        yield ("done", {"chunks": list(chunks), "ok": [False] * total,
+                        "total": total, "failed": total})
         return
 
     q: queue.Queue = queue.Queue()
@@ -190,5 +203,8 @@ def translate_stream(chunks: list[str], backend: Backend | None, max_workers: in
             if not r.ok:
                 failed += 1
             yield ("stage", {"done": done, "total": total, "failed": failed})
+    # `ok` 逐塊回報成敗（spec 039）：呼叫端要據此決定哪些單位**可以**落庫。
+    # 用「譯文 == 原文」去猜是猜不準的——純程式碼／URL 的單位翻完本來就可能一樣。
     yield ("done", {"chunks": [r.text for r in results if r is not None],
+                    "ok": [bool(r and r.ok) for r in results],
                     "total": total, "failed": failed})

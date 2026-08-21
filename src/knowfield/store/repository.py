@@ -553,6 +553,52 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # --- 譯文快取（spec 039）：**逐翻譯單位**，不是逐文件 ---
+    # ⚠️ 為什麼是逐單位：一份 45 個單位的來源，只要有 1 個降級，逐文件快取就一個字都不能存
+    #（FR-006）。真跑實測 colah 那篇就是 45 取 1，機率上 (1-p)^45 讓逐文件快取多半落空
+    # ——那等於使用者要的「自動保存」大部分時候不會發生。逐單位則：成功的存、失敗的永遠重試，
+    # FR-006 的**理由**（不把失敗固定下來）反而被更完整地滿足。
+    def get_translation_units(self, keys: list[str], now: str) -> dict[str, str]:
+        """回 {unit_key: 譯文}，只含命中的；順手把命中的續命（讀取即續命）。"""
+        if not keys:
+            return {}
+        marks = ",".join(["%s"] * len(keys))
+        rows = self.conn.execute(
+            f"SELECT unit_key, markdown FROM translation_units WHERE unit_key IN ({marks})",
+            tuple(keys)).fetchall()
+        hit = {r["unit_key"]: r["markdown"] for r in rows}
+        if hit:
+            hm = ",".join(["%s"] * len(hit))
+            self.conn.execute(
+                f"UPDATE translation_units SET last_used_at=%s WHERE unit_key IN ({hm})",
+                (now, *hit.keys()))
+            self.conn.commit()
+        return hit
+
+    def save_translation_units(self, pairs: list[tuple[str, str]], now: str) -> None:
+        """寫入或覆蓋若干 (unit_key, 譯文)。⚠️ 呼叫端只能傳**翻譯成功**的單位（FR-006）。"""
+        for key, md in pairs:
+            self.conn.execute(
+                "INSERT INTO translation_units (unit_key, markdown, last_used_at)"
+                " VALUES (%s,%s,%s)"
+                " ON CONFLICT(unit_key) DO UPDATE SET markdown=excluded.markdown,"
+                " last_used_at=excluded.last_used_at",
+                (key, md, now))
+        self.conn.commit()
+
+    def purge_stale_translations(self, before: str) -> int:
+        """刪除 last_used_at < before 的譯文單位，回刪除數（FR-005）。
+
+        完全自動、沒有任何使用者介面——譯文能重生，清掉的代價只是下次要再翻一次。
+        """
+        rows = self.conn.execute(
+            "SELECT unit_key FROM translation_units WHERE last_used_at < %s", (before,)).fetchall()
+        if rows:
+            self.conn.execute(
+                "DELETE FROM translation_units WHERE last_used_at < %s", (before,))
+            self.conn.commit()
+        return len(rows)
+
     # --- 對話的「由來」存檔（spec 023，episodes 層）---
     def save_conversation(self, title: str, messages: list,
                           why_node_id: int | None = None) -> int:

@@ -34,6 +34,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# spec 039：譯文快取的存活門檻。遠比 spec 028 的 7 天寬鬆——譯文能重生，
+# 清掉的代價只是下次要再等一次翻譯，不是資料遺失。
+_TRANSLATION_TTL_DAYS = 180
+
+
+def _days_ago_iso(days: int) -> str:
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _sse(obj: dict) -> str:
     return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
 
@@ -704,33 +714,75 @@ def create_app() -> FastAPI:
         from ..ingest.chunk import stitch_chunks
         from ..text import lang, translate as _tr
 
+        def _join(parts, seps) -> str:
+            """照 split_units 給的原分隔接回（不再比對接縫）。"""
+            parts = list(parts)
+            out = parts[0] if parts else ""
+            for piece, sep in zip(parts[1:], seps):
+                out += sep + piece
+            return out
+
         def gen():
             repo = app.state.repo_factory(app.state.config)
-            chunks = [_re.sub(r"<!--kf-page:\d+-->", "", c) for c in repo.get_source_chunks(u)]
-            repo.close()
-            if not chunks:
-                yield _sse({"type": "error", "message": "找不到這份來源。"})
-                return
-            if not lang.is_english(stitch_chunks(chunks)):
-                yield _sse({"type": "error", "message": "這份來源不是英文，不需要翻譯。"})
+            try:
+                chunks = [_re.sub(r"<!--kf-page:\d+-->", "", c) for c in repo.get_source_chunks(u)]
+                # spec 039 FR-005：順手清掉久未使用的譯文。翻譯是低頻動作，掃一次的成本可忽略，
+                # 所以**不引入排程器**（YAGNI）；譯文能重生，清錯的代價只是下次要重翻一次。
+                purged = repo.purge_stale_translations(_days_ago_iso(_TRANSLATION_TTL_DAYS))
+                if purged:
+                    _log.info("清掉久未使用的譯文", extra={"extra": {"count": purged}})
+                if not chunks:
+                    yield _sse({"type": "error", "message": "找不到這份來源。"})
+                    return
+                src = stitch_chunks(chunks)
+                if not lang.is_english(src):
+                    yield _sse({"type": "error", "message": "這份來源不是英文，不需要翻譯。"})
+                    return
+                # ⚠️ 不重用檢索用的塊——那是為 embedding 切的，會從單字中間切開
+                # （實測 124 個接縫有 55 個是），"Conditioned Generat"＋"ion" 各自翻譯
+                # 會變成「條件式 Generat」＋「離子」。先拼回全文，再切成合法的翻譯單位。
+                pieces, seps = _tr.split_units(src)
+                # ⚠️ 查快取必須排在**建後端之前**——後端不可用時，已快取的來源仍要看得到譯文。
+                # 這是程式碼順序本身就是規格的一處，有測試釘住
+                # （test_web_translate.py::test_cache_hit_does_not_need_the_backend）。
+                keys = [_tr.content_key(p) for p in pieces]
+                hits = repo.get_translation_units(keys, _now_iso())
+            finally:
+                repo.close()
+            todo = [i for i, k in enumerate(keys) if k not in hits]
+            _log.info("譯文快取", extra={"extra": {"url": u, "hit": len(pieces) - len(todo),
+                                                  "miss": len(todo)}})
+            if not todo:
+                # 全命中：**不送 stage**（前端進度條靠 stage 驅動，送了會閃一下再瞬間結束）
+                yield _sse({"type": "done", "total": len(pieces), "failed": 0,
+                            "markdown": _join((hits[k] for k in keys), seps)})
                 return
             from ..backends.factory import make_translate_backend
-            backend = make_translate_backend(app.state.config)
-            # ⚠️ 不重用檢索用的塊——那是為 embedding 切的，會從單字中間切開
-            # （實測 124 個接縫有 55 個是），"Conditioned Generat"＋"ion" 各自翻譯
-            # 會變成「條件式 Generat」＋「離子」。先拼回全文，再切成合法的翻譯單位。
-            pieces, seps = _tr.split_units(stitch_chunks(chunks))
+            backend = (getattr(app.state, "translate_backend_for_test", None)
+                       or make_translate_backend(app.state.config))
             # 串流邏輯在 text/translate.py（那裡測得到時機）；這裡只負責包成 SSE。
-            for kind, payload in _tr.translate_stream(pieces, backend):
+            # 只翻沒命中的單位——進度回報的分母因此是**真正還要做的工作量**，不是總單位數。
+            for kind, payload in _tr.translate_stream([pieces[i] for i in todo], backend):
                 if kind == "stage":
                     yield _sse({"type": "stage", **payload})
                 else:
-                    out = payload["chunks"]
-                    md_out = out[0] if out else ""
-                    for piece, sep in zip(out[1:], seps):   # 照原本的分隔接回，不再比對
-                        md_out += sep + piece
+                    out, oks = payload["chunks"], payload.get("ok") or []
+                    merged = [hits.get(k, "") for k in keys]
+                    save = []
+                    for n, i in enumerate(todo):
+                        merged[i] = out[n] if n < len(out) else pieces[i]
+                        # FR-006：⚠️ **只存翻成功的單位**。失敗的永遠不進庫 ⇒ 下次一定重試，
+                        # 那次失敗不會被固定下來——而成功的那些不必陪葬。
+                        if n < len(oks) and oks[n]:
+                            save.append((keys[i], merged[i]))
+                    if save:
+                        _r = app.state.repo_factory(app.state.config)
+                        try:
+                            _r.save_translation_units(save, _now_iso())
+                        finally:
+                            _r.close()
                     yield _sse({"type": "done", "total": payload["total"],
-                                "failed": payload["failed"], "markdown": md_out})
+                                "failed": payload["failed"], "markdown": _join(merged, seps)})
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
