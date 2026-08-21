@@ -328,28 +328,32 @@ export default function ChatPage() {
             文章一旦進去就破掉 FR-003 那道閘門（冊封候選不得由文章原文生成）。
             這是刻意讓「視覺隱喻」與「資料模型」不一致的地方。 */}
         {article && (
-          <div className="group">
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>📄 <b className="text-foreground">{article.title}</b></span>
-              <span>· AI 依你的核心理解生成，比核心理解軟</span>
-              <button onClick={() => setArtOpen(!artOpen)} className="ml-auto hover:underline">
-                {artOpen ? "收合" : "展開"}
+          // 展開收合比照章節：同一組 <details>／▸▾／樣式。人只要學一次。
+          // （章節是 uncontrolled、用 ref 開；這裡用受控 open，否則每次打字重繪都會把它掰回展開）
+          <details open={artOpen} onToggle={(e) => setArtOpen(e.currentTarget.open)}
+                   className="group rounded-xl bg-card shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center px-4 py-2.5 text-sm font-medium hover:bg-muted/40">
+              <span className="mr-1 text-muted-foreground group-open:hidden">▸</span>
+              <span className="mr-1 hidden text-muted-foreground group-open:inline">▾</span>
+              📄 {article.title}
+              <span className="ml-2 truncate text-xs font-normal text-muted-foreground">
+                AI 依你的核心理解生成，比核心理解軟
+              </span>
+              <button onClick={(e) => { e.preventDefault(); setArticle(null) }}
+                      className="ml-auto shrink-0 pl-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:underline">
+                移除
               </button>
-              <button onClick={() => { setArticle(null); setArtOpen(false) }}
-                      className="hover:underline">移除</button>
+            </summary>
+            <div className="border-t px-4 py-3">
+              {artBody === null ? (
+                <p className="text-sm text-muted-foreground">載入中…</p>
+              ) : artBody === "" ? (
+                <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
+              ) : (
+                <Markdown text={artBody} prefix="chatart" />
+              )}
             </div>
-            {artOpen && (
-              <div className="max-h-[52vh] overflow-y-auto rounded-xl border-l-2 border-amber-300 bg-amber-50/40 px-4 py-3">
-                {artBody === null ? (
-                  <p className="text-sm text-muted-foreground">載入中…</p>
-                ) : artBody === "" ? (
-                  <p className="text-sm text-muted-foreground">找不到這篇文章的內容。</p>
-                ) : (
-                  <Markdown text={artBody} prefix="chatart" />
-                )}
-              </div>
-            )}
-          </div>
+          </details>
         )}
         {/* 有文章時不顯示——文章就是這一輪的開場，再擺一個「還沒有開場」的提示是自相矛盾 */}
         {empty && !article && (
