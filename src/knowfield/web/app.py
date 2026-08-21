@@ -671,7 +671,7 @@ def create_app() -> FastAPI:
         """
         import re as _re
 
-        from ..ingest.chunk import dedupe_for_translate, stitch_chunks
+        from ..ingest.chunk import stitch_chunks
         from ..text import lang, translate as _tr
 
         def gen():
@@ -686,9 +686,10 @@ def create_app() -> FastAPI:
                 return
             from ..backends.factory import make_translate_backend
             backend = make_translate_backend(app.state.config)
-            # ⚠️ 翻譯**前**先裁掉塊間重疊：stitch_chunks 靠精確比對去重疊，而獨立翻譯後
-            # 前後塊的重疊段會翻成不同中文、比對失敗 → 接縫留下殘影（真跑才看得到）。
-            pieces, seps = dedupe_for_translate(chunks)
+            # ⚠️ 不重用檢索用的塊——那是為 embedding 切的，會從單字中間切開
+            # （實測 124 個接縫有 55 個是），"Conditioned Generat"＋"ion" 各自翻譯
+            # 會變成「條件式 Generat」＋「離子」。先拼回全文，再切成合法的翻譯單位。
+            pieces, seps = _tr.split_units(stitch_chunks(chunks))
             # 串流邏輯在 text/translate.py（那裡測得到時機）；這裡只負責包成 SSE。
             for kind, payload in _tr.translate_stream(pieces, backend):
                 if kind == "stage":

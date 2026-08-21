@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable
@@ -24,6 +25,65 @@ from . import protect
 _log = logging.getLogger(__name__)
 
 Backend = Callable[[str], str]
+
+
+def split_units(md: str, target: int = 600) -> tuple[list[str], list[str]]:
+    """把整篇 markdown 切成**翻譯單位**，回 `(units, seps)`；
+    `units[0] + seps[0] + units[1] + …` 逐字等於 `md`。
+
+    ⚠️ **為什麼不重用 `chunk_markdown`**：那是為**檢索**切的，會從單字中間切開
+    （實測 Lil'Log 那篇 124 個接縫有 55 個是）。對 embedding 無害，對翻譯致命——
+    `Conditioned Generat` ＋ `ion` 各自獨立翻譯，後者變成「離子」。
+    **切塊的用途決定了合法的切點；換了用途就得重切。**
+
+    切點優先在段落邊界（空行）；單一段落超過 target 時退而切在空白處，
+    **絕不從單字中間切**。
+    """
+    if not md:
+        return [], []
+    parts = re.split(r"(\n\s*\n)", md)      # 偶數 index＝區塊、奇數＝分隔（保留以便逐字重組）
+    tokens: list[list[str]] = []              # [text, sep_after]
+    for i in range(0, len(parts), 2):
+        blk = parts[i]
+        sep = parts[i + 1] if i + 1 < len(parts) else ""
+        subs, subseps = ([blk], []) if (len(blk) <= target or " " not in blk) \
+            else _split_on_space(blk, target)
+        for j, piece in enumerate(subs):
+            tokens.append([piece, subseps[j] if j < len(subseps) else sep])
+    # 尾端空區塊（md 以空行結尾）→ 把它的分隔併回前一個單位，別產生空單位
+    while len(tokens) > 1 and not tokens[-1][0]:
+        tokens[-2][1] += tokens[-1][1]
+        tokens.pop()
+    # ⚠️ target 要**雙向**作用：上面切開過大的，這裡合併過小的。
+    # 只切不合的話，清單項（「- 簡化」）會每個自成一單位——真實語料上
+    # 125 塊變成 211 單位，API 呼叫數暴增、耗時從 93s 變 137s，打破 SC-002。
+    merged: list[list[str]] = []
+    for text, sep in tokens:
+        if merged and len(merged[-1][0]) + len(merged[-1][1]) + len(text) <= target:
+            merged[-1][0] += merged[-1][1] + text     # 分隔併進文字，逐字還原不受影響
+            merged[-1][1] = sep
+        else:
+            merged.append([text, sep])
+    units = [t for t, _ in merged]
+    seps = [s for _, s in merged[:-1]]
+    units[-1] = units[-1] + merged[-1][1]     # 最後一個分隔沒有後繼 → 併進文字
+    return units, seps
+
+
+def _split_on_space(blk: str, target: int) -> tuple[list[str], list[str]]:
+    """過長的單一段落切在空白處；那個空白就是分隔，重組逐字還原。"""
+    out: list[str] = []
+    seps: list[str] = []
+    cur = blk
+    while len(cur) > target:
+        cut = cur.rfind(" ", 0, target)
+        if cut <= 0:
+            break
+        out.append(cur[:cut])
+        seps.append(" ")
+        cur = cur[cut + 1:]
+    out.append(cur)
+    return out, seps
 
 
 @dataclass(frozen=True)

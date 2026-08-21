@@ -212,3 +212,117 @@ class TestSeamHandling:
         from knowfield.ingest.chunk import dedupe_for_translate
         assert dedupe_for_translate([]) == ([], [])
         assert dedupe_for_translate(["only"]) == (["only"], [])
+
+
+def _assert_no_midword(units, seps):
+    """真正的 mid-word ＝ **分隔是空的**、且兩側都是字母數字。
+
+    ⚠️ 這個 helper 是修出來的：初版直接比對 `units[i][-1]` 與 `units[i+1][0]`，
+    **忽略了它們之間的分隔**——切在空格處時 `word` | `word` 會被誤判成切在字中間。
+    比較兩個東西之前，要先確定中間沒有第三個東西。
+    """
+    for a, sep, b in zip(units, seps, units[1:]):
+        if sep == "" and a and b:
+            assert not (a[-1].isalnum() and b[0].isalnum()), \
+                f"從單字中間切開了：…{a[-20:]!r} | {b[:20]!r}…"
+
+
+class TestTranslationUnits:
+    """⚠️ 為檢索切的塊不是合法的翻譯單位。
+
+    `chunk_markdown` 會從**單字中間**切開（實測：Lil'Log 那篇 124 個接縫有 **55 個**是），
+    對檢索無害（embedding 照樣算），對翻譯致命——"Conditioned Generation" 被切成
+    "Conditioned Generat" ＋ "ion"，後者獨立翻譯就變成「**離子**」。
+
+    翻譯單位必須切在**安全邊界**（段落），而且重組要逐字還原。
+    """
+
+    def test_units_never_split_mid_word(self):
+        from knowfield.text.translate import split_units
+        md = ("Diffusion models are inspired by non-equilibrium thermodynamics.\n\n"
+              "They define a Markov chain of diffusion steps to slowly add random noise.\n\n"
+              "- Conditioned Generation\n\n- Classifier Guided Diffusion\n\n") * 8
+        units, seps = split_units(md, target=300)
+        _assert_no_midword(units, seps)
+
+    def test_rejoin_is_verbatim(self):
+        from knowfield.text.translate import split_units
+        md = ("Some paragraph about diffusion.\n\nAnother one with $x_t$ math.\n\n"
+              "```python\nprint(1)\n```\n\nAnd a final paragraph.\n") * 6
+        units, seps = split_units(md, target=200)
+        out = units[0]
+        for u, s in zip(units[1:], seps):
+            out += s + u
+        assert out == md, "重組必須逐字還原原文"
+
+    def test_units_are_not_absurdly_small_or_large(self):
+        from knowfield.text.translate import split_units
+        md = ("A paragraph of moderate length about diffusion models and noise. " * 3 + "\n\n") * 10
+        units, _ = split_units(md, target=400)
+        assert all(u.strip() for u in units), "不得產生空單位"
+        assert len(units) >= 2, "夠長的文件應該被切開"
+
+    def test_single_paragraph_stays_one_unit(self):
+        from knowfield.text.translate import split_units
+        md = "One short paragraph only."
+        units, seps = split_units(md, target=400)
+        assert units == [md] and seps == []
+
+    def test_oversized_paragraph_is_not_split_mid_word(self):
+        """單一段落超過 target 時也不能從字中間切。"""
+        from knowfield.text.translate import split_units
+        md = "word " * 400          # 一個 2000 字元的段落
+        units, seps = split_units(md, target=300)
+        _assert_no_midword(units, seps)
+        out = units[0]
+        for u, s in zip(units[1:], seps):
+            out += s + u
+        assert out == md
+
+
+class TestUnitMerging:
+    """⚠️ `target` 必須雙向作用：切開過大的，**也合併過小的**。
+
+    初版只切不合——Lil'Log 那篇的清單項（「- 簡化」）每個自成一單位，
+    125 塊變成 **211 單位**，API 呼叫數暴增、翻譯從 93s 變 137s，**打破 SC-002**。
+    修一個接縫問題卻讓效能退步，是因為 `target` 只管了一半。
+    """
+
+    def test_small_paragraphs_are_merged(self):
+        from knowfield.text.translate import split_units
+        md = "\n\n".join(f"- item {i}" for i in range(40))     # 40 個很短的清單項
+        units, seps = split_units(md, target=400)
+        assert len(units) < 15, f"沒有合併小段落：{len(units)} 個單位"
+        rejoined = units[0]
+        for u, s in zip(units[1:], seps):
+            rejoined += s + u
+        assert rejoined == md
+
+    def test_merged_units_respect_target(self):
+        from knowfield.text.translate import split_units
+        md = "\n\n".join("x" * 80 for _ in range(30))
+        units, _ = split_units(md, target=400)
+        for u in units:
+            assert len(u) <= 400 * 2, f"合併過頭：{len(u)} 字元"
+
+    def test_merging_still_never_splits_mid_word(self):
+        from knowfield.text.translate import split_units
+        md = ("Conditioned Generation and Classifier Guided Diffusion methods. " * 5 + "\n\n") * 8
+        units, seps = split_units(md, target=500)
+        _assert_no_midword(units, seps)
+
+    def test_real_source_unit_count_drops(self):
+        """對真實語料：段落切法不該讓單位數比檢索切法還多。"""
+        import re as _re
+        import sqlite3
+        from knowfield.ingest.chunk import stitch_chunks
+        from knowfield.text.translate import split_units
+        c = sqlite3.connect("knowfield.db")
+        raw = [b or "" for (b,) in c.execute(
+            "select article_body from digest_entries where url like '%lilianweng%' order by id")]
+        if not raw:
+            import pytest
+            pytest.skip("本機語料沒有這篇")
+        md = _re.sub(r"<!--kf-page:\d+-->", "", stitch_chunks(raw))
+        units, _ = split_units(md, target=600)
+        assert len(units) < 125, f"單位數 {len(units)} 不該多於檢索切出的 125 塊"
