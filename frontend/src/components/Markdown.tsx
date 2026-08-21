@@ -15,23 +15,49 @@ const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 // 內容變化後 debounce typeset 整頁（比逐元件 typesetPromise([el]) 可靠——
 // 後者在 resume/re-render 的時序下會錯過；整頁 typeset 就是手動觸發也 work 的那招）。
 let _typesetTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleTypeset() {
+let _firstRequestAt = 0          // 這一串連續請求的起點——用來上限住 debounce
+const DEBOUNCE_MS = 80
+const MAX_WAIT_MS = 500          // ⚠️ 串流每個 token 都會來一次，純 debounce 會被無限延後
+
+/** 這個節點是不是**真的**被 MathJax 排版過。
+ *
+ * ⚠️ 用 DOM 證據（MathJax 會塞 `mjx-container`），不用我們自己標的旗標。
+ * 舊版是 `mark()` 把當下所有 `.mathcopy` 一律標成 `data-typeset` ——那標的是
+ * 「我呼叫過 typeset」而不是「這個節點真的被排版了」：在 typeset 開始**之後**才進 DOM 的
+ * 節點會被誤標，於是漏網偵測永遠找不到它們，**永久卡成原始碼**。
+ * 這正是 history/091 自己寫下的結論（驗 DOM 實際渲染狀態，而非「我觸發過」）被它自己的 mark() 違反。
+ */
+function isTypeset(el: Element): boolean {
+  return !!el.querySelector("mjx-container") || el.getAttribute("data-mj-skip") === "1"
+}
+
+function rawMathNodes(): Element[] {
+  return Array.from(document.querySelectorAll(".mathcopy")).filter((el) => !isTypeset(el))
+}
+
+export function scheduleTypeset() {
   const w = window as unknown as {
     MathJax?: { typesetPromise?(): Promise<void>; startup?: { promise?: Promise<unknown> } }
   }
+  const now = Date.now()
+  if (!_typesetTimer) _firstRequestAt = now
+  // 上限：距離這一串請求的起點超過 MAX_WAIT_MS 就別再延後了，立刻排。
+  const waited = now - _firstRequestAt
+  const delay = waited >= MAX_WAIT_MS ? 0 : Math.min(DEBOUNCE_MS, MAX_WAIT_MS - waited)
   if (_typesetTimer) clearTimeout(_typesetTimer)
   _typesetTimer = setTimeout(() => {
     _typesetTimer = null
-    // 兜底：typeset 後若 DOM 還有沒被 MathJax 包住的 .mathcopy（第一次跑時它還沒進 DOM／MathJax 還在載／
-    // 圖片 reflow／串流剛換節點），400ms 後再跑一次抓漏網（typesetPromise 對已渲染是 no-op，重跑無害）。
-    const stillRaw = () =>
-      !!document.querySelector(".mathcopy:not([data-typeset])")
-    const mark = () => document.querySelectorAll(".mathcopy").forEach((el) => el.setAttribute("data-typeset", "1"))
-    const run = () =>
+    _firstRequestAt = 0
+    // 兜底重跑抓漏網：MathJax 還在載／圖片 reflow／串流剛換節點的內容會晚到。
+    // 判準用 DOM 證據（見 isTypeset），所以誤標不可能發生；冪等⇒重跑無害。
+    let attempts = 0
+    const MAX_ATTEMPTS = 4          // history/091 寫的就是 4，但當時的實作其實只重試 1 次
+    const run = (): void => {
+      attempts++
       w.MathJax?.typesetPromise?.().then(() => {
-        mark()
-        if (stillRaw()) setTimeout(() => w.MathJax?.typesetPromise?.().then(mark).catch(() => {}), 400)
+        if (rawMathNodes().length > 0 && attempts < MAX_ATTEMPTS) setTimeout(run, 400)
       }).catch(() => {})
+    }
     if (w.MathJax?.typesetPromise) run()                              // 已 ready
     else if (w.MathJax?.startup?.promise) w.MathJax.startup.promise.then(run)  // 載入中
     else {                                                           // script 還沒執行→輪詢等（10s）
@@ -41,7 +67,7 @@ function scheduleTypeset() {
         else if (++n > 50) clearInterval(iv)
       }, 200)
     }
-  }, 80)
+  }, delay)
 }
 
 // 答案/原文 → HTML：math 抽出佔位 → marked 渲染 → 還原成 .mathcopy(帶 data-tex) → [n] 變引用錨點。

@@ -82,3 +82,31 @@ class TestPlaceholderIsTransformSafe:
         for i in (0, 7, 42, 999):
             ph = protect.placeholder(i)
             assert conv.convert(ph) == ph, f"佔位符被轉換器改動：{ph!r}"
+
+
+class TestInlineMathWithNewline:
+    """⚠️ 前後端的數學辨識規則必須一致。
+
+    前端 `Markdown.tsx` 的行內數學**容許單一換行**（不跨空行），註解寫明理由：
+    「否則含換行的行內數學漏抓、留下落單 `$` 造成後續配對連鎖崩壞」。
+    而後端 `protect.py` 用的是 `\\$[^$\\n]+\\$`（不容許換行）——於是同一條公式
+    **前端當數學渲染、後端翻譯時不保護**，會原封送進 LLM 被改寫。
+
+    兩處各有一套規則就會漂開；這組測試把它們釘在一起。
+    """
+
+    def test_inline_math_with_single_newline_is_protected(self):
+        text = "The value $a\n= b$ appears here."
+        masked, segments = protect.mask(text)
+        assert len(segments) == 1, f"含換行的行內數學沒被保護：{segments}"
+        assert "$a\n= b$" in segments[0]
+
+    def test_inline_math_does_not_span_blank_line(self):
+        """跨空行不算——那通常是兩個落單的 $，硬吞會連鎖崩壞（與前端同一判準）。"""
+        text = "price is $5\n\nand $10 here"
+        masked, segments = protect.mask(text)
+        assert not any("\n\n" in s for s in segments)
+
+    def test_round_trip_still_holds(self):
+        for t in ["$a\n= b$", "prose $x\ny$ more", "$$a\n\nb$$"]:
+            assert protect.restore(*protect.mask(t)) == t
