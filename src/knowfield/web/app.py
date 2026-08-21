@@ -619,10 +619,11 @@ def create_app() -> FastAPI:
         return _JSON({"sources": groups})
 
     @app.get("/api/source")
-    async def api_source(u: str = Query("")):
+    async def api_source(u: str = Query(""), raw: str = Query("0")):
         import re as _re
 
         from ..ingest.chunk import stitch_chunks
+        from ..text import s2t
         from ..ingest.media import load_paper_meta, source_pdf_name
         repo = app.state.repo_factory(app.state.config)
         chunks = repo.get_source_chunks(u)
@@ -632,12 +633,21 @@ def create_app() -> FastAPI:
         if not chunks:
             return _JSON({"found": False}, status_code=404)
         md = _re.sub(r"<!--kf-page:\d+-->", "", stitch_chunks(chunks))   # 去頁碼標記（顯示/複製乾淨）
+        # spec 037：簡→繁只在**顯示路徑**做，絕不回寫（FR-004，原文才是真相）。
+        # raw=1＝憲章 VI 的可覆寫出口；非法值一律當 0（契約 C-004）。
+        want_raw = raw.strip() == "1"
+        s2t_applied = False
+        if not want_raw:
+            converted = s2t.convert(md)
+            s2t_applied = converted != md          # 內容本非簡體時也是 false，前端據此決定顯不顯示切換
+            md = converted
         mdir = Path(app.state.config.media_dir).resolve()               # 有存原始 PDF→回預覽路徑
         pdf_path = f"/media/{source_pdf_name(u)}" if (mdir / source_pdf_name(u)).exists() else ""
         paper = load_paper_meta(str(mdir), u)                          # 論文 metadata（Abstract/作者/日期）
         return _JSON({"found": True, "url": u, "title": title, "markdown": md,
                       "original_url": u if u.startswith("http") else "", "pdf_path": pdf_path,
-                      "paper": paper, "note": meta["note"], "ingested_at": meta["ingested_at"]})
+                      "paper": paper, "note": meta["note"], "ingested_at": meta["ingested_at"],
+                      "s2t_applied": s2t_applied})
 
     @app.post("/api/source/meta")
     async def api_source_meta(request: Request):

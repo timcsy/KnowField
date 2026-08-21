@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 type Paper = { title: string; authors: string[]; abstract: string; published: string; source: string }
 type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
-             original_url: string; pdf_path: string; paper: Paper | null }
+             original_url: string; pdf_path: string; paper: Paper | null; s2t_applied: boolean }
 const KINDS = ["已證實", "推論", "類比", "猜想"]
 
 export default function SourcePage() {
@@ -21,15 +21,18 @@ export default function SourcePage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [cands, setCands] = useState<WhyNode[]>([])
+  // spec 037／憲章 VI：自動轉繁改變了使用者所見，所以必須留一個看回原文的出口。
+  // 這是「擇一顯示」不是並置對照——對照是第二刀（英→繁）的事。
+  const [raw, setRaw] = useState(false)
 
   // 這份來源蒸餾出的候選（evidence_urls 帶著來源網址）→ 直接在這頁精選
   const loadCands = () =>
     pages.roots().then((r) => setCands(r.candidates.filter((c) => c.evidence_urls.includes(u)))).catch(() => {})
 
   useEffect(() => {
-    pages.source(u).then((s) => { setSrc(s); setNote(s.note || ""); setAt(s.ingested_at || "") }).catch(() => {})
+    pages.source(u, raw).then((s) => { setSrc(s); setNote(s.note || ""); setAt(s.ingested_at || "") }).catch(() => {})
     loadCands()
-  }, [u])
+  }, [u, raw])
 
   async function saveMeta() {
     await pages.sourceMeta(u, note, at)
@@ -121,6 +124,14 @@ export default function SourcePage() {
         <div className="mb-3 border-b pb-2 text-xs text-muted-foreground">
           🔍 萃取參考（自動抽取，給檢索用；可能有小誤差{src.pdf_path || src.original_url ? "，準確請看上方原文" : ""}）
         </div>
+        {(src.s2t_applied || raw) && (
+          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{raw ? "顯示原文（未轉換）" : "已自動轉為繁體"}</span>
+            <Button variant="ghost" size="sm" onClick={() => setRaw(!raw)}>
+              {raw ? "看繁體" : "看原文"}
+            </Button>
+          </div>
+        )}
         <Markdown text={src.markdown} prefix="src" />
       </div>
     </div>

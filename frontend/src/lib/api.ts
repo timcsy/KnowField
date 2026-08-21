@@ -123,11 +123,12 @@ export const pages = {
   whynodeAnoint: (id: number, claim?: string, kind?: string) => post("/api/whynode/anoint", { id, claim, kind }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
-  source: (u: string): Promise<{
+  source: (u: string, raw = false): Promise<{
     found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
     original_url: string; pdf_path: string   // 原文=真相：原站連結／存下的 PDF（防失效＋頁級預覽）
     paper: { title: string; authors: string[]; abstract: string; published: string; source: string } | null
-  }> => fetch(`/api/source?u=${encodeURIComponent(u)}`).then(json),
+    s2t_applied: boolean   // spec 037：本次是否套用簡→繁；決定要不要顯示「看原文」切換
+  }> => fetch(`/api/source?u=${encodeURIComponent(u)}${raw ? "&raw=1" : ""}`).then(json),
   sourceMeta: (u: string, note: string, ingested_at: string) =>
     post("/api/source/meta", { u, note, ingested_at }),
   sourceDistill: (u: string): Promise<{ ok: boolean; err?: string }> =>
