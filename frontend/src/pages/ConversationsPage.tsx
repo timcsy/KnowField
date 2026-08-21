@@ -54,8 +54,8 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   )
 }
 
-function Card({ c, temp, onResume, onChange }: {
-  c: ConvRow; temp?: boolean; onResume: () => void; onChange: () => void
+function Card({ c, onResume, onChange }: {
+  c: ConvRow; onResume: () => void; onChange: () => void
 }) {
   const [menu, setMenu] = useState(false)
   const kebabRef = useRef<HTMLButtonElement>(null)
@@ -76,7 +76,7 @@ function Card({ c, temp, onResume, onChange }: {
       <button onClick={onResume} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">接著聊 →</button>
       <button ref={kebabRef} onClick={() => setMenu((v) => !v)} aria-label="更多" title="更多"
               className="shrink-0 rounded px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">⋮</button>
-      <ConvMenu c={c} temp={temp} open={menu} setOpen={setMenu} anchorRef={kebabRef}
+      <ConvMenu c={c} open={menu} setOpen={setMenu} anchorRef={kebabRef}
                 onResume={onResume} onRename={rename} onChange={onChange} />
     </div>
   )

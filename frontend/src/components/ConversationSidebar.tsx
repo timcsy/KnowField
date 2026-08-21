@@ -104,9 +104,8 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
   )
 }
 
-function Row({ c, active, onPick, onChange, onNav, temp }: {
-  c: ConvRow; active: boolean; onPick: (id: number) => void; onChange: () => void; onNav?: () => void; temp?: boolean
-}) {
+function Row({ c, active, onPick, onChange, onNav}: {
+  c: ConvRow; active: boolean; onPick: (id: number) => void; onChange: () => void; onNav?: () => void; }) {
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(c.title)
   const [menu, setMenu] = useState(false)
@@ -145,7 +144,7 @@ function Row({ c, active, onPick, onChange, onNav, temp }: {
               aria-label="更多" title="更多"
               className={cn("shrink-0 rounded px-2 py-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
                 menu ? "opacity-100" : "opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100")}>⋮</button>
-      <ConvMenu c={c} temp={temp} open={menu} setOpen={setMenu} anchorRef={kebabRef}
+      <ConvMenu c={c} open={menu} setOpen={setMenu} anchorRef={kebabRef}
                 onResume={() => onPick(c.id)} onRename={() => setRenaming(true)} onChange={onChange} onNav={onNav} />
     </div>
   )
