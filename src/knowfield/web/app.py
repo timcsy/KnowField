@@ -591,8 +591,12 @@ def create_app() -> FastAPI:
         title = None
         try:
             repo = app.state.repo_factory(app.state.config)
+            # spec 044：帶入物的由來（這段是帶著哪篇文章／哪份來源開的）。
+            # ⚠️ 這是**元資料**——不進 messages、不進模型脈絡，只為了讓 audit 量得到。
             tid = repo.autosave_temporary(_temp_id(str(body.get("temp_id") or "")) or None,
-                                          body.get("history") or [], _now_iso())
+                                          body.get("history") or [], _now_iso(),
+                                          str(body.get("carried_kind") or "")[:16],
+                                          str(body.get("carried_ref") or "")[:500])
             if tid:                        # 回落點標題，讓聊天頁抬頭即時顯示對話名
                 c = repo.get_conversation(int(tid))
                 title = c.title if c else None

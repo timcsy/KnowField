@@ -54,6 +54,20 @@ def main() -> None:
          "根因總數", "有標層次的"),
         ("30", "高證實文章輸出", 0,
          q1(repo, "SELECT count(*) FROM articles"), "—", "產出的文章"),
+        # spec 044：帶入物的由來。⚠️ 在這一刀之前，37/38 的使用量在儲存層**零痕跡**
+        # ——041 FR-003 刻意不讓帶入物進 messages（對的），結果報告上的空白
+        # 分不出「沒人用」和「量不到」。這兩列就是把那個空白換成數字。
+        ("37", "帶著文章聊",
+         q1(repo, "SELECT count(*) FROM conversations"),
+         q1(repo, "SELECT count(*) FROM conversations WHERE carried_kind='article'"),
+         "對話總數", "帶著文章開的"),
+        ("38", "帶著來源聊",
+         q1(repo, "SELECT count(*) FROM conversations"),
+         q1(repo, "SELECT count(*) FROM conversations WHERE carried_kind='source'"),
+         "對話總數", "帶著來源開的"),
+        ("36", "翻譯落庫快取", 0,
+         q1(repo, "SELECT count(*) FROM translation_units"),
+         "—", "存下來的譯文單位（>0 代表真的有人翻過）"),
         ("8", "來源訂閱",
          q1(repo, "SELECT count(*) FROM sources"),
          q1(repo, "SELECT count(*) FROM sources WHERE last_fetch_at IS NOT NULL"),
@@ -89,6 +103,8 @@ def main() -> None:
         print("每個功能都有消費者。")
     if kind == "本機 SQLite":
         print("\n⚠️ 這是本機 dev 資料，不是使用證據。真實使用要對 prod 跑。")
+    print("\n⚠️ 帶入物由來（階段 37/38）只從 spec 044 出貨後才開始記——"
+          "在那之前建立的對話一律為空，那是**沒資料**，不是**沒人用**。")
     repo.close()
 
 

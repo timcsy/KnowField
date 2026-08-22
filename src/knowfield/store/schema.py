@@ -111,7 +111,9 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at TEXT,
     temporary INTEGER DEFAULT 0,
     last_activity_at TEXT,
-    chapters TEXT DEFAULT '[]'
+    chapters TEXT DEFAULT '[]',
+    carried_kind TEXT DEFAULT '',
+    carried_ref TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS translation_units (
@@ -142,10 +144,59 @@ def _statements(script: str) -> list[str]:
     return out
 
 
+# spec 044：**對既有表**要補的欄。新庫由 SCHEMA 直接帶出，這張清單只服務**已存在**的庫
+# ——`CREATE TABLE IF NOT EXISTS` 對既有表是 no-op，所以少了這一步，正式庫永遠不會長出新欄。
+#
+# ⚠️ 這是宣告式清單，不是 migration 框架：**不支援改型別或刪欄**。
+# 單人專案、一張清單就夠（憲章 IV）；真的需要時再升級，不預先蓋。
+_ADD_COLUMNS: list[tuple[str, str, str]] = [
+    ("conversations", "carried_kind", "TEXT DEFAULT ''"),   # ''｜article｜source
+    ("conversations", "carried_ref", "TEXT DEFAULT ''"),    # 文章 id 或來源 url
+]
+
+
+def _existing_columns(conn, table: str) -> set[str]:
+    """回這張表現有的欄名。⚠️ 表不存在時**讓錯誤丟出來**，不要吞。"""
+    if getattr(conn, "dialect", "postgres") == "sqlite":
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        names = {r["name"] for r in rows}
+        if not names:
+            raise ValueError(f"表不存在或沒有任何欄：{table}")
+        return names
+    rows = conn.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name=%s",
+        (table,)).fetchall()
+    names = {r["column_name"] for r in rows}
+    if not names:
+        raise ValueError(f"表不存在或沒有任何欄：{table}")
+    return names
+
+
+def _ensure_columns(conn, specs=None) -> list[str]:
+    """冪等補欄：**先問有哪些欄、缺的才加**。回實際加了哪幾個（供 log）。
+
+    ⚠️ 為什麼不是 `ALTER TABLE … ADD COLUMN` 包 try/except：
+    那會把「欄已存在」跟「型別寫錯／表不存在／權限不足」混成同一件事
+    ——真的錯了也靜默過去。本專案這兩天連續撞到的正是這類沉默失敗
+    （`history/102` 的 import 路徑錯、`history/104` 的 typeset 被吞）。
+    ⚠️ 也不是 `ADD COLUMN IF NOT EXISTS`：PG 有、**SQLite 沒有**，會破雙後端 parity（spec 036）。
+    """
+    added = []
+    for table, col, decl in (specs if specs is not None else _ADD_COLUMNS):
+        if col in _existing_columns(conn, table):
+            continue
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        added.append(f"{table}.{col}")
+    if added:
+        conn.commit()
+    return added
+
+
 def init_db(conn) -> None:
     """建 schema（冪等，CREATE IF NOT EXISTS）＋確保單一使用者興趣畫像列存在。依 conn.dialect 分岔自增型別。
 
-    註：不含舊 SQLite 檔的 _migrate 補欄（新庫從零起、SCHEMA 已含所有欄）。
+    spec 044 起**含補欄**（`_ensure_columns`）：既有表不會因為 SCHEMA 改了就長出新欄
+    （`CREATE TABLE IF NOT EXISTS` 對既有表是 no-op），所以新欄要另外補。
     """
     schema = SCHEMA
     if getattr(conn, "dialect", "postgres") == "sqlite":
@@ -157,3 +208,8 @@ def init_db(conn) -> None:
         " VALUES (1, '[]', '{}') ON CONFLICT (id) DO NOTHING"
     )
     conn.commit()
+    added = _ensure_columns(conn)
+    if added:
+        # 只會發生一次的事，事後查得到很重要（憲章 V）
+        import logging
+        logging.getLogger("knowfield.store").info("補欄：%s", ", ".join(added))

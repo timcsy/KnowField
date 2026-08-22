@@ -56,11 +56,16 @@ export const api = {
   autosave: (
     history: Message[],
     temp_id: number | null,
+    // spec 044：這段對話的**由來**（帶著哪篇文章／哪份來源開的）。
+    // ⚠️ 元資料，不是內容——不進 messages、不影響模型脈絡、介面上不顯示。
+    // 只在後端建立那筆時寫入，之後送什麼都不會改到它。
+    carried?: { kind: string; ref: string },
   ): Promise<{ temp_id: number | null; title: string | null }> =>
     fetch("/api/chat/autosave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, temp_id }),
+      body: JSON.stringify({ history, temp_id,
+                            carried_kind: carried?.kind || "", carried_ref: carried?.ref || "" }),
     }).then(json),
   save: (history: Message[], temp_id: number | null): Promise<{ saved: boolean; msg: string }> =>
     fetch("/api/chat/save", {

@@ -659,9 +659,16 @@ class Repository:
         return self._row_to_conversation(r) if r else None
 
     # --- 暫時存檔＋TTL 衰減（spec 028）---
-    def autosave_temporary(self, temp_id, messages: list, now: str):
+    def autosave_temporary(self, temp_id, messages: list, now: str,
+                           carried_kind: str = "", carried_ref: str = ""):
         """自動存（每輪 upsert 一筆）。空→None。temp_id 存在→**就地更新同一筆**（永久維持永久、暫存維持暫存
-        ——接回已存檔對話繼續聊時不再另開暫存）；查無 id→新建暫存。回 id。"""
+        ——接回已存檔對話繼續聊時不再另開暫存）；查無 id→新建暫存。回 id。
+
+        `carried_kind`／`carried_ref`（spec 044）＝這段對話的**由來**：它是帶著哪篇文章／
+        哪份來源開的。⚠️ **只在建立那一刻寫，UPDATE 分支一個字都不碰**——
+        由來記的是「它從哪來的」，是歷史事實不是當前狀態。
+        這讓「不被改寫」成為結構性的（沒有寫入路徑），而不是靠呼叫端自律。
+        """
         if not messages:
             return None
         if temp_id:
@@ -674,8 +681,10 @@ class Repository:
         from ..chat.capture import cheap_title
         cid = self._insert_id(
             "INSERT INTO conversations (title, messages, why_node_id, created_at,"
-            " temporary, last_activity_at) VALUES (%s,%s,%s,%s,1,%s)",
-            (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now))
+            " temporary, last_activity_at, carried_kind, carried_ref)"
+            " VALUES (%s,%s,%s,%s,1,%s,%s,%s)",
+            (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now,
+             carried_kind or "", carried_ref or ""))
         self.conn.commit()
         return cid
 

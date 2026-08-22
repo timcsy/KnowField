@@ -152,7 +152,10 @@ export default function ChatPage() {
         const next: Message[] = [...hist, { role: "user", content: msg },
           { role: "assistant", content: text || full, sources, found_extra: extra, truncated }]
         setMessages(next); setStreaming(null); setStage(null)
-        api.autosave(next, tempId.current).then((r) => {
+        // spec 044：把由來一起送（只有建立那筆時後端才會寫；之後送了也不會改到）
+        api.autosave(next, tempId.current, carried
+          ? { kind: carried.kind, ref: carried.kind === "article" ? String(carried.id) : carried.url }
+          : undefined).then((r) => {
           tempId.current = r.temp_id
           if (r.title) setConvTitle(r.title)
           notifyConversations()
