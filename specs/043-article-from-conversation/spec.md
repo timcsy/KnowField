@@ -73,7 +73,11 @@ References 或延伸閱讀裡（依 kind 分流），不論向量檢索給不給
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**：一段有 N 條 referrers 的對話生成後，那 N 條在 References ＋ 延伸閱讀中出現次數 **＝ N**。
+- **SC-001**：一段有 N 條 referrers 的對話生成後，那 N 條的主張在
+  **送給模型的 prompt ＋ 延伸閱讀區塊**中出現次數 **＝ N**。
+  ⚠️ 原本寫成「在 References 中」——實作時才發現 `_references()`（`article.py:65`）
+  渲染的是 URL 或「（你收藏的來源）」，**根本不含主張**，那樣寫永遠驗不到。
+  正文節點的主張只存在於 prompt；延伸閱讀節點的主張才在 markdown 裡。
 - **SC-002**：⚠️ **向量檢索停用**（embedder 為 None／排序失效）時，SC-001 仍成立
   ——這條是 FR-002 的真正驗收，不能靠「檢索通常也會選中」蒙混。
 - **SC-003**：referrers 含 `猜想` 時，該條出現在正文的次數 **＝ 0**。

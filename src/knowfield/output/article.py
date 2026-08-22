@@ -87,10 +87,25 @@ _MEMBRANE_NOTE = ("<sub>正文只採你場中「已證實／推論」層；延�
 
 
 def generate_article(topic: str, nodes: list, chat_backend, embedder=None,
-                     top_k: int = 8, length: str = "medium", level: str = "intermediate") -> dict:
+                     top_k: int = 8, length: str = "medium", level: str = "intermediate",
+                     pinned: list | None = None) -> dict:
     """從已冊封核心理解生成高證實文章。回 {title, markdown, empty}。length/level＝長度/難度。
-    body＝相關度前 top_k 的 🔬🧩；ext＝相關的 🌉💭（延伸閱讀）。References 結構化組（原則 3）。"""
+    body＝相關度前 top_k 的 🔬🧩；ext＝相關的 🌉💭（延伸閱讀）。References 結構化組（原則 3）。
+
+    `pinned`（spec 043）＝某段對話冊封出的核心理解：**必被考慮**，排在最前。
+
+    ⚠️ 釘住只動「排序」這一步，**下面的 kind 分流與 top_k 一個字都不改**——
+    所以 `猜想`／`類比` 就算被釘住也只會進延伸閱讀，進不了正文。
+    釘的是「必被考慮」，不是「必進正文」：文章的整個賣點是高證實，
+    讓釘住能繞過分層就等於自廢武功（實測 referrers 裡真的有 `猜想`）。
+
+    為什麼不是「把 referrers 的內容當 topic 去檢索」：檢索沒選中是**沉默**的失敗
+    ——你不會知道這段對話冊封出的東西沒被寫進去（`experience.md:890`）。
+    """
     ranked = _rank_by_topic(nodes, topic, embedder)
+    if pinned:
+        seen = {id(w) for w in pinned}
+        ranked = list(pinned) + [w for w in ranked if id(w) not in seen]
     body = [w for w in ranked if (getattr(w, "kind", "") or "") in _BODY_KINDS][:top_k]
     ext = [w for w in ranked if (getattr(w, "kind", "") or "") in _EXT_KINDS][:3]
     if not body:

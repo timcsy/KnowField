@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { api, pages, streamChat, type Candidate, type Message } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 import { Sources, FoundExtra } from "@/components/Sources"
@@ -21,6 +21,7 @@ type Carried =
   | { kind: "source"; url: string; title: string }
 
 export default function ChatPage() {
+  const nav = useNavigate()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
@@ -161,6 +162,15 @@ export default function ChatPage() {
        carried?.kind === "source" ? carried.url : "")
     setBusy(false)
   }
+  // spec 043：帶著這段對話去生成頁。⚠️ **不在這裡判斷有沒有冊封過**——
+  // 那個判斷在後端（`conversation_referrers`），而後端會回一句可行動的話（FR-006）。
+  // 前端自己猜會多一份會過期的真相。
+  function genArticleFromConv() {
+    const cid = tempId.current
+    if (!cid) { toast("先聊幾句（這段還沒被存下來）"); return }
+    nav(`/roots?conv=${cid}&ctitle=${encodeURIComponent(convTitle || "這段對話")}`)
+  }
+
   async function send() {
     const msg = input.trim()
     if (!msg || busy) return
@@ -499,6 +509,10 @@ export default function ChatPage() {
               <div className="absolute bottom-full left-0 z-30 mb-1 w-40 overflow-hidden rounded-md border bg-popover py-1 shadow-md">
                 <button onClick={distill} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🧵 整理成重點</button>
                 <button onClick={saveConversation} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">💾 存下這段</button>
+                {/* spec 043：用這段對話冊封出的核心理解當骨幹生一篇文章。
+                    ⚠️ 需要這段已經被存下來（tempId）——autosave 每輪都會做，所以正常情況一定有。 */}
+                <button onClick={genArticleFromConv} disabled={busy}
+                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📝 用這段生一篇文章</button>
                 <button onClick={() => copyChat("md")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📋 複製 Markdown</button>
                 <button onClick={() => copyChat("urls")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔗 複製來源</button>
               </div>

@@ -676,24 +676,43 @@ def create_app() -> FastAPI:
         from ..output.article import generate_article
         b = await request.json()
         topic = str(b.get("topic") or "").strip()
-        if not topic:
-            return _JSON({"error": "請給一個主題"}, status_code=400)
+        cid = int(b.get("conversation_id") or 0)      # spec 043：用某段對話冊封出的理解當骨幹
         length = str(b.get("length") or "medium")
         level = str(b.get("level") or "intermediate")
         repo = app.state.repo_factory(app.state.config)
         try:
             nodes = repo.list_why_nodes("anointed")
+            pinned = []
+            if cid:
+                conv = repo.get_conversation(cid)
+                if conv is None:
+                    return _JSON({"error": "找不到那段對話（可能已刪除）。"})
+                ref_ids = {r["id"] for r in repo.conversation_referrers(cid)}
+                if not ref_ids:
+                    # FR-006：死路變成下一步——不是空白、也不是錯誤碼。
+                    return _JSON({"error": "這段對話還沒精選出核心理解——先精選，再用它生文章。"})
+                # ⚠️ 釘住的是**節點物件本身**（同一份 nodes 裡的），不是另外查一份：
+                # 另查會拿到不同物件，去重就對不上、同一條被寫進去兩次。
+                pinned = [w for w in nodes if getattr(w, "id", None) in ref_ids]
+                if not topic:
+                    topic = (getattr(conv, "title", "") or "").strip()
         finally:
             repo.close()
+        if not topic:
+            return _JSON({"error": "請給一個主題"}, status_code=400)
         try:
             emb = getattr(app.state, "embedder_for_test", None) or make_embedder(app.state.config)
-            out = generate_article(topic, nodes, _chat_backend(), embedder=emb, length=length, level=level)
+            out = generate_article(topic, nodes, _chat_backend(), embedder=emb,
+                                   length=length, level=level, pinned=pinned or None)
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("生成文章失敗", extra={"extra": {"reason": str(e)}})
             return _JSON({"error": str(e)}, status_code=502)
         if out.get("empty"):
             return _JSON({"error": "場裡還沒有夠格（已證實／推論）的核心理解可寫成文章"}, status_code=200)
         out["length"], out["level"] = length, level
+        if cid:
+            _log.info("從對話生文章", extra={"extra": {"cid": cid, "pinned": len(pinned),
+                                                     "field": len(nodes)}})
         return _JSON(out)
 
     @app.post("/api/article/save")

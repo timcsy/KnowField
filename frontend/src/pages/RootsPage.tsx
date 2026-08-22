@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { pages, type RootsData } from "@/lib/api"
 import { KindBadge } from "@/components/KindBadge"
 import { Markdown } from "@/components/Markdown"
@@ -23,14 +23,25 @@ export default function RootsPage() {
   const [artTitle, setArtTitle] = useState("")
   const [gen, setGen] = useState(false)
   const [genMsg, setGenMsg] = useState<string | null>(null)
+  // spec 043：從某段對話帶過來——那段冊封出的核心理解會被**釘住必進**，其餘由場補滿。
+  const [sp, setSp] = useSearchParams()
+  const [conv, setConv] = useState<{ id: number; title: string } | null>(null)
   const load = () => pages.roots().then(setData).catch(() => {})
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    const cid = Number(sp.get("conv") || 0)
+    if (!cid) return
+    const t = sp.get("ctitle") || ""
+    setConv({ id: cid, title: t || `對話 #${cid}` })
+    setTopic((v) => v || t)          // 主題預設沿用對話標題（它是「落點/全貌」那一句，不是問句）
+    sp.delete("conv"); sp.delete("ctitle"); setSp(sp, { replace: true })
+  }, [sp, setSp])
 
   async function genArticle() {
     if (!topic.trim() || gen) return
     setGen(true); setGenMsg("生成中…（只用已證實／推論的核心理解）"); setArticle(null)
     try {
-      const r = await pages.generateArticle(topic.trim(), length, level)
+      const r = await pages.generateArticle(topic.trim(), length, level, conv?.id || 0)
       setGen(false)
       if (r.error) { setGenMsg(r.error); return }
       setGenMsg(null); setArticle(r.markdown || ""); setArtTitle(r.title || topic.trim())
@@ -69,6 +80,14 @@ export default function RootsPage() {
       {data.anointed.length > 0 && (
         <section className="space-y-2 rounded-xl border bg-card p-4">
           <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
+          {conv && (
+            // 帶了對話：說清楚它做了什麼（釘住 vs 取代），否則使用者以為文章只會有那幾條
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>💬 以〈<b className="text-foreground">{conv.title}</b>〉冊封出的理解當骨幹</span>
+              <span>· 那些一定會被用到，其餘由場依相關度補滿</span>
+              <button onClick={() => setConv(null)} className="hover:underline">不要帶</button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Input value={topic} onChange={(e) => setTopic(e.target.value)}
                    onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) genArticle() }}

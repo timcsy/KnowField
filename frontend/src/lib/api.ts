@@ -161,8 +161,9 @@ export const pages = {
     fetch("/api/conversations-dedupe/preview").then(json),
   dedupeApply: (): Promise<{ removed: number; repointed: number }> =>
     post("/api/conversations-dedupe/apply", {}),
-  generateArticle: (topic: string, length: string, level: string): Promise<{ title?: string; markdown?: string; length?: string; level?: string; error?: string }> =>
-    post("/api/article", { topic, length, level }),
+  // conversationId（spec 043）：用那段對話冊封出的核心理解當骨幹（0＝不帶，行為與現況相同）
+  generateArticle: (topic: string, length: string, level: string, conversationId = 0): Promise<{ title?: string; markdown?: string; length?: string; level?: string; error?: string }> =>
+    post("/api/article", { topic, length, level, conversation_id: conversationId }),
   saveArticle: (b: { topic: string; title: string; markdown: string; length: string; level: string }): Promise<{ id: number }> =>
     post("/api/article/save", b),
   listArticles: (): Promise<{ articles: { id: number; topic: string; title: string; length: string; level: string; created_at: string }[] }> =>
