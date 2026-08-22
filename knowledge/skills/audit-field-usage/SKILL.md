@@ -38,6 +38,16 @@ echo "${KNOWFIELD_DATABASE_URL:-（未設 → 預設本機 knowfield.db）}"
 要量 prod 就先設 `KNOWFIELD_DATABASE_URL` 指向 prod DSN。報告裡**一定要標出資料來源**，
 否則下一個讀的人會把 dev 數字當結論。
 
+**沒有 prod DSN 也量得到**——進 pod 裡跑（唯讀，不需要密碼；2026-08-22 實際用的路）：
+
+```bash
+kubectl -n knowfield exec deploy/knowfield-knowfield -- python -c "
+from knowfield.store.repository import Repository
+r=Repository(); q=lambda s: r.conn.execute(s).fetchone()
+print('已冊封:', q(\"SELECT COUNT(*) AS c FROM why_nodes WHERE status='anointed'\")['c'])
+r.close()"
+```
+
 ### 2. 跑審計
 
 走 `Repository` 而不是直接開 sqlite3——它是雙後端 adapter（`history/086`），
