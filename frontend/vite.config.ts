@@ -48,8 +48,12 @@ export default defineConfig({
   },
   server: {
     // 開發時把 /api 轉給 FastAPI（後端 JSON API）
+    // ⚠️ **8001，不是 8000**：8000 是太多專案的預設值，這台機器上 CodefyUI 的後端就常駐在那
+    //（2026-08-22 實測撞到：它的 /ws/execution 打進了 KnowField 的 server，反之亦然）。
+    // 撞到時**兩邊都不會報錯**，只會回 404 或奇怪的結果，然後你去 debug 錯的東西。
+    // 容器內／k8s 仍是 8000（Dockerfile、helm），那個沒有共用問題，不要跟著改。
     proxy: {
-      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/api": { target: "http://127.0.0.1:8001", changeOrigin: true },
     },
   },
 })

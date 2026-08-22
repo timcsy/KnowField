@@ -47,6 +47,9 @@ image:
 ## 3. Google Cloud OAuth（手動一次）
 OAuth 2.0 用戶端 → 已授權的重新導向 URI 加：`https://<你的網域>/auth/callback`
 （本機測試才用 `http://127.0.0.1:8000/auth/callback`）。同意畫面為「測試」時把自己加進測試使用者。
+> ⚠️ 本機開發現在跑在 **8001**（8000 被別的專案佔著，見 `knowledge/skills/run-knowfield/SKILL.md`），
+> 平時用 `KNOWFIELD_AUTH_DISABLED=1` 所以碰不到 callback。真的要在本機測 OAuth，
+> 要嘛那次改回 8000、要嘛去 Google Cloud 加一組 8001 的 redirect URI。
 
 ## 4. 安裝
 ```bash

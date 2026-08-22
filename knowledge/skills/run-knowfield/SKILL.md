@@ -26,7 +26,7 @@ description: 在本機把 KnowField 前後端跑起來、開到指定頁面用�
 ### 1. 起後端
 
 ```bash
-KNOWFIELD_AUTH_DISABLED=1 uv run uvicorn 'knowfield.web.app:create_app' --port 8000
+KNOWFIELD_AUTH_DISABLED=1 uv run uvicorn 'knowfield.web.app:create_app' --port 8001
 ```
 
 ⚠️ **`KNOWFIELD_AUTH_DISABLED=1` 是這裡唯一的必要魔法**。`.env` 裡有 allowlist ＋ Google
@@ -48,7 +48,7 @@ cd frontend && npm run dev
 ➜  Local:   http://localhost:5174/
 ```
 
-前端會把 `/api` proxy 到 `127.0.0.1:8000`（`vite.config.ts:52`），所以後端一定要先起。
+前端會把 `/api` proxy 到 **`127.0.0.1:8001`**（`vite.config.ts:52`），所以後端一定要先起。
 
 ### 3. 開到你要看的那一頁
 
@@ -62,7 +62,7 @@ cd frontend && npm run dev
 來源的 `u` 要 URL 編碼（`paste:abc` → `paste%3Aabc`）。查有哪些來源：
 
 ```bash
-curl -s localhost:8000/api/library | python3 -m json.tool | head -40
+curl -s localhost:8001/api/library | python3 -m json.tool | head -40
 ```
 
 ### 4. ⚠️ 改了後端程式碼之後**必須重啟**
@@ -73,7 +73,7 @@ curl -s localhost:8000/api/library | python3 -m json.tool | head -40
 
 ```bash
 pkill -f "uvicorn knowfield.web.app"
-lsof -nP -iTCP:8000 -sTCP:LISTEN                    # 應為空，才算殺乾淨；然後重跑步驟 1
+lsof -nP -iTCP:8001 -sTCP:LISTEN                    # 應為空，才算殺乾淨；然後重跑步驟 1
 ```
 
 前端不用：vite 會熱更新。
@@ -84,11 +84,23 @@ lsof -nP -iTCP:8000 -sTCP:LISTEN                    # 應為空，才算殺乾�
 
 1. **pkill 樣式帶了字面引號**：啟動寫成 `uvicorn 'knowfield.web.app:create_app'`，但 shell 會吃掉引號，
    process 命令列裡**沒有**引號 → `pkill -f "uvicorn 'knowfield..."` 永遠匹配不到。舊 server 續佔
-   8000、新的默默退出，**而你以為你在看新版**——那次驗證結果全是舊碼跑的。
+   8001、新的默默退出，**而你以為你在看新版**——那次驗證結果全是舊碼跑的。
 2. **用 `ps | grep -c` 判斷**：`uv run` 是包裝器，**一個 server 佔 2 行**（`uv run …` ＋ python 子行程），
    加上 `uv` 自己的暫態行程，數字會虛高。我照著它讀成「殺不掉、還有 4 個」，實際只有剛起的那 1 個。
 
-⇒ 唯一不會騙人的檢查是 **`lsof -nP -iTCP:8000 -sTCP:LISTEN`**——問「誰在聽」，不問「有幾個像樣的行程」。
+⇒ 唯一不會騙人的檢查是 **`lsof -nP -iTCP:8001 -sTCP:LISTEN`**——問「誰在聽」，不問「有幾個像樣的行程」。
+
+3. **⚠️ 「有人在聽」不等於「你的 server 在聽」。** 2026-08-22：8000 被 **CodefyUI 的後端**
+   常駐佔著（`/Users/timcsy/CodefyUI/backend/.venv/bin/uvicorn app.main:app --port 8000`，
+   PPID=1）。兩邊互打，**都不報錯**——只回 404 或奇怪結果，然後你去 debug 錯的東西。
+   實際發生過：CodefyUI 的 `/ws/execution` 出現在 KnowField 的 log 裡 16 次。
+   ⇒ KnowField 本機改用 **8001**（`vite.config.ts` 的 proxy 一起改；容器內／k8s 仍是 8000，
+   那邊沒有共用問題）。**而且 `lsof` 要看的是 COMMAND 欄，不是「有沒有輸出」**：
+
+```bash
+lsof -nP -iTCP:8001 -sTCP:LISTEN        # 看 COMMAND 欄是不是自己的 .venv/uvicorn
+ps -o pid,ppid,command -p <PID> | cat   # 不確定就把完整命令列印出來
+```
 
 ### 5. 收工
 
