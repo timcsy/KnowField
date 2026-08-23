@@ -68,10 +68,12 @@ def main() -> None:
         ("36", "翻譯落庫快取", 0,
          q1(repo, "SELECT count(*) FROM translation_units"),
          "—", "存下來的譯文單位（>0 代表真的有人翻過）"),
-        ("8", "來源訂閱",
+        # ⚠️ 這列曾是「階段 8 來源訂閱」，報出 15/0（0%）——那是**工具在說謊**，不是功能沒人用：
+        # 拉模式隨 history/068 退役，`digest` 子指令已不存在，`last_fetch_at` 全專案零處寫入，
+        # 那 15 筆是空庫時 `app.py:85` 自動塞的。比照「每日匯整」改標為殘骸存量（history/107）。
+        ("退役", "來源訂閱（拉模式，history/068 已退役）", 0,
          q1(repo, "SELECT count(*) FROM sources"),
-         q1(repo, "SELECT count(*) FROM sources WHERE last_fetch_at IS NOT NULL"),
-         "訂閱的來源", "真的供過料的"),
+         "—", "自動種進去的來源（沒有任何抓取路徑，不該當使用率讀）"),
         # 這列是「殘骸偵測」不是消費率：分診已退役（history/068），數字只該是歷史存量。
         ("退役", "每日匯整（分診，history/068 已退役）", 0,
          q1(repo, "SELECT count(*) FROM digests"),
