@@ -725,6 +725,23 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    def conversation_yield_counts(self) -> dict[int, int]:
+        """{對話 id: 以它為由來的核心理解條數}——**一次** GROUP BY（spec 045）。
+
+        ⚠️ 讀的是 `why_nodes.conversation_id`，那是**事實來源**
+        （`save_conversation` 的註解自己寫著「連結存 why_node 側（事實來源）」）。
+        `conversations.why_node_id` 只在 `save_conversation(…, why_node_id=…)` 那條路才被填，
+        而**冊封走的是 `promote_conversation`，只更新 why_nodes 側** ⇒ 讀舊欄位會漏掉
+        2/3（正式庫實測：真的是由來的 12 段，舊欄位只認得 4 段）。
+
+        ⚠️ 判準沿用 `conversation_referrers`（有指向就算，不看 status）——
+        同一件事不要在兩個地方給不同答案。
+        """
+        rows = self.conn.execute(
+            "SELECT conversation_id AS cid, COUNT(*) AS c FROM why_nodes"
+            " WHERE conversation_id IS NOT NULL GROUP BY conversation_id").fetchall()
+        return {int(r["cid"]): int(r["c"]) for r in rows}
+
     def conversation_referrers(self, cid: int) -> list[dict]:
         """哪些核心理解以這段對話為由來（why_node.conversation_id=cid）。回 [{id, claim}]。
         用於刪除保護：有引用者不可刪（否則核心理解的溯源斷掉，原則 3）。"""

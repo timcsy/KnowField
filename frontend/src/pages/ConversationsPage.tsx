@@ -70,7 +70,9 @@ function Card({ c, onResume, onChange }: {
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
           <span>{c.created_at.slice(0, 10)}</span>
           <span>{c.count} 則</span>
-          {c.why_node_id && <span>某條核心理解的由來</span>}
+          {c.yield_count > 0 && (
+            <span>💡 聊出了 {c.yield_count} 條核心理解</span>
+          )}
         </div>
       </button>
       <button onClick={onResume} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">接著聊 →</button>

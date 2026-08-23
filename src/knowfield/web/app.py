@@ -997,11 +997,18 @@ def create_app() -> FastAPI:
         repo = app.state.repo_factory(app.state.config)
         # spec 040：不再分暫存/永久，也不再依時間清理——移除的是機制，不是資料。
         convs = repo.list_conversations()
+        # spec 045：「這段聊出了東西」要讀**事實來源**（why_nodes.conversation_id）。
+        # ⚠️ 一次 GROUP BY，不是逐筆——清單是 N 筆。
+        yields = repo.conversation_yield_counts()
         repo.close()
 
         def _cv(c):
+            # why_node_id 照舊回傳（不破壞相容），但前端不再拿它判斷徽章：
+            # 那欄只在 save_conversation 那條路才被填，冊封走 promote_conversation
+            # 只更新 why_nodes 側 ⇒ 讀它會漏掉 2/3（正式庫實測 12 → 4）。
             return {"id": c.id, "title": c.title, "created_at": c.created_at,
-                    "why_node_id": c.why_node_id, "count": len(c.messages)}
+                    "why_node_id": c.why_node_id, "count": len(c.messages),
+                    "yield_count": yields.get(c.id, 0)}
         return _JSON({"conversations": [_cv(c) for c in convs]})
 
     @app.get("/api/conversations/{cid}")

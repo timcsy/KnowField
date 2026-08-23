@@ -136,7 +136,7 @@ function Row({ c, active, onPick, onChange, onNav}: {
       <button onClick={handlePick}
               onTouchStart={pressStart} onTouchEnd={pressCancel} onTouchMove={pressCancel}
               onContextMenu={(e) => { e.preventDefault(); setMenu(true) }}
-              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.why_node_id ? "·某條核心理解的由來" : ""}（點＝接著聊、長按＝選單）`}
+              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.yield_count > 0 ? `·聊出了 ${c.yield_count} 條核心理解` : ""}（點＝接著聊、長按＝選單）`}
               className="min-w-0 flex-1 truncate text-left text-sm">
         {c.title || "（未命名對話）"}
       </button>

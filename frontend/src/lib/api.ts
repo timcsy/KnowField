@@ -107,7 +107,10 @@ export type ConvRow = {
   id: number
   title: string
   created_at: string
-  why_node_id: number | null
+  why_node_id: number | null   // ⚠️ 舊欄位，別拿來判斷「聊出了東西」——見 yield_count
+  // spec 045：以這段對話為由來的核心理解**條數**（讀事實來源 why_nodes.conversation_id）。
+  // 舊做法讀 why_node_id，而那欄只在 save_conversation 那條路才填，冊封路徑不填 ⇒ 漏掉 2/3。
+  yield_count: number
   count: number
 }
 
