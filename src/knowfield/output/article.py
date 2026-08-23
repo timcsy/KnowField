@@ -100,7 +100,7 @@ def generate_article(topic: str, nodes: list, chat_backend, embedder=None,
     讓釘住能繞過分層就等於自廢武功（實測 referrers 裡真的有 `猜想`）。
 
     為什麼不是「把 referrers 的內容當 topic 去檢索」：檢索沒選中是**沉默**的失敗
-    ——你不會知道這段對話冊封出的東西沒被寫進去（`experience.md:890`）。
+    ——你不會知道這段對話冊封出的東西沒被寫進去（`experience.md「一個機制的失敗如果是沉默的，就要另外給一條「我指定」的路」`）。
     """
     ranked = _rank_by_topic(nodes, topic, embedder)
     if pinned:

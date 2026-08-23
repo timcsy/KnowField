@@ -1043,6 +1043,20 @@
 - **來源**：[history/107](history/107-退役會教錯路的來源skill-小腦沒有oracle.md)；
   `knowledge/skills/audit-field-usage/audit.py` 那一列的註解。
 
+### 用行號引用一份會一直長大的檔，等於寫下一個有到期日的指標
+
+- **理論說**：引用一條教訓時附上 `experience.md:890`，讀的人一跳就到，比翻標題快。
+- **實際發生**：`experience.md` 是 append-heavy（本週 47 → 62 條），**每加一條就把後面所有行號往下推**。
+  `/knowie-judge` 機械掃過 16 處行號引用，**4 處已經指錯**——其中一處在**正式程式碼裡**
+  （`src/knowfield/output/article.py`）。它們壞掉時沒有任何東西會報錯。
+- ⚠️ **而我修的時候差點讓它更糟**：第一版用「行號現在屬於哪條教訓」機械替換，
+  於是把「指向一堆看不懂的內文」（明顯壞掉）換成了「**指向一條真實但不相干的教訓**」（自信地錯）。
+  **可見的壞比隱形的錯便宜**——機械修正之前要先確認你在修的是指標，不是語意。
+- **教訓**：**引用要錨在不會漂的東西上。** 判準：**這個錨點會不會因為別人在別處新增內容而失效？**
+  會 → 換一個。教訓的**標題**就是好錨點——knowie 自己要求標題是「可以拿文字去判斷的主張」，
+  而那種句子既穩定又可 grep。同理適用於：任何附行號的檔案引用、任何指向可變清單第 N 項的說法。
+- **來源**：`/knowie-judge`（2026-08-23）；本檔全部 16 處引用已改為標題錨點。
+
 ## 關鍵延伸（主題觸發必讀）
 
 <!--
@@ -1060,4 +1074,9 @@
 | 全形標點 / marked / CommonMark / 渲染 / MathJax / 競態 | [history/091-前端渲染兩坑-全形標點與typeset競態.md](history/091-前端渲染兩坑-全形標點與typeset競態.md) |
 | 膜 vs 場 / bare / 不接知識庫 / 功能退場 / 沒人用 | [history/090-腦力激盪退場改不接知識庫.md](history/090-腦力激盪退場改不接知識庫.md) |
 | 回答太長 / 截斷 / max_tokens / finish_reason / 長度紀律 / 歸因 | [history/092-回答截斷可觀測與長度紀律-兩個假設被實測推翻.md](history/092-回答截斷可觀測與長度紀律-兩個假設被實測推翻.md) |
-
+| 出貨 / 部署 / 推送 / digest 核對 / 收工流程 | [skills/ship-knowfield/SKILL.md](skills/ship-knowfield/SKILL.md) |
+| 跑起來看 / 真驗收 / 本機啟動 / port / 前後端 | [skills/run-knowfield/SKILL.md](skills/run-knowfield/SKILL.md) |
+| 有沒有人用 / 消費者 / 使用審計 / 殘骸偵測 | [skills/audit-field-usage/SKILL.md](skills/audit-field-usage/SKILL.md) |
+| 數字是 0 / 量不到 / 儀器說謊 / 訊號起算時間 / 事實來源 | [history/108-對話由來徽章讀錯欄位-儀器說謊的第三種形態.md](history/108-對話由來徽章讀錯欄位-儀器說謊的第三種形態.md) |
+| 加欄 / 既有表 / migration / 雙後端 parity | [history/106-三刀被做成量不到的-加欄地基補上.md](history/106-三刀被做成量不到的-加欄地基補上.md) |
+| skill 過期 / 小腦 / 沒有 oracle / 退役子系統的尾巴 | [history/107-退役會教錯路的來源skill-小腦沒有oracle.md](history/107-退役會教錯路的來源skill-小腦沒有oracle.md) |

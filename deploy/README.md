@@ -14,7 +14,7 @@ push 到 `main`（或打 `v*` tag）→ GitHub Actions（`.github/workflows/dock
 > 授權後 CI 推成功一次，`docker/metadata-action` 帶的 `org.opencontainers.image.source` label 會把 package
 > **自動連回 repo**，之後就自給自足。
 > （這條 README 原本宣稱 CI 會自動 build，實際上**從沒成功過一次**——手動 fallback 一直能用，所以沒人發現。
-> 見 `knowledge/history/093`。）
+> 見 `knowledge/history/093-CI從沒成功過-package孤兒與public治錯層.md`。）
 
 - 叢集拉私有映像用 `imagePullSecret`（本專案為 `ghcr-pull`）；package 設 public 則不需要。
 - 本機手動（Mac→amd64 節點）：
