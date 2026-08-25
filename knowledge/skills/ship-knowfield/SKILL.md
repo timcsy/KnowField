@@ -51,8 +51,15 @@ git status --short                    # 沒有沒意料到的改動
 
 ```bash
 git push
-gh run watch $(gh run list --limit 1 --json databaseId -q '.[0].databaseId') --exit-status
+SHA=$(git rev-parse HEAD)
+RUN=$(gh run list --limit 5 --json databaseId,headSha -q "map(select(.headSha==\"$SHA\"))[0].databaseId")
+gh run watch $RUN --exit-status
 ```
+
+⚠️ **不要用 `gh run list --limit 1`**：GitHub 註冊 run 有延遲，push 完立刻查會抓到**上一次**的 run，
+然後它回你「已經完成，success」——你以為 CI 綠了，其實它根本還沒開始。
+2026-08-25 就這樣過了一次假的綠燈。**一定要用 `headSha` 挑，不是用時間挑。**
+（`$RUN` 是空的就代表 run 還沒註冊，等幾秒重查——空值比抓錯的好。）
 
 ### 4. 部署（⚠️ 兩個旗標都不能少）
 
@@ -75,6 +82,21 @@ gh api "/user/packages/container/knowfield/versions" \
 ```
 
 兩個 `sha256:` **必須逐字相同**，且 `ready=true`。不同就是拉到舊映像，回頭查 push。
+
+### 5.5 有加欄時：確認正式庫真的長出來了（⚠️ migration 是**懶跑**的）
+
+`init_db`（含 `_ensure_columns`）在 **`Repository()` 被建出來時**才跑，不是行程啟動就跑。
+`/healthz` 不建 repo ⇒ **部署完、pod ready、digest 對，正式庫的 schema 可能還是舊的**。
+
+```bash
+APP=$(kubectl -n knowfield get pod -l app.kubernetes.io/component=app -o jsonpath='{.items[0].metadata.name}')
+kubectl -n knowfield exec $APP -- python -c "from knowfield.store.repository import Repository; Repository().close()"
+kubectl -n knowfield exec knowfield-knowfield-postgres-0 -- bash -lc \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT table_name||'"'"'.'"'"'||column_name FROM information_schema.columns WHERE table_name='"'"'<表>'"'"'"'
+```
+
+那行 `Repository()` 跟使用者下一個請求做的事**完全相同**（純加法 schema，不動資料）。
+不跑它也會自己好——但**你就不知道它好了沒**，而 migration 失敗會發生在使用者的請求裡。
 
 ### 6. 收工
 
