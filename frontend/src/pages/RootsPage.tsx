@@ -140,7 +140,7 @@ export default function RootsPage() {
                       <Link to={`/source?u=${encodeURIComponent(src)}`} title="萃取的參考（供檢索、也能看）；準確請看原文" className="hover:text-foreground hover:underline">📎 萃取參考</Link>
                     </>
                   ) : convo ? (
-                    <Link to={`/conversations/${convo}${w.src_from ? `?from=${w.src_from}&to=${w.src_to}` : ""}`}
+                    <Link to={`/?resume=${convo}${w.src_from ? `&from=${w.src_from}&to=${w.src_to}` : ""}`}
                           title="這條的出處：點開展開它來自的那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
                   ) : null}
                   {evidence.length > 0 && (

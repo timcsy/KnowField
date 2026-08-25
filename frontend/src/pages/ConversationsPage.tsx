@@ -4,7 +4,8 @@ import { pages, type ConvRow } from "@/lib/api"
 import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 
-// 對話列表頁（導覽「💬 對話」的落點）：列出所有對話，點一則接著聊、或檢視。
+// 對話列表頁（導覽「💬 對話」的落點）：列出所有對話，點一則打開。
+// spec 047：不再分「檢視」與「接著聊」——一段對話只有一個去處。
 // 開新對話走「＋新對話」（→ 聊天頁）。與側欄歷史共用 pages.conversations()＋事件同步。
 export default function ConversationsPage() {
   const nav = useNavigate()
@@ -25,7 +26,7 @@ export default function ConversationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">💬 對話</h1>
-          <p className="mt-1 text-sm text-muted-foreground">你聊過的每一段——點一則接著聊，或檢視。</p>
+          <p className="mt-1 text-sm text-muted-foreground">你聊過的每一段——點一則打開，接著聊或回頭看。</p>
         </div>
         <Button onClick={() => nav("/?new=" + Date.now())}>＋ 新對話</Button>
       </div>

@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom"
 import { registerSW } from "virtual:pwa-register"
 import "./index.css"
 
@@ -30,8 +30,15 @@ import ArticlesPage from "./pages/ArticlesPage"
 import ArticleViewPage from "./pages/ArticleViewPage"
 import SourcesPage from "./pages/SourcesPage"
 import SourcePage from "./pages/SourcePage"
-import ConversationViewPage from "./pages/ConversationViewPage"
 import ConversationsPage from "./pages/ConversationsPage"
+
+function ResumeRedirect() {
+  const { id } = useParams()
+  const [sp] = useSearchParams()
+  const q = new URLSearchParams({ resume: String(id || "") })
+  for (const k of ["from", "to"]) { const v = sp.get(k); if (v) q.set(k, v) }
+  return <Navigate to={`/?${q}`} replace />
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -45,7 +52,10 @@ createRoot(document.getElementById("root")!).render(
           <Route path="sources" element={<SourcesPage />} />
           <Route path="source" element={<SourcePage />} />
           <Route path="conversations" element={<ConversationsPage />} />
-          <Route path="conversations/:id" element={<ConversationViewPage />} />
+          {/* spec 047：對話不再分「檢視」與「接著聊」——只有聊天頁一個去處。
+              ⚠️ 舊網址（書籤、核心理解的由來連結）要導過去而不是 404，
+              而且**必須把 from/to 帶著走**——由來定位靠它，斷了就是溯源斷掉（原則 3）。 */}
+          <Route path="conversations/:id" element={<ResumeRedirect />} />
           {/* 舊 IA → 新 IA（對話＝聊天＋存檔、來源＝知識庫＋收進） */}
           <Route path="library" element={<Navigate to="/sources" replace />} />
           <Route path="ingest" element={<Navigate to="/sources" replace />} />

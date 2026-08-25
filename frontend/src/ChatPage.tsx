@@ -15,6 +15,11 @@ type Chapter = { title: string; start: number; end: number }
 
 // 通知側欄（Layout 內）重載對話歷史
 const notifyConversations = () => window.dispatchEvent(new Event("kf-conversations-changed"))
+// spec 047：檢視頁退場後，側欄的「目前這段」高亮沒有 URL 可依（`?resume=` 會被清掉）。
+// ⚠️ 它原本**只在檢視頁亮得起來**——走聊天頁那條路一直是暗的。沿用既有事件匯流排廣播，
+// 順手把它修對，而不是跟著頁面一起刪掉。
+const notifyActiveConv = (id: number | null) =>
+  window.dispatchEvent(new CustomEvent("kf-active-conv", { detail: id }))
 
 // 帶入物：文章（AI 依核心理解生成的衍生物）或來源（使用者收進的一手素材）。
 // 兩者在**畫面上同形**，但在**脈絡裡分層**——分層在後端 field_chat._messages 做。
@@ -69,7 +74,7 @@ export default function ChatPage() {
     setConvTitle(c.title || "")
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
-    tempId.current = c.id   // 接回就綁定這筆：繼續聊就地更新同一筆，不另開（spec 040 起無分層）
+    tempId.current = c.id; notifyActiveConv(c.id)   // 接回就綁定這筆：繼續聊就地更新同一筆，不另開（spec 040 起無分層）
     referrers.current = c.referrers || []   // 這段是不是某核心理解的由來（編輯/重生要擋）
     setAnointed(c.anointed || [])
     setCandidates(null); setStreaming(null); setStage(null)
@@ -78,6 +83,7 @@ export default function ChatPage() {
       setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
+    notifyActiveConv(null)
     setCarried(null); setCarriedOpen(true); setCarriedBody(null); setAnointed([])   // 文章不跨對話殘留（FR-001c）
     setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
@@ -273,6 +279,14 @@ export default function ChatPage() {
     try { await navigator.clipboard.writeText(text); toast("已複製這則") }
     catch { toast("這個瀏覽器不允許自動複製") }
   }
+  // spec 047：原本只在檢視頁的「重生標題」。搬過來，否則刪頁面＝弄丟能力。
+  async function retitleConv() {
+    const cid = tempId.current
+    if (!cid) return
+    const r = await pages.retitleConv(cid)
+    if (r.title) { setConvTitle(r.title); notifyConversations() }
+  }
+
   // 整理成章節（把續聊的新訊息也切進章節）——分章提醒觸發
   async function reslice() {
     if (!tempId.current) { toast("先聊一句讓它存下、才能整理章節"); return }
@@ -562,6 +576,12 @@ export default function ChatPage() {
                     ⚠️ 需要這段已經被存下來（tempId）——autosave 每輪都會做，所以正常情況一定有。 */}
                 <button onClick={genArticleFromConv} disabled={busy}
                         className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📝 用這段生一篇文章</button>
+                {/* spec 047：檢視頁退場，它獨有的動作搬過來——刪頁面最容易的錯
+                    就是順手弄丟一個只有那頁有的動作（SC-003：能力集合的差＝0）。 */}
+                <button onClick={retitleConv} disabled={busy || !tempId.current}
+                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🏷 重生標題</button>
+                <button onClick={reslice} disabled={busy || !tempId.current}
+                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔖 重新分章</button>
                 <button onClick={() => copyChat("md")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📋 複製 Markdown</button>
                 <button onClick={() => copyChat("urls")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔗 複製來源</button>
               </div>

@@ -21,6 +21,9 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const { pathname } = useLocation()
   // spec 040：不再分暫存/永久——對話就是對話。
   const [convs, setConvs] = useState<ConvRow[]>([])
+  // spec 047：目前打開的是哪一段。⚠️ 原本靠 `pathname === /conversations/:id` 判斷，
+  // 那條路（檢視頁）已退場，而聊天頁的 `?resume=` 會被清掉 ⇒ 改由 ChatPage 廣播。
+  const [activeId, setActiveId] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [me, setMe] = useState<{ user: string | null; auth_enabled: boolean }>({ user: null, auth_enabled: false })
   const load = () => pages.conversations().then((r) => setConvs(r.conversations)).catch(() => {})
@@ -28,8 +31,13 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
     load()
     pages.me().then(setMe).catch(() => {})
     const h = () => load()
+    const ha = (e: Event) => setActiveId((e as CustomEvent).detail as number | null)
+    window.addEventListener("kf-active-conv", ha)
     window.addEventListener("kf-conversations-changed", h)
-    return () => window.removeEventListener("kf-conversations-changed", h)
+    return () => {
+      window.removeEventListener("kf-active-conv", ha)
+      window.removeEventListener("kf-conversations-changed", h)
+    }
   }, [])
 
   const isActive = (to: string) =>
@@ -79,7 +87,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
         )}
         {convs.length > 0 && (
           <Group title="對話">
-            {convs.map((c) => <Row key={c.id} c={c} active={pathname === `/conversations/${c.id}`} onPick={goResume} onChange={load} onNav={onNavigate} />)}
+            {convs.map((c) => <Row key={c.id} c={c} active={activeId === c.id} onPick={goResume} onChange={load} />)}
           </Group>
         )}
       </div>
@@ -104,8 +112,8 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
   )
 }
 
-function Row({ c, active, onPick, onChange, onNav}: {
-  c: ConvRow; active: boolean; onPick: (id: number) => void; onChange: () => void; onNav?: () => void; }) {
+function Row({ c, active, onPick, onChange }: {
+  c: ConvRow; active: boolean; onPick: (id: number) => void; onChange: () => void }) {
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(c.title)
   const [menu, setMenu] = useState(false)
@@ -145,7 +153,7 @@ function Row({ c, active, onPick, onChange, onNav}: {
               className={cn("shrink-0 rounded px-2 py-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
                 menu ? "opacity-100" : "opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100")}>⋮</button>
       <ConvMenu c={c} open={menu} setOpen={setMenu} anchorRef={kebabRef}
-                onResume={() => onPick(c.id)} onRename={() => setRenaming(true)} onChange={onChange} onNav={onNav} />
+                onResume={() => onPick(c.id)} onRename={() => setRenaming(true)} onChange={onChange} />
     </div>
   )
 }

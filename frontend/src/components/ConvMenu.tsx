@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Link } from "react-router-dom"
 import { pages, type ConvRow } from "@/lib/api"
 
 // 對話 ⋮ 選單（側欄＋總對話頁共用）。portal 到 body＋fixed 定位 → 不被捲動容器裁切（暫存在最底時的 bug）；
 // 靠底自動往上開。刪除：被核心理解引用（由來）→擋刪、提示先刪核心理解（護溯源，原則 3）。
-export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onChange, onNav }: {
+export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onChange }: {
   c: ConvRow
   open: boolean
   setOpen: (v: boolean) => void
@@ -13,7 +12,6 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
   onResume: () => void
   onRename: () => void
   onChange: () => void
-  onNav?: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number } | null>(null)
@@ -62,8 +60,8 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
   return createPortal(
     <div ref={menuRef} style={{ position: "fixed", ...pos }}
          className="z-50 w-36 overflow-hidden rounded-md border bg-popover py-1 text-sm text-popover-foreground shadow-lg">
-      <Link to={`/conversations/${c.id}`} onClick={() => { setOpen(false); onNav?.() }} className={item}>檢視</Link>
-      <button onClick={() => { setOpen(false); onResume() }} className={item}>接著聊</button>
+      {/* spec 047：不再分「檢視」與「接著聊」——一段對話只有一個去處（使用者裁決 2026-08-25）。 */}
+      <button onClick={() => { setOpen(false); onResume() }} className={item}>打開</button>
       <button onClick={() => { setOpen(false); onRename() }} className={item}>改名</button>
       <button onClick={del} className={item + " text-destructive"}>刪除</button>
     </div>,
