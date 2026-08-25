@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
+import { useCurrentDomain } from "@/lib/domain"
+import { useScope } from "@/lib/scope"
 import { pages, type SourceGroup } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +17,11 @@ function flashText(r: Res): string {
 
 // 來源＝外部資料的一站：上方「＋收進」展開表單，下方已收進來源列表（原「知識庫」＋「收進」合併）。
 export default function SourcesPage() {
-  const [sources, setSources] = useState<SourceGroup[] | null>(null)
+  const { did } = useCurrentDomain()   // 收進來的來源生在你站的地方（spec 052 FR-006）
+  const [allSources, setAllSources] = useState<SourceGroup[] | null>(null)
+  // ⚠️ 來源的身分是 **url**，不是 id（一個來源＝多個塊）
+  const { inScope, banner } = useScope("source")
+  const sources = allSources === null ? null : allSources.filter((x) => inScope(x.url))
   const [showIngest, setShowIngest] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -31,7 +37,7 @@ export default function SourcesPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [paperUrl, setPaperUrl] = useState("")
 
-  const load = () => pages.library().then((r) => setSources(r.sources)).catch(() => {})
+  const load = () => pages.library().then((r) => setAllSources(r.sources)).catch(() => {})
   useEffect(() => { load() }, [])
 
   async function run(fn: () => Promise<Res>) {
@@ -46,18 +52,19 @@ export default function SourcesPage() {
   async function pastePost(): Promise<Res> {
     const el = pasteRef.current
     return pages.ingestPaste({
+      domain_id: did,
       text: el?.innerText || "", html: el?.innerHTML || "",
       title, source_url: sourceUrl, note, clean,
     })
   }
-  async function urlPost(): Promise<Res> { return pages.ingestUrl({ url: pageUrl, note }) }
+  async function urlPost(): Promise<Res> { return pages.ingestUrl({ url: pageUrl, note, domain_id: did }) }
   async function paperPost(): Promise<Res> {
     // 論文走 ingestUrl（後端 normalize：arXiv abs/pdf→HTML＋Abstract/PDF 加料）。純 id→補成 abs 網址。
     const v = paperUrl.trim()
     const url = /^\d+\.\d+(v\d+)?$/.test(v) ? `https://arxiv.org/abs/${v}` : v
-    return pages.ingestUrl({ url, note })
+    return pages.ingestUrl({ url, note, domain_id: did })
   }
-  async function ytPost(): Promise<Res> { return pages.ingestYoutube({ url: ytUrl }) }
+  async function ytPost(): Promise<Res> { return pages.ingestYoutube({ url: ytUrl, domain_id: did }) }
   async function pdfPost(): Promise<Res> {
     const fd = new FormData()
     if (pdfFile) fd.append("file", pdfFile)
@@ -78,6 +85,7 @@ export default function SourcesPage() {
 
   return (
     <div className="space-y-5 pb-8">
+      {banner}
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold">📚 來源</h1>
         <span className="hidden text-sm text-muted-foreground sm:inline">你收進的外部資料——聊天時能引用（標「你收藏的」）。</span>

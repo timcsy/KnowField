@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { useScope } from "@/lib/scope"
 import { pages } from "@/lib/api"
 
 // 文章庫＝場的輸出面（與地基「核心理解」分離）：版面對齊「來源」頁，點進去＝獨立詳情頁 /articles/:id。
@@ -8,8 +9,10 @@ const LEN: Record<string, string> = { short: "短", medium: "中", long: "長" }
 const LVL: Record<string, string> = { intro: "入門", intermediate: "進階", expert: "專家" }
 
 export default function ArticlesPage() {
-  const [list, setList] = useState<{ id: number; topic: string; title: string; length: string; level: string; created_at: string }[] | null>(null)
-  const load = () => pages.listArticles().then((r) => setList(r.articles)).catch(() => setList([]))
+  const [all, setAll] = useState<{ id: number; topic: string; title: string; length: string; level: string; created_at: string }[] | null>(null)
+  const { inScope, banner } = useScope("article")
+  const list = all === null ? null : all.filter((a) => inScope(a.id))
+  const load = () => pages.listArticles().then((r) => setAll(r.articles)).catch(() => setAll([]))
   useEffect(() => { load() }, [])
 
   async function del(id: number) {
@@ -19,6 +22,7 @@ export default function ArticlesPage() {
 
   return (
     <div className="space-y-5 pb-8">
+      {banner}
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold">📝 文章</h1>
         <span className="hidden text-sm text-muted-foreground sm:inline">

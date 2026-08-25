@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
+import { useScope } from "@/lib/scope"
 import { pages, type RootsData } from "@/lib/api"
 import { KindBadge } from "@/components/KindBadge"
 import { Markdown } from "@/components/Markdown"
@@ -22,10 +23,12 @@ export default function RootsPage() {
   const [article, setArticle] = useState<string | null>(null)
   const [artTitle, setArtTitle] = useState("")
   const [gen, setGen] = useState(false)
+  const [used, setUsed] = useState<{ body: number[]; ext: number[] }>({ body: [], ext: [] })
   const [genMsg, setGenMsg] = useState<string | null>(null)
   // spec 043：從某段對話帶過來——那段冊封出的核心理解會被**釘住必進**，其餘由場補滿。
   const [sp, setSp] = useSearchParams()
   const [conv, setConv] = useState<{ id: number; title: string } | null>(null)
+  const { inScope, banner } = useScope("why_node")
   const load = () => pages.roots().then(setData).catch(() => {})
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -45,6 +48,8 @@ export default function RootsPage() {
       setGen(false)
       if (r.error) { setGenMsg(r.error); return }
       setGenMsg(null); setArticle(r.markdown || ""); setArtTitle(r.title || topic.trim())
+      // ⚠️ 記住這篇實際用了哪些理解——保存時要一起送，否則文章存下去就不知道自己長自哪
+      setUsed({ body: r.used_body_ids || [], ext: r.used_ext_ids || [] })
     } catch { setGen(false); setGenMsg("生成失敗") }
   }
   async function copyArticle() {
@@ -52,7 +57,9 @@ export default function RootsPage() {
   }
   async function saveArticle() {
     if (!article) return
-    await pages.saveArticle({ topic: topic.trim(), title: artTitle, markdown: article, length, level })
+    await pages.saveArticle({ topic: topic.trim(), title: artTitle, markdown: article, length, level,
+                              root_ids: used.body, ext_ids: used.ext,
+                              conversation_id: conv?.id || 0 })
     setGenMsg("已保存 → 到「📝 文章」面看")
   }
 
@@ -67,8 +74,10 @@ export default function RootsPage() {
   }
 
   if (!data) return <p className="text-sm text-muted-foreground">載入中…</p>
+  const anointed = data.anointed.filter((w) => inScope(w.id))
   return (
     <div className="space-y-5 pb-8">
+      {banner}
       <div>
         <h1 className="text-2xl font-bold">💡 你的核心理解</h1>
         <p className="text-xs text-muted-foreground">
@@ -77,7 +86,7 @@ export default function RootsPage() {
       </div>
 
       {/* 知識的輸出（階段 30）：從核心理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
-      {data.anointed.length > 0 && (
+      {anointed.length > 0 && (
         <section className="space-y-2 rounded-xl border bg-card p-4">
           <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
           {conv && (
@@ -113,13 +122,13 @@ export default function RootsPage() {
         </section>
       )}
 
-      {data.anointed.length === 0 ? (
+      {anointed.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           還沒有精選的核心理解。到聊天「🧵 整理成重點」、或「來源」開一份資料按「🧠 整理成核心理解」，挑認同的收進。
         </p>
       ) : (
         <div className="space-y-2">
-          {data.anointed.map((w) => {
+          {anointed.map((w) => {
             const src = data.source_provenance[String(w.id)]
             const convo = data.provenance[String(w.id)]
             // 佐證只列可點的外部連結；內部來源識別碼（paste:/收進來源）由「📎 由來」指向，不重複、不無效

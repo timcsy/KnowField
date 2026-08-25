@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { pages, type ConvRow } from "@/lib/api"
+import { useScope } from "@/lib/scope"
 import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 
@@ -10,8 +11,10 @@ import { Button } from "@/components/ui/button"
 export default function ConversationsPage() {
   const nav = useNavigate()
   // spec 040：不再分暫存/永久——對話就是對話。
-  const [convs, setConvs] = useState<ConvRow[]>([])
-  const load = () => pages.conversations().then((r) => setConvs(r.conversations)).catch(() => {})
+  const [all, setAll] = useState<ConvRow[]>([])
+  const { inScope, banner } = useScope("conversation")
+  const convs = all.filter((c) => inScope(c.id))
+  const load = () => pages.conversations().then((r) => setAll(r.conversations)).catch(() => {})
   useEffect(() => {
     load()
     const h = () => load()
@@ -23,6 +26,7 @@ export default function ConversationsPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      {banner}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">💬 對話</h1>

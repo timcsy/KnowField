@@ -22,6 +22,7 @@ class ContentIngestResult:
     status: str            # 'ingested' | 'empty' | 'exists'
     title: str = ""
     count: int = 0
+    url: str = ""          # spec 051：來源的身分＝url，出生歸位要用它（沒有它就歸不了位）
 
 
 def _first_line_title(text: str) -> str:
@@ -104,7 +105,7 @@ class ContentIngestService:
             return ContentIngestResult(status="empty")
         n = store_chunks(self.repo, self.embedder, title, url, chunks,
                          note=(note or "").strip(), ingested_at=(ingested_at or "").strip())
-        return ContentIngestResult(status="ingested", title=title, count=n)
+        return ContentIngestResult(status="ingested", title=title, count=n, url=url)
 
     def ingest_text(self, text: str, title: str = "", html: str = "",
                     clean: bool = False, source_url: str = "",

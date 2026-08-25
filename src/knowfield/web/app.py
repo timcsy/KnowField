@@ -60,6 +60,14 @@ def _parse_items(raw) -> list[tuple[str, object]]:
     return out
 
 
+def _domain_of(body) -> int | None:
+    """請求裡的「當前領域」（spec 051）。0／缺 ＝ 根領域＝沒有訊號。"""
+    try:
+        return int(body.get("domain_id") or 0) or None
+    except (TypeError, ValueError):
+        return None
+
+
 def _now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -528,7 +536,7 @@ def create_app() -> FastAPI:
 
 
     def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id, kind="",
-                   src_from=0, src_to=0):
+                   src_from=0, src_to=0, domain_id=None):
         """人閘門冊封（原則 5）：唯有人按此才寫 bedrock。冪等去重＋選用連對話由來（spec 023/028）。
         回 (status, claim, msg)。/chat/anoint 與 /api/chat/anoint 共用（行為一份、天然一致）。"""
         from ..chat.capture import norm_claim
@@ -558,9 +566,18 @@ def create_app() -> FastAPI:
                 if tid:                         # 有暫存→升永久同一筆＋連根因（spec 028，不新增）
                     repo.promote_conversation(tid, _convo_title(messages), wid)
                 else:
-                    repo.save_conversation(_convo_title(messages), messages, wid)
+                    # ⚠️ 這是**新建**的對話（`save_conversation` 不帶領域）
+                    # ⇒ 它自己也是剛出生的葉節點，也要歸位，否則理解繼承到的是一個
+                    #    住在根領域的父親——看起來像「繼承成功」，其實是退回當前領域。
+                    cid = repo.save_conversation(_convo_title(messages), messages, wid)
+                    repo.place_new("conversation", cid, current=domain_id)
                 if status == "created":
                     msg += "，並存下這段對話當它的由來"
+        # spec 051：出生就歸位。⚠️ **一定要在這裡**——上面的 save_convo 分支才剛把對話連上去，
+        # 早一步呼叫的話 `_neighbours` 是空的，理解會安靜地落在根領域，
+        # 而那看起來跟「本來就沒出處」一模一樣。
+        if status == "created":
+            repo.place_new("why_node", wid, current=domain_id)
         repo.close()
         return status, claim, msg
 
@@ -613,7 +630,8 @@ def create_app() -> FastAPI:
             "1" if body.get("save_convo") else "",
             json.dumps(body.get("history") or [], ensure_ascii=False),
             str(body.get("temp_id") or ""), body.get("kind", ""),
-            int(body.get("src_from") or 0), int(body.get("src_to") or 0))
+            int(body.get("src_from") or 0), int(body.get("src_to") or 0),
+            domain_id=_domain_of(body))
         return _JSON({"status": status, "claim": claim, "msg": msg})
 
     @app.post("/api/chat/autosave")
@@ -691,6 +709,7 @@ def create_app() -> FastAPI:
             repo = app.state.repo_factory(app.state.config)
             repo.anoint_why_node(wid, (b.get("claim") or "").strip() or None,
                                  (b.get("kind") or "").strip() or None)
+            repo.place_new("why_node", wid, current=_domain_of(b))   # spec 051
             repo.close()
         return _JSON({"ok": True})
 
@@ -759,7 +778,11 @@ def create_app() -> FastAPI:
             return _JSON({"error": "沒有內容可存"}, status_code=400)
         repo = app.state.repo_factory(app.state.config)
         aid = repo.save_article(b.get("topic", ""), b.get("title", ""), b["markdown"],
-                                b.get("length", ""), b.get("level", ""), _now_iso())
+                                b.get("length", ""), b.get("level", ""), _now_iso(),
+                                root_ids=b.get("root_ids") or [],
+                                ext_ids=b.get("ext_ids") or [],
+                                conversation_id=int(b.get("conversation_id") or 0) or None)
+        repo.place_new("article", aid, current=_domain_of(b))   # spec 051
         repo.close()
         return _JSON({"id": aid})
 
@@ -958,12 +981,19 @@ def create_app() -> FastAPI:
             repo.close()
         return _JSON({"ok": True})
 
-    def _ingest_result(kind, **kw):
+    def _ingest_result(kind, domain_id=None, **kw):
         try:
             res = _content_ingest(kind, **kw)
         except (SourceUnavailable, OpenAIError) as e:
             _log.error("收進失敗", extra={"extra": {"reason": str(e)}})
             return _JSON({"status": "error", "err": str(e)}, status_code=502)
+        # spec 051：收進來的來源生在你站的地方（來源沒有出處，所以純粹用當前領域）
+        if res.status == "ingested" and getattr(res, "url", ""):
+            repo = app.state.repo_factory(app.state.config)
+            try:
+                repo.place_new("source", res.url, current=domain_id)
+            finally:
+                repo.close()
         return _JSON({"status": res.status, "count": getattr(res, "count", 0),
                       "title": getattr(res, "title", "")})
 
@@ -974,7 +1004,7 @@ def create_app() -> FastAPI:
         if not text.strip() and not html.strip():
             return _JSON({"status": "empty", "count": 0})
         at = (b.get("ingested_at") or "").strip() or _now_iso()[:10]
-        return _ingest_result("text", text=text, title=b.get("title", ""), html=html,
+        return _ingest_result("text", domain_id=_domain_of(b), text=text, title=b.get("title", ""), html=html,
                               clean=bool(b.get("clean")), source_url=b.get("source_url", ""),
                               note=b.get("note", ""), ingested_at=at)
 
@@ -985,7 +1015,7 @@ def create_app() -> FastAPI:
         if not url:
             return _JSON({"status": "empty", "count": 0})
         at = (b.get("ingested_at") or "").strip() or _now_iso()[:10]
-        return _ingest_result("url", url=url, title=b.get("title", ""),
+        return _ingest_result("url", domain_id=_domain_of(b), url=url, title=b.get("title", ""),
                               note=b.get("note", ""), ingested_at=at)
 
     @app.post("/api/ingest/youtube")
@@ -994,7 +1024,7 @@ def create_app() -> FastAPI:
         url = (b.get("url") or "").strip()
         if not url:
             return _JSON({"status": "empty", "count": 0})
-        return _ingest_result("youtube", url=url, title=b.get("title", ""))
+        return _ingest_result("youtube", domain_id=_domain_of(b), url=url, title=b.get("title", ""))
 
     @app.post("/api/ingest/pdf")
     async def api_ingest_pdf(url: str = Form(""), title: str = Form(""),
@@ -1005,7 +1035,7 @@ def create_app() -> FastAPI:
         if not pdf_bytes and not pdf_url:
             return _JSON({"status": "empty", "count": 0})
         at = (ingested_at or "").strip() or _now_iso()[:10]
-        return _ingest_result("pdf", pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title,
+        return _ingest_result("pdf", domain_id=_domain_of(b), pdf_bytes=pdf_bytes, pdf_url=pdf_url, title=title,
                               note=note, ingested_at=at)
 
     @app.post("/api/ingest/share")
@@ -1019,9 +1049,9 @@ def create_app() -> FastAPI:
         title = str(b.get("title") or "").strip()
         at = _now_iso()[:10]
         if url.startswith("http"):
-            return _ingest_result("url", url=url, title=title, note="手機分享", ingested_at=at)
+            return _ingest_result("url", domain_id=_domain_of(b), url=url, title=title, note="手機分享", ingested_at=at)
         if text:
-            return _ingest_result("text", text=text, title=title, note="手機分享", ingested_at=at)
+            return _ingest_result("text", domain_id=_domain_of(b), text=text, title=title, note="手機分享", ingested_at=at)
         return _JSON({"status": "empty", "count": 0})
 
     # ══ 領域樹（spec 048，階段 43）══
@@ -1099,36 +1129,31 @@ def create_app() -> FastAPI:
 
         ⚠️ 刻意**不**去擴 `/api/roots`、`/api/articles`、`/api/library`
         ——那三支各有自己的消費者，為整理台加欄會把它們綁在一起。
+        ⓘ spec 052 起改用 `repo._inventory_rows()`，與領域視野**共用一份定義**
+        （兩份定義會慢慢漂開，而漂開不會報錯）。
         """
         repo = app.state.repo_factory(app.state.config)
         try:
-            out = []
-            for r in repo.conn.execute(
-                    # ⚠️ **不要**濾 `temporary`——spec 040 已移除暫存分層，
-                    # `list_conversations` 也沒有這個條件。濾了會安靜地少列
-                    #（正式庫 31 段裡有 5 段 temporary=1）。
-                    "SELECT id, title, domain_id FROM conversations ORDER BY id DESC"):
-                out.append({"kind": "conversation", "ref": r["id"],
-                            "label": r["title"] or "未命名", "domain_id": r["domain_id"]})
-            for r in repo.conn.execute(
-                    "SELECT id, claim, domain_id FROM why_nodes"
-                    " WHERE status='anointed' ORDER BY id DESC"):
-                out.append({"kind": "why_node", "ref": r["id"],
-                            "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"]})
-            for r in repo.conn.execute(
-                    "SELECT id, topic, title, domain_id FROM articles ORDER BY id DESC"):
-                out.append({"kind": "article", "ref": r["id"],
-                            "label": r["title"] or r["topic"] or "未命名",
-                            "domain_id": r["domain_id"]})
-            # 來源：一個 url 一列（同 `list_source_groups` 的身分定義）
-            for r in repo.conn.execute(
-                    "SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id"
-                    " FROM digest_entries GROUP BY url ORDER BY MAX(id) DESC"):
-                out.append({"kind": "source", "ref": r["url"],
-                            "label": r["title"] or r["url"], "domain_id": r["domain_id"]})
+            out = repo._inventory_rows()
         finally:
             repo.close()
         return _JSON({"ok": True, "items": out})
+
+    @app.get("/api/domains/{did}/view")
+    async def api_domain_view(did: str):
+        """站在一個領域看到的東西（spec 052）。`did='0'` ＝ 根領域＝整個知識庫。"""
+        try:
+            d = int(did) or None
+        except (TypeError, ValueError):
+            return _JSON({"ok": False, "err": "領域要是數字"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            v = repo.domain_view(d)
+            for o in v["outward"]:
+                o["label"] = _knowledge_label(repo, o["kind"], o["ref"])
+        finally:
+            repo.close()
+        return _JSON({"ok": True, **v})
 
     @app.post("/api/knowledge/tangles")
     async def api_batch_tangles(request: Request):

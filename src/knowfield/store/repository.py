@@ -603,6 +603,128 @@ class Repository:
             cur = rows[cur]["parent_id"]
         return list(reversed(out))
 
+    # ── 出生就歸位（spec 051）：只看出處，**不看內容** ──────────────────
+    # ⚠️ 這跟已被否決四次的「自動分類」的差別在**依據**，不在準確度：
+    # 自動分類是 AI 看內容猜；這裡是「它長自一段你已經放好位置的東西」＝溯源事實。
+    # 判準：**它錯的時候，是你把出處放錯了，不是模型猜錯了。**
+
+    def lca_domain(self, domains: list) -> int | None:
+        """一組出處領域的**最近共同祖先**。回 None ＝ 根領域／沒有訊號。
+
+        ⚠️ `None` 的出處**不算一票**（FR-005）：它說的是「我還沒被放過」，
+        不是「答案是根」。不然一條沒歸位的出處就會把答案全部拉回根，
+        而那會讓這一刀在 backlog 清空前**幾乎永遠不生效**。
+        （同 spec 050 FR-007 的同一個區分：根是可以站的位置，但它表示「還沒放過」。）
+        """
+        known = [d for d in domains if d is not None]
+        if not known:
+            return None
+        paths = [[p["id"] for p in self.domain_path(d)] for d in known]
+        if any(not p for p in paths):          # 領域已被刪掉 → 沒有可信的共同祖先
+            return None
+        common = None
+        for i in range(min(len(p) for p in paths)):
+            here = paths[0][i]
+            if all(p[i] == here for p in paths):
+                common = here
+            else:
+                break
+        return common
+
+    def inherited_domain(self, parent_domains: list, current: int | None) -> int | None:
+        """新知識該落在哪：**有出處就繼承出處，沒有就用你站的地方**（FR-006）。
+
+        ⚠️ 出處**勝過**當前領域——出處是事實，站的地方只是預設值。
+        """
+        return self.lca_domain(parent_domains) or current
+
+    # ── 一個領域的視野（spec 052）──────────────────────────────────────
+    # ⚠️ 這裡的 `scope` 是**子樹**（含自己與所有子孫），不是單一節點
+    # ——使用者的裁決：「當前領域含子領域」⇒ **站在根＝看到全部**。
+
+    def domain_scope(self, did: int | None) -> set[int] | None:
+        """立足點的子樹。回 `None` ＝ 根領域＝**整個知識庫**（不設限）。"""
+        return None if did is None else self.domain_descendants(did)
+
+    def domain_view(self, did: int | None) -> dict:
+        """站在 `did` 看到的東西：直屬子領域 ＋ 子樹裡的葉節點 ＋ **通往外面**的連結。
+
+        ⚠️ **「通往外面」相對於立足點**（FR-003）：一條邊的兩端都在我的子樹裡就不算。
+        同一條 `Flow Matching → 數學` 的邊，站在 Flow Matching 是跨出去、站在 AI 是內部連結
+        ——**糾纏是 `(邊, 立足點)` 的屬性，不是那條邊的固有屬性**。
+        把它當成固有屬性的話，站在祖先會看到一堆其實在自己家裡的「外部連結」。
+        """
+        scope = self.domain_scope(did)
+        rows = self._inventory_rows()
+        # 每個子領域**含子孫**有幾件——側欄的數字要跟「點進去之後看到的」一致，
+        # ⚠️ 否則那個數字就是在說謊，而說謊的數字比沒有數字更糟。
+        children = []
+        for d in self.list_domains():
+            if d["parent_id"] != did:
+                continue
+            sub = self.domain_descendants(d["id"])
+            children.append({**d, "count": sum(1 for r in rows if r["domain_id"] in sub)})
+
+        items, outward, seen = [], [], set()
+        for row in rows:
+            inside = scope is None or (row["domain_id"] in scope)
+            if not inside:
+                continue
+            items.append(row)
+            if scope is None:
+                continue                      # 站在根：沒有「外面」可言
+            for nk, nref in self._neighbours(row["kind"], row["ref"]):
+                nd = self.knowledge_domain(nk, nref)
+                # ⚠️ 對方在根領域 ＝ 還沒被放過，不是「在外面」（同 spec 050 FR-007／051 FR-005）
+                if nd is None or nd in scope:
+                    continue
+                key = (nk, str(nref))
+                if key in seen:
+                    continue
+                seen.add(key)
+                outward.append({"kind": nk, "ref": nref, "domain_id": nd})
+        return {"children": children, "items": items, "outward": outward,
+                "path": [] if did is None else self.domain_path(did)}
+
+    def _inventory_rows(self) -> list[dict]:
+        """四種知識的扁平清冊（整理台與領域視野共用一份定義）。"""
+        out = []
+        for r in self.conn.execute(
+                "SELECT id, title, domain_id FROM conversations ORDER BY id DESC"):
+            out.append({"kind": "conversation", "ref": r["id"],
+                        "label": r["title"] or "未命名", "domain_id": r["domain_id"]})
+        for r in self.conn.execute(
+                "SELECT id, claim, domain_id FROM why_nodes"
+                " WHERE status='anointed' ORDER BY id DESC"):
+            out.append({"kind": "why_node", "ref": r["id"],
+                        "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"]})
+        for r in self.conn.execute(
+                "SELECT id, topic, title, domain_id FROM articles ORDER BY id DESC"):
+            out.append({"kind": "article", "ref": r["id"],
+                        "label": r["title"] or r["topic"] or "未命名", "domain_id": r["domain_id"]})
+        for r in self.conn.execute(
+                "SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id"
+                " FROM digest_entries GROUP BY url ORDER BY MAX(id) DESC"):
+            out.append({"kind": "source", "ref": r["url"],
+                        "label": r["title"] or r["url"], "domain_id": r["domain_id"]})
+        return out
+
+    def place_new(self, kind: str, ref, current: int | None = None) -> int | None:
+        """把一件**剛出生**的知識放到它該在的領域，回放到哪。
+
+        出處就是它的**直接鄰居**（`_neighbours`）——所以這一個方法同時服務
+        冊封理解／保存文章／收來源三條路徑，不用在每個呼叫點各接一次線。
+
+        ⚠️ **呼叫時機**：必須在**連結都建好之後**。`_do_anoint` 是先冊封、
+        後才把對話連上去的 ⇒ 太早呼叫的話 `_neighbours` 是空的，
+        東西會安靜地落在根領域，而且看起來跟「本來就沒出處」一模一樣。
+        """
+        parents = [self.knowledge_domain(nk, nref) for nk, nref in self._neighbours(kind, ref)]
+        did = self.inherited_domain(parents, current)
+        if did is not None:
+            self.set_knowledge_domain(kind, ref, did)
+        return did
+
     def domain_descendants(self, did: int) -> set[int]:
         """這個領域的所有子孫（含自己）。用於擋成環。"""
         children: dict[int, list[int]] = {}

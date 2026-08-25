@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { pages, type ConvRow } from "@/lib/api"
+import { pages, type ConvRow, type KnowledgeKind } from "@/lib/api"
+import { DomainNav } from "@/components/DomainNav"
+import { ROOT_NAME, useCurrentDomain, withDomain } from "@/lib/domain"
 import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-// nav 順序＝膜的流向：來源（原料）→ 對話（消化）→ 核心理解（沉澱地基）→ 文章（輸出）
-// spec 048：領域（樹）擺最前——它是**位置**，不在膜的流向上，是給人導航用的。
-const NAV = [
-  { label: "🗂 領域", to: "/domains" },
-  { label: "📚 來源", to: "/sources" },
-  { label: "💬 對話", to: "/conversations" },
-  { label: "💡 核心理解", to: "/roots" },
-  { label: "📝 文章", to: "/articles" },
+// 側欄的四種葉節點（spec 052）。順序＝膜的流向：
+// 來源（原料）→ 對話（消化）→ 核心理解（沉澱地基）→ 文章（輸出）。
+// ⚠️ 這裡列的是**當前領域底下**的東西，不是全知識庫
+// ——「全部的核心理解」＝站到根領域再看這一格（使用者裁決：當前領域含子領域）。
+const KINDS: { kind: KnowledgeKind; label: string; to: string }[] = [
+  { kind: "source", label: "📚 來源", to: "/sources" },
+  { kind: "conversation", label: "💬 對話", to: "/conversations" },
+  { kind: "why_node", label: "💡 核心理解", to: "/roots" },
+  { kind: "article", label: "📝 文章", to: "/articles" },
 ]
 
 // 單一側欄（各大 AI 手順）：Logo＋新對話＋導覽＋對話歷史，全在一欄。
@@ -28,7 +31,11 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const [activeId, setActiveId] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [me, setMe] = useState<{ user: string | null; auth_enabled: boolean }>({ user: null, auth_enabled: false })
-  const load = () => pages.conversations().then((r) => setConvs(r.conversations)).catch(() => {})
+  const { did, go } = useCurrentDomain()
+  const [view, setView] = useState<Awaited<ReturnType<typeof pages.domainView>> | null>(null)
+  const load = () => Promise.all([pages.conversations(), pages.domainView(did)])
+    .then(([c, v]) => { setConvs(c.conversations); setView(v) })
+    .catch(() => {})
   useEffect(() => {
     load()
     pages.me().then(setMe).catch(() => {})
@@ -41,14 +48,17 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
       window.removeEventListener("kf-conversations-changed", h)
     }
   }, [])
+  // 換領域＝換視野。⚠️ did 進相依陣列，不然站到別的領域側欄不會變。
+  useEffect(() => { load() }, [did])
 
   const isActive = (to: string) =>
     to === "/conversations" ? pathname === "/" || pathname.startsWith("/conversations")
       : to === "/sources" ? pathname.startsWith("/source")
       : pathname.startsWith(to)
 
-  const goNew = () => { navigate("/?new=" + Date.now()); onNavigate?.() }
-  const goResume = (id: number) => { navigate("/?resume=" + id); onNavigate?.() }
+  // ⚠️ ＋新對話帶著當前領域 ⇒ 新東西生在你站的地方（spec 051 FR-006 那條等著的線）
+  const goNew = () => { navigate(withDomain("/?new=" + Date.now(), did)); onNavigate?.() }
+  const goResume = (id: number) => { navigate(withDomain("/?resume=" + id, did)); onNavigate?.() }
 
   async function dedupe() {
     const p = await pages.dedupePreview()
@@ -64,35 +74,90 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
         <Link to="/" onClick={onNavigate} className="py-1 text-lg font-bold">🧠 KnowField</Link>
         {onNavigate && <button onClick={onNavigate} aria-label="關閉" className="px-1 text-muted-foreground">✕</button>}
       </div>
-      <Button size="sm" onClick={goNew}>＋ 新對話</Button>
-      <nav className="flex flex-col gap-0.5">
-        {NAV.map((n) => (
-          <Link key={n.to} to={n.to} onClick={onNavigate}
-            className={cn("rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
-              isActive(n.to) && "bg-sidebar-accent font-medium")}>
-            {n.label}
-          </Link>
-        ))}
-      </nav>
+      <Button size="sm" onClick={goNew}>＋ 新對話{did !== null && "（在這裡）"}</Button>
 
-      <div className="mt-1 flex items-center justify-between border-t px-2 pt-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">對話紀錄</span>
-        {convs.length > 0 && (
-          <button onClick={dedupe} className="text-[11px] text-muted-foreground hover:underline">🧹 清理重複</button>
-        )}
-      </div>
-      {msg && <div className="rounded-md bg-muted px-2 py-1 text-xs">{msg}</div>}
+      {/* 麵包屑＝換地方 ＋「我現在會影響誰」 */}
+      <DomainNav onNavigate={onNavigate} />
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-        {convs.length === 0 && (
-          <p className="px-2 text-xs text-muted-foreground">還沒有對話。聊一段會自動存到這裡。</p>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        {/* 子領域：往下走 */}
+        {(view?.children.length ?? 0) > 0 && (
+          <nav className="flex flex-col gap-0.5">
+            {view!.children.map((c) => (
+              <button key={c.id} onClick={() => { go(c.id); onNavigate?.() }}
+                      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm hover:bg-sidebar-accent">
+                <span className="min-w-0 flex-1 truncate">📁 {c.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{c.count || ""}</span>
+              </button>
+            ))}
+          </nav>
         )}
-        {convs.length > 0 && (
-          <Group title="對話">
-            {convs.map((c) => <Row key={c.id} c={c} active={activeId === c.id} onPick={goResume} onChange={load} />)}
-          </Group>
+
+        {/* 這個領域裡有什麼——四種葉節點 */}
+        <nav className="flex flex-col gap-0.5 border-t pt-2">
+          {KINDS.map((k) => {
+            const n = (view?.items || []).filter((i) => i.kind === k.kind).length
+            return (
+              <Link key={k.kind} to={withDomain(k.to, did)} onClick={onNavigate}
+                className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+                  isActive(k.to) && "bg-sidebar-accent font-medium")}>
+                <span className="min-w-0 flex-1 truncate">{k.label}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{n || ""}</span>
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* 通往外面＝場的邊界。⚠️ 寫「通往外面」不寫「糾纏」——後者看起來像有待辦要清，
+            而這只是「從我站的地方看，這幾條通到別的領域」。 */}
+        {(view?.outward.length ?? 0) > 0 && (
+          <section className="border-t pt-2">
+            <h3 className="mb-0.5 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
+                title="從這個領域看出去，連到外面的東西（站到上一層，其中一些會變成內部連結）">
+              ⛓ 通往外面 {view!.outward.length}
+            </h3>
+            {view!.outward.slice(0, 6).map((o) => (
+              <button key={`${o.kind}:${o.ref}`} onClick={() => { go(o.domain_id); onNavigate?.() }}
+                      title={`跳到它所在的領域`}
+                      className="block w-full truncate rounded-lg px-3 py-1 text-left text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+                {o.label}
+              </button>
+            ))}
+          </section>
         )}
+
+        {/* 🕘 最近＝**時間軸**。⚠️ 位置和時間是兩個軸，側欄不能只給一個
+            ——不然「我昨天在聊什麼」就不見了。這一格刻意**不**依領域過濾。 */}
+        <section className="border-t pt-2">
+          <div className="mb-0.5 flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近</h3>
+            {convs.length > 0 && (
+              <button onClick={dedupe} className="text-[11px] text-muted-foreground hover:underline">🧹 清理重複</button>
+            )}
+          </div>
+          {msg && <div className="mx-2 rounded-md bg-muted px-2 py-1 text-xs">{msg}</div>}
+          {convs.length === 0 && (
+            <p className="px-2 text-xs text-muted-foreground">還沒有對話。聊一段會自動存到這裡。</p>
+          )}
+          {convs.slice(0, 8).map((c) => (
+            <Row key={c.id} c={c} active={activeId === c.id} onPick={goResume} onChange={load} />
+          ))}
+        </section>
       </div>
+
+      {/* ⚠️ FR-007：視野被領域縮過就要**說出來**——「找不到」和「這裡沒有」長得一模一樣 */}
+      {did !== null && (
+        <div className="border-t px-2 pt-2 text-[11px] text-muted-foreground">
+          只顯示這個領域底下的。
+          <button onClick={() => { go(null); onNavigate?.() }} className="ml-1 underline hover:text-foreground">
+            看整個{ROOT_NAME}
+          </button>
+        </div>
+      )}
+      <Link to={withDomain("/domains", did)} onClick={onNavigate}
+            className="rounded-lg px-3 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+        ⚙ 整理台
+      </Link>
 
       {/* 登入身分＋登出（只在門鎖啟用時顯示） */}
       {me.auth_enabled && (
@@ -102,15 +167,6 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
         </div>
       )}
     </div>
-  )
-}
-
-function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h3 title={hint} className="mb-0.5 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">{title}</h3>
-      <div>{children}</div>
-    </section>
   )
 }
 

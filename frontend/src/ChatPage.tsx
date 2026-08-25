@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useCurrentDomain } from "@/lib/domain"
 import { coveredSet, coverageSummary, type Range } from "@/lib/coverage"
 import { Copy, GitBranch, Pencil, RefreshCw } from "lucide-react"
 
@@ -42,6 +43,7 @@ export default function ChatPage() {
   // spec 048：這段對話要開在哪個領域。⚠️ 只在**建立那筆**時寫（同 044 的由來），
   // 之後 autosave 送什麼都不會改到它。
   const pendingDomain = useRef<number | null>(null)
+  const { did } = useCurrentDomain()      // 你站的地方（spec 052）
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -122,8 +124,10 @@ export default function ChatPage() {
     }
     if (sp.get("new")) {
       newChat()
-      const d = Number(sp.get("domain") || 0)
-      pendingDomain.current = d || null     // spec 048：在某領域底下開的新對話
+      // spec 052：當前領域住在 `?d`。舊的 `?domain=` 仍認（舊連結／書籤不打斷）。
+      // ⚠️ **不要 delete("d")**——那是你站的地方，換頁不該把你掉出去。
+      const d = Number(sp.get("d") || sp.get("domain") || 0)
+      pendingDomain.current = d || null
       sp.delete("new"); sp.delete("domain"); setSp(sp, { replace: true })
       return
     }
@@ -247,6 +251,9 @@ export default function ChatPage() {
       evidence_urls: c.evidence_urls.join(", "),
       save_convo: saveConvo, history: messages, temp_id: tempId.current,
       src_from: c.src_from, src_to: c.src_to,
+      // ⚠️ 沒有對話由來時，這條理解落在**你站的地方**（spec 052 FR-006）。
+      // 有由來的話後端會用出處——出處勝過站的地方。
+      domain_id: pendingDomain.current ?? did,
     })
     setCandDone((d) => ({ ...d, [i]: r.status === "exists" ? "➖ 已收過（沒重複收）" : "✅ 已精選" }))
     if (r.status === "created") setRootCount((n) => n + 1)

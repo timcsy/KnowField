@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
+import { useCurrentDomain } from "@/lib/domain"
 import { pages, type WhyNode } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 import { KINDS } from "@/components/KindBadge"
@@ -204,7 +205,8 @@ function SourceCandidateCard({ w, onDone }: { w: WhyNode; onDone: () => void }) 
   const [kind, setKind] = useState(w.kind || "")
   const [done, setDone] = useState(false)
 
-  async function anoint() { await pages.whynodeAnoint(w.id, claim, kind); setDone(true); onDone() }
+  const { did } = useCurrentDomain()
+  async function anoint() { await pages.whynodeAnoint(w.id, claim, kind, did); setDone(true); onDone() }
   async function remove() { if (confirm("退回這條候選？")) { await pages.whynodeRemove(w.id); onDone() } }
 
   if (done) return <div className="rounded-xl border bg-card p-3 text-sm text-primary">✅ 已精選收進核心理解</div>

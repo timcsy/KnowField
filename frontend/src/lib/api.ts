@@ -53,6 +53,7 @@ export const api = {
     temp_id?: number | null
     src_from?: number
     src_to?: number
+    domain_id?: number | null    // 你站的地方（spec 052 FR-006）
   }): Promise<{ status: string; claim: string; msg: string | null }> =>
     fetch("/api/chat/anoint", {
       method: "POST",
@@ -136,7 +137,9 @@ export const pages = {
     fetch("/api/me").then((r) => (r.ok ? r.json() : { user: null, auth_enabled: false }))
       .catch(() => ({ user: null, auth_enabled: false })),
   roots: (): Promise<RootsData> => fetch("/api/roots").then(json),
-  whynodeAnoint: (id: number, claim?: string, kind?: string) => post("/api/whynode/anoint", { id, claim, kind }),
+  // ⚠️ domain_id ＝**你站的地方**（spec 052 FR-006）：沒有出處時新知識落在這裡
+  whynodeAnoint: (id: number, claim?: string, kind?: string, domain_id?: number | null) =>
+    post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
   source: (u: string, raw = false): Promise<{
@@ -154,13 +157,14 @@ export const pages = {
     post("/api/library/reclassify", { url, source_class }),
   removeSource: (url: string) => post("/api/library/remove", { url }),
   ingestPaste: (b: {
+    domain_id?: number | null
     text?: string; html?: string; title?: string; clean?: boolean
     source_url?: string; note?: string; ingested_at?: string
   }): Promise<{ status: string; count: number; title?: string; err?: string }> =>
     post("/api/ingest/paste", b),
-  ingestUrl: (b: { url: string; title?: string; note?: string; ingested_at?: string }) =>
+  ingestUrl: (b: { url: string; title?: string; note?: string; ingested_at?: string; domain_id?: number | null }) =>
     post("/api/ingest/url", b),
-  ingestYoutube: (b: { url: string; title?: string }): Promise<{ status: string; count: number; err?: string }> =>
+  ingestYoutube: (b: { url: string; title?: string; domain_id?: number | null }): Promise<{ status: string; count: number; err?: string }> =>
     post("/api/ingest/youtube", b),
   conversations: (): Promise<{ conversations: ConvRow[] }> =>
     fetch("/api/conversations").then(json),
@@ -197,6 +201,16 @@ export const pages = {
   //    來源的 ref 是 **url**（一個來源＝多個塊），其餘三種是整數 id。
   inventory: (): Promise<{ ok: boolean; items: KnowledgeItem[] }> =>
     fetch("/api/knowledge/inventory").then(json),
+  // 站在一個領域看到的東西（spec 052）。`did=null` ＝ 根領域＝整個知識庫。
+  // ⚠️ `outward`＝**從這個立足點看**通到外面的連結——它相對於你站的地方，
+  //    不是那條邊的固有屬性（站在祖先看，同一條邊是內部連結）。
+  domainView: (did: number | null): Promise<{
+      ok: boolean
+      path: { id: number; name: string }[]
+      children: { id: number; name: string; parent_id: number | null; count: number }[]
+      items: KnowledgeItem[]
+      outward: (KnowledgeItem & { domain_id: number })[] }> =>
+    fetch(`/api/domains/${did ?? 0}/view`).then(json),
   tangles: (items: KnowledgeRef[], domain_id: number | null): Promise<{
     ok: boolean; tangles: { kind: string; ref: number | string; domain_id: number; label: string }[] }> =>
     post("/api/knowledge/tangles", { items, domain_id }),
@@ -207,9 +221,15 @@ export const pages = {
     post(`/api/conversations/${cid}/domain`, { domain_id }),
 
   // conversationId（spec 043）：用那段對話冊封出的核心理解當骨幹（0＝不帶，行為與現況相同）
-  generateArticle: (topic: string, length: string, level: string, conversationId = 0): Promise<{ title?: string; markdown?: string; length?: string; level?: string; error?: string }> =>
+  // ⚠️ `used_body_ids` / `used_ext_ids` 後端一直算得出來，但直到 spec 051 前端才接
+  //    ——沒接的話存下去的文章不知道自己長自哪些理解，出生歸位與糾纏偵測都是半瞎的。
+  generateArticle: (topic: string, length: string, level: string, conversationId = 0): Promise<{
+      title?: string; markdown?: string; length?: string; level?: string; error?: string
+      used_body_ids?: number[]; used_ext_ids?: number[] }> =>
     post("/api/article", { topic, length, level, conversation_id: conversationId }),
-  saveArticle: (b: { topic: string; title: string; markdown: string; length: string; level: string }): Promise<{ id: number }> =>
+  saveArticle: (b: { topic: string; title: string; markdown: string; length: string; level: string
+                     root_ids?: number[]; ext_ids?: number[]; conversation_id?: number
+                     domain_id?: number | null }): Promise<{ id: number }> =>
     post("/api/article/save", b),
   listArticles: (): Promise<{ articles: { id: number; topic: string; title: string; length: string; level: string; created_at: string }[] }> =>
     fetch("/api/articles").then(json),
