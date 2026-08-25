@@ -90,9 +90,13 @@ embedding／摘要藏在可插拔介面（`Embedder`／`Summarizer`）後：預�
 **可行性已探**（真跑，非估計）：DAG 可達性用專案 adapter 測過，SQLite ✅ PG ✅，
 含環也終止（`UNION` 去重）；⚠️ PG 需 `CAST(%s AS INTEGER)`，SQLite 不用。
 
-- [ ] ⚠️ **前置**：`interest_profile.explicit_topics` 與 `matched_topic` 標為分診殘骸
-      ——它們留著會讓 `topic` 被讀成「興趣標籤」，而我們正要給那個詞新意思
-      （殘骸會持續合理化錯誤理解，同 [107](history/107-退役會教錯路的來源skill-小腦沒有oracle.md)）
+- [ ] ⚠️ **前置（2026-08-25 更正，原本寫得太粗）**：只標 `interest_profile.explicit_topics`
+      為分診殘骸（`web/app.py` 零引用、1 個測試）。
+      ⚠️ **`matched_topic` 不動**——它不是殘骸：穿在**活的**種子進料上
+      （`app.py:111` `SeedService` → `seed/service.py:51`、`openai_api.py::summarize`），
+      **8 個測試在守**，正式庫 994 塊裡 111 塊有值。
+      ⓘ 我原本憑「web 層零引用」把兩者歸成一類，其實只查了其中一個
+      ——正是 experience「量錯欄位／已退役要逐一排除」在打自己。
 - [ ] 領域樹：可建、可命名、可有子領域；一個節點可查出它的 **Topic 路徑**
 - [ ] ⚠️ **節點與路徑在資料模型裡分得開**——同一節點掛不同祖先＝不同 Topic；
       混成一個「topic 字串」不會報錯，只會讓查詢慢慢失準
