@@ -185,6 +185,14 @@ export const pages = {
   renameDomain: (id: number, name: string) => post(`/api/domains/${id}/rename`, { name }),
   moveDomain: (id: number, parent_id: number | null): Promise<{ ok: boolean; err?: string }> =>
     post(`/api/domains/${id}/move`, { parent_id }),
+  // 糾纏 Tangle（spec 049）＝樹裝不下的那條連結。
+  // ⚠️ 預覽**不改任何東西**；搬動才寫。連帶只走一層（後端釘死）。
+  tangles: (kind: string, id: number, domain_id: number | null): Promise<{
+    ok: boolean; tangles: { kind: string; id: number; domain_id: number; label: string }[] }> =>
+    post(`/api/knowledge/${kind}/${id}/tangles`, { domain_id }),
+  moveKnowledge: (kind: string, id: number, domain_id: number | null, bring_along = false):
+    Promise<{ ok: boolean; tangles: number }> =>
+    post(`/api/knowledge/${kind}/${id}/move`, { domain_id, bring_along }),
   setConvDomain: (cid: number, domain_id: number | null) =>
     post(`/api/conversations/${cid}/domain`, { domain_id }),
 

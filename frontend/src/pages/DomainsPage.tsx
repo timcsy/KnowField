@@ -18,6 +18,9 @@ export default function DomainsPage() {
   const [sel, setSel] = useState<number | null>(null)
   const [name, setName] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
+  // spec 049：搬東西時若有糾纏，先問。⚠️ 糾纏不是我們建的，是**既有連結被樹拆散**。
+  const [ask, setAsk] = useState<{ kind: string; id: number; to: number | null
+                                   label: string; tangles: { label: string }[] } | null>(null)
 
   const load = () => Promise.all([pages.domains(), pages.conversations()])
     .then(([d, c]) => { setDomains(d.domains); setConvs(c.conversations) })
@@ -33,6 +36,18 @@ export default function DomainsPage() {
   async function move(id: number, parent: number | null) {
     const r = await pages.moveDomain(id, parent)
     setMsg(r.ok ? null : (r.err || "搬不動"))   // 成環會被後端擋下並回原因（不靜默照做）
+    load()
+  }
+
+  async function startMove(kind: string, id: number, label: string, to: number | null) {
+    const r = await pages.tangles(kind, id, to)
+    if (r.tangles.length === 0) { await doMove(kind, id, to, false); return }  // 沒糾纏就直接搬
+    setAsk({ kind, id, to, label, tangles: r.tangles })
+  }
+  async function doMove(kind: string, id: number, to: number | null, bring: boolean) {
+    const r = await pages.moveKnowledge(kind, id, to, bring)
+    setAsk(null)
+    setMsg(r.tangles && !bring ? `搬好了——留下 ${r.tangles} 條糾纏` : "搬好了")
     load()
   }
 
@@ -100,14 +115,49 @@ export default function DomainsPage() {
           {inDomain(selected.id).length === 0 ? (
             <p className="text-sm text-muted-foreground">這個領域還沒有對話。</p>
           ) : inDomain(selected.id).map((c) => (
-            <button key={c.id} onClick={() => nav(`/?resume=${c.id}`)}
-                    className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted">
-              💬 {c.title || "未命名"}
-              <span className="ml-2 text-xs text-muted-foreground">{c.count} 則</span>
-              {c.yield_count > 0 && <span className="ml-2 text-xs text-muted-foreground">💡 {c.yield_count}</span>}
-            </button>
+            <div key={c.id} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted">
+              <button onClick={() => nav(`/?resume=${c.id}`)} className="flex-1 text-left text-sm">
+                💬 {c.title || "未命名"}
+                <span className="ml-2 text-xs text-muted-foreground">{c.count} 則</span>
+                {c.yield_count > 0 && <span className="ml-2 text-xs text-muted-foreground">💡 {c.yield_count}</span>}
+              </button>
+              {/* 搬去別的領域：先問糾纏（spec 049） */}
+              <select value="" onChange={(e) => e.target.value &&
+                        startMove("conversation", c.id, c.title || "未命名",
+                                  e.target.value === "0" ? null : Number(e.target.value))}
+                      className="rounded border bg-background px-1 py-0.5 text-xs text-muted-foreground">
+                <option value="">搬到…</option>
+                <option value="0">未歸屬</option>
+                {(domains || []).filter((d) => d.id !== selected.id).map((d) => (
+                  <option key={d.id} value={d.id}>{d.path.map((p) => p.name).join(" / ")}</option>
+                ))}
+              </select>
+            </div>
           ))}
         </section>
+      )}
+
+      {ask && (
+        <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/40 p-4 dark:bg-amber-950/20">
+          <p className="text-sm">
+            把「<b>{ask.label}</b>」搬過去，會跟這 {ask.tangles.length} 個分開：
+          </p>
+          <ul className="ml-4 list-disc text-sm text-muted-foreground">
+            {ask.tangles.map((t, i) => <li key={i}>{t.label}</li>)}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => doMove(ask.kind, ask.id, ask.to, true)}>連帶一起搬</Button>
+            <Button size="sm" variant="secondary" onClick={() => doMove(ask.kind, ask.id, ask.to, false)}>
+              留一條糾纏
+            </Button>
+            <button onClick={() => setAsk(null)} className="text-sm text-muted-foreground hover:underline">
+              取消
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            ⚠️ 「連帶」只走<b className="text-foreground">一層</b>——它們自己連著的東西不會跟著搬（知識的連結是網不是樹）。
+          </p>
+        </div>
       )}
 
       {/* ⚠️ 未歸屬另外列——它不是樹上的節點（FR-006） */}

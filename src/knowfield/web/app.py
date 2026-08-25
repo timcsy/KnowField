@@ -29,6 +29,18 @@ from .cache import TTLCache
 _log = get_logger("knowfield.web")
 
 
+def _knowledge_label(repo, kind: str, kid: int) -> str:
+    """一個知識在畫面上的名字（spec 049，給糾纏清單看的）。"""
+    if kind == "conversation":
+        c = repo.get_conversation(kid)
+        return f"💬 {c.title}" if c else f"💬 #{kid}"
+    if kind == "article":
+        a = repo.get_article(kid)
+        return f"📝 {a.get('title') or a.get('topic')}" if a else f"📝 #{kid}"
+    r = repo.conn.execute("SELECT claim FROM why_nodes WHERE id=%s", (kid,)).fetchone()
+    return f"💡 {(r['claim'] or '')[:40]}" if r else f"💡 #{kid}"
+
+
 def _now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1054,6 +1066,40 @@ def create_app() -> FastAPI:
         finally:
             repo.close()
         return _JSON({"ok": True})
+
+    # ══ 整理與糾纏（spec 049，階段 44）══
+    # ⚠️ 糾纏在整理之前就存在，這裡只是**讓它現形**。兩條界線在 repository 那層釘死：
+    # 只算直接連結、連帶只走一層。
+    @app.post("/api/knowledge/{kind}/{kid}/tangles")
+    async def api_tangles(kind: str, kid: int, request: Request):
+        """預覽：搬到某領域會拆散哪些直接鄰居。**不改任何東西。**"""
+        if kind not in ("conversation", "why_node", "article"):
+            return _JSON({"ok": False, "err": "不認得的知識種類"}, status_code=400)
+        b = await request.json()
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            ts = repo.tangles_for(kind, kid, b.get("domain_id"))
+            for t in ts:                       # 帶上人看得懂的名字
+                t["label"] = _knowledge_label(repo, t["kind"], t["id"])
+        finally:
+            repo.close()
+        return _JSON({"ok": True, "tangles": ts})
+
+    @app.post("/api/knowledge/{kind}/{kid}/move")
+    async def api_move_knowledge(kind: str, kid: int, request: Request):
+        if kind not in ("conversation", "why_node", "article"):
+            return _JSON({"ok": False, "err": "不認得的知識種類"}, status_code=400)
+        b = await request.json()
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            left = repo.move_knowledge(kind, kid, b.get("domain_id"),
+                                       bool(b.get("bring_along")))
+        finally:
+            repo.close()
+        _log.info("搬動知識", extra={"extra": {"kind": kind, "id": kid,
+                                             "tangles": len(left),
+                                             "bring_along": bool(b.get("bring_along"))}})
+        return _JSON({"ok": True, "tangles": len(left)})
 
     @app.get("/api/conversations")
     async def api_conversations():

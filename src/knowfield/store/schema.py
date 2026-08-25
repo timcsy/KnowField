@@ -116,6 +116,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     carried_ref TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS article_roots (
+    article_id INTEGER NOT NULL,
+    why_node_id INTEGER NOT NULL,
+    layer TEXT DEFAULT 'body'
+);
+
 CREATE TABLE IF NOT EXISTS domains (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -160,6 +166,9 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("conversations", "carried_kind", "TEXT DEFAULT ''"),   # ''｜article｜source
     ("conversations", "carried_ref", "TEXT DEFAULT ''"),    # 文章 id 或來源 url
     ("conversations", "domain_id", "INTEGER"),              # spec 048：歸屬的領域（NULL＝未歸屬）
+    ("articles", "conversation_id", "INTEGER"),             # spec 049：從哪段對話生的
+    ("articles", "domain_id", "INTEGER"),                   # spec 049：歸屬的領域
+    ("why_nodes", "domain_id", "INTEGER"),                  # spec 049：歸屬的領域
 ]
 
 

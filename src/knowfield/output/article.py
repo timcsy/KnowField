@@ -109,14 +109,20 @@ def generate_article(topic: str, nodes: list, chat_backend, embedder=None,
     body = [w for w in ranked if (getattr(w, "kind", "") or "") in _BODY_KINDS][:top_k]
     ext = [w for w in ranked if (getattr(w, "kind", "") or "") in _EXT_KINDS][:3]
     if not body:
-        return {"title": topic, "markdown": "", "empty": True}
+        return {"title": topic, "markdown": "", "empty": True,
+                "used_body_ids": [], "used_ext_ids": []}
     article = (chat_backend.reply([{"role": "system", "content": _SYS},
                                    {"role": "user", "content": build_article_prompt(topic, body, length, level)}]) or "").strip()
     if not article:
-        return {"title": topic, "markdown": "", "empty": True}
+        return {"title": topic, "markdown": "", "empty": True,
+                "used_body_ids": [], "used_ext_ids": []}
     parts = [article, _references(body)]
     reading = _extended_reading(ext)
     if reading:
         parts.append(reading)
     parts.append(_MEMBRANE_NOTE)
-    return {"title": topic, "markdown": "\n\n".join(parts), "empty": False}
+    # spec 049：**講出**用了哪些節點，讓落庫端不必再算一次。
+    # ⚠️ 再算一次就會與實際寫進文章的那批漂開，而漂開不會報錯。
+    return {"title": topic, "markdown": "\n\n".join(parts), "empty": False,
+            "used_body_ids": [w.id for w in body if getattr(w, "id", None)],
+            "used_ext_ids": [w.id for w in ext if getattr(w, "id", None)]}

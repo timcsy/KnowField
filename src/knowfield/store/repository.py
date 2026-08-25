@@ -532,12 +532,32 @@ class Repository:
 
     # --- Articles（知識的輸出，階段 30）：生成文章存檔（輸出物、不回灌場）---
     def save_article(self, topic: str, title: str, markdown: str,
-                     length: str = "", level: str = "", created_at: str = "") -> int:
+                     length: str = "", level: str = "", created_at: str = "",
+                     root_ids: list | None = None, ext_ids: list | None = None,
+                     conversation_id: int | None = None) -> int:
+        """存文章。spec 049：**連結也落庫**——用了哪些核心理解、從哪段對話生的。
+
+        ⚠️ 在此之前 `articles` 的連結欄是空的：References 是生成時算出來寫進 markdown
+        **字串**的，那是文字不是連結 ⇒ 搬文章時系統不知道它跟什麼糾纏，
+        而那**不會顯示成「沒關係」，會顯示成「沒問題」**。
+        """
         aid = self._insert_id(
-            "INSERT INTO articles (topic, title, markdown, length, level, created_at)"
-            " VALUES (%s,%s,%s,%s,%s,%s)", (topic, title, markdown, length, level, created_at))
+            "INSERT INTO articles (topic, title, markdown, length, level, created_at,"
+            " conversation_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (topic, title, markdown, length, level, created_at, conversation_id))
+        for layer, ids in (("body", root_ids or []), ("ext", ext_ids or [])):
+            for wid in ids:
+                self.conn.execute(
+                    "INSERT INTO article_roots (article_id, why_node_id, layer)"
+                    " VALUES (%s,%s,%s)", (aid, int(wid), layer))
         self.conn.commit()
         return aid
+
+    def article_roots(self, aid: int) -> list[int]:
+        """這篇文章用到的核心理解 id（正文＋延伸）。"""
+        return [int(r["why_node_id"]) for r in self.conn.execute(
+            "SELECT why_node_id FROM article_roots WHERE article_id=%s ORDER BY why_node_id",
+            (aid,))]
 
     def list_articles(self) -> list[dict]:
         """列已存文章（不含全文，新在上）。"""
@@ -608,6 +628,73 @@ class Repository:
     def set_conversation_domain(self, cid: int, domain_id: int | None) -> None:
         self.conn.execute("UPDATE conversations SET domain_id=%s WHERE id=%s", (domain_id, cid))
         self.conn.commit()
+
+    # --- 糾纏 Tangle（spec 049）：樹裝不下的那條連結 ---
+    # ⚠️ 糾纏**在整理之前就存在**——整理只是讓它現形。所以這裡是**查既有連結**，不是建東西。
+    #
+    # 兩條防爆界線（違反任一條，這功能第二次就沒人用）：
+    # ① **只算直接連結**，不算傳遞閉包。66/75 條理解連著對話，搬一段跳 15 條詢問＝廢。
+    # ② **連帶只走一層**，不遞迴。知識的連結是**網不是樹**，不設界線會搬走半個場。
+    _KIND_TABLE = {"conversation": "conversations", "why_node": "why_nodes", "article": "articles"}
+
+    def knowledge_domain(self, kind: str, kid: int) -> int | None:
+        t = self._KIND_TABLE[kind]
+        r = self.conn.execute(f"SELECT domain_id FROM {t} WHERE id=%s", (kid,)).fetchone()
+        return r["domain_id"] if r else None
+
+    def set_knowledge_domain(self, kind: str, kid: int, domain_id: int | None) -> None:
+        t = self._KIND_TABLE[kind]
+        self.conn.execute(f"UPDATE {t} SET domain_id=%s WHERE id=%s", (domain_id, kid))
+        self.conn.commit()
+
+    def _neighbours(self, kind: str, kid: int) -> list[tuple[str, int]]:
+        """這個知識**直接**連著誰（一層，不遞迴）。"""
+        out: list[tuple[str, int]] = []
+        if kind == "conversation":
+            out += [("why_node", int(r["id"])) for r in self.conn.execute(
+                "SELECT id FROM why_nodes WHERE conversation_id=%s", (kid,))]
+            out += [("article", int(r["id"])) for r in self.conn.execute(
+                "SELECT id FROM articles WHERE conversation_id=%s", (kid,))]
+        elif kind == "why_node":
+            r = self.conn.execute(
+                "SELECT conversation_id FROM why_nodes WHERE id=%s", (kid,)).fetchone()
+            if r and r["conversation_id"]:
+                out.append(("conversation", int(r["conversation_id"])))
+            out += [("article", int(x["article_id"])) for x in self.conn.execute(
+                "SELECT article_id FROM article_roots WHERE why_node_id=%s", (kid,))]
+        elif kind == "article":
+            out += [("why_node", int(x["why_node_id"])) for x in self.conn.execute(
+                "SELECT why_node_id FROM article_roots WHERE article_id=%s", (kid,))]
+            r = self.conn.execute(
+                "SELECT conversation_id FROM articles WHERE id=%s", (kid,)).fetchone()
+            if r and r["conversation_id"]:
+                out.append(("conversation", int(r["conversation_id"])))
+        return out
+
+    def tangles_for(self, kind: str, kid: int, new_domain: int | None) -> list[dict]:
+        """把這個知識搬到 `new_domain` 之後，**會被拆散**的直接鄰居。
+
+        ⚠️ 鄰居**未歸屬**時不算糾纏——它還沒有位置，談不上被拆散。
+        """
+        out = []
+        for nk, nid in self._neighbours(kind, kid):
+            d = self.knowledge_domain(nk, nid)
+            if d is not None and d != new_domain:
+                out.append({"kind": nk, "id": nid, "domain_id": d})
+        return out
+
+    def move_knowledge(self, kind: str, kid: int, new_domain: int | None,
+                       bring_along: bool = False) -> list[dict]:
+        """搬一個知識。`bring_along` ＝ 把**被拆散的直接鄰居**也搬過去（⚠️ 只一層）。
+
+        回搬動前偵測到的糾纏（呼叫端可用來顯示「留下了幾條糾纏」）。
+        """
+        tangles = self.tangles_for(kind, kid, new_domain)
+        self.set_knowledge_domain(kind, kid, new_domain)
+        if bring_along:
+            for t in tangles:          # ⚠️ 只搬這一層，不對它們再遞迴
+                self.set_knowledge_domain(t["kind"], t["id"], new_domain)
+        return tangles
 
     # --- 譯文快取（spec 039）：**逐翻譯單位**，不是逐文件 ---
     # ⚠️ 為什麼是逐單位：一份 45 個單位的來源，只要有 1 個降級，逐文件快取就一個字都不能存
