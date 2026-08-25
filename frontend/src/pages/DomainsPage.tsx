@@ -8,10 +8,16 @@ import { cn } from "@/lib/utils"
 
 // 整理台（spec 050，階段 45）＝領域樹 ＋ 待整理清冊。
 // ⚠️ **領域＝節點、主題 Topic＝從根到節點的路徑**——路徑由後端從 parent_id 導出，這裡只顯示。
-// ⚠️ 未歸屬＝沒有值，**不是樹上的一個節點**——所以它另外列，不混進樹裡（但它是合法的放置目標）。
+// ⚠️ **`domain_id = null` 就是「根領域」**——它是樹的**頂**，不是樹外面的一個桶子。
+//    原本叫它「未歸屬」並另外列一格，整理起來就不像檔案系統：東西在樹外面，
+//    你沒辦法「在它現在的位置底下開一個子領域再拖進去」。名字錯了，位置也錯了。
+// ⓘ 資料模型一個字都沒改（仍是 null）——改的是它在樹上的**位置**與**名字**。
 // ⚠️ 階段 44 只做了「已歸屬的對話能搬」，而正式庫那樣的東西是 0 件
 //    ——整理的**起點動作**（把未歸屬的搬進去）當時在介面上不存在。這一頁就是補那個。
 type Domain = { id: number; name: string; parent_id: number | null; path: { id: number; name: string }[] }
+
+// 根領域的顯示名。⚠️ 它**不是**資料庫裡的一列——`domain_id = null` 就是它。
+const ROOT_NAME = "知識庫"
 
 const KIND_LABEL: Record<KnowledgeKind, string> = {
   source: "📚 來源", conversation: "💬 對話", why_node: "💡 核心理解", article: "📝 文章",
@@ -26,6 +32,7 @@ export default function DomainsPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<KnowledgeKind | "all">("all")
+  const [q, setQ] = useState("")
   const [dropOn, setDropOn] = useState<number | null | "none">("none")
   // 搬東西時若有糾纏，先問。⚠️ 糾纏不是我們建的，是**既有連結被樹拆散**。
   const [ask, setAsk] = useState<{ items: KnowledgeRef[]; to: number | null
@@ -153,7 +160,10 @@ export default function DomainsPage() {
   )
 
   const selected = (domains || []).find((d) => d.id === sel)
-  const shown = (list: KnowledgeItem[]) => filter === "all" ? list : list.filter((i) => i.kind === filter)
+  const needle = q.trim().toLowerCase()
+  const shown = (list: KnowledgeItem[]) => list
+    .filter((i) => filter === "all" || i.kind === filter)
+    .filter((i) => !needle || i.label.toLowerCase().includes(needle))
   const byKind = (list: KnowledgeItem[], k: KnowledgeKind) => list.filter((i) => i.kind === k)
 
   return (
@@ -161,17 +171,17 @@ export default function DomainsPage() {
       <div>
         <h1 className="text-2xl font-bold">🗂 領域</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          知識庫的樹。勾選右邊的知識，拖到左邊的領域上放開——或按「搬到…」。
+          知識庫的樹。東西一開始都在<b>根領域</b>；勾選右邊的知識，拖到左邊的領域上放開——或按「搬到…」。
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)}
                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) create() }}
-               placeholder={sel ? "在選取的領域底下新增子領域…" : "新增最上層領域…"}
+               placeholder={sel ? "在選取的領域底下新增子領域…" : `在${ROOT_NAME}底下新增領域…`}
                className="w-64 max-w-full" />
         <Button size="sm" onClick={create}>＋ 新增</Button>
-        {sel && <button onClick={() => setSel(null)} className="text-xs text-muted-foreground hover:underline">取消選取</button>}
+        {sel && <button onClick={() => setSel(null)} className="text-xs text-muted-foreground hover:underline">回根領域</button>}
       </div>
 
       {msg && <div className="rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
@@ -199,29 +209,39 @@ export default function DomainsPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
-        {/* ── 左：領域樹（放置目標）────────────────────────────── */}
-        <div className="space-y-2">
+      <div className="grid items-start gap-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
+        {/* ── 左：領域樹（每個節點都是放置目標）──────────────────── */}
+        {/* 置頂不捲走：清冊有上百列，樹捲掉了就沒地方可以放。 */}
+        <div className="space-y-2 md:sticky md:top-4">
           {domains === null ? (
             <p className="text-sm text-muted-foreground">載入中…</p>
-          ) : domains.length === 0 ? (
-            <p className="text-sm text-muted-foreground">還沒有領域。上面打一個名字就能建第一個。</p>
           ) : (
-            <div className="rounded-xl border bg-card p-2">{kids(null).map((d) => renderNode(d, 0))}</div>
+            <div className="rounded-xl border bg-card p-2">
+              {/* ⚠️ 根領域是樹的**頂**，不是樹外面的桶子 */}
+              <div className={cn("flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
+                                 sel === null && "bg-muted",
+                                 dropOn === null && "outline outline-2 outline-primary")}
+                   style={{ paddingLeft: 8 }} {...dropProps(null)}>
+                <button onClick={() => setSel(null)} className="text-left text-sm font-medium">
+                  🗂 {ROOT_NAME}
+                </button>
+                <span className="text-xs text-muted-foreground">{inDomain(null).length}</span>
+              </div>
+              {kids(null).map((d) => renderNode(d, 1))}
+            </div>
           )}
-          {/* ⚠️ 未歸屬不是樹上的節點，但**是**合法的放置目標（搬回去） */}
-          <div className={cn("rounded-xl border border-dashed px-3 py-2 text-sm text-muted-foreground",
-                             dropOn === null && "outline outline-2 outline-primary")}
-               {...dropProps(null)}>
-            未歸屬（{unfiled.length}）
-          </div>
+          {domains !== null && domains.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              還沒有子領域。上面打一個名字就能在根領域底下建第一個。
+            </p>
+          )}
         </div>
 
         {/* ── 右：待整理清冊 ──────────────────────────────────── */}
         <div className="space-y-2 rounded-xl border bg-card p-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold">
-              {selected ? selected.path.map((p) => p.name).join(" / ") : "未歸屬"}
+              {selected ? [ROOT_NAME, ...selected.path.map((p) => p.name)].join(" / ") : ROOT_NAME}
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-1">
               {(["all", ...KIND_ORDER] as const).map((k) => (
@@ -234,24 +254,32 @@ export default function DomainsPage() {
             </div>
           </div>
 
-          {selected && (
-            <div className="flex flex-wrap items-center gap-2 border-b pb-2">
-              <Button size="sm" variant="secondary" onClick={() => nav(`/?new=1&domain=${selected.id}`)}>
-                ＋ 在這裡開新對話
-              </Button>
-              {kids(selected.id).length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  子領域：{kids(selected.id).map((k) => k.name).join("、")}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2 border-b pb-2">
+            <Button size="sm" variant="secondary"
+                    onClick={() => nav(selected ? `/?new=1&domain=${selected.id}` : "/?new=1")}>
+              ＋ 在這裡開新對話
+            </Button>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="在這個領域裡找…"
+                   className="h-8 w-44 max-w-full text-sm" />
+            {/* 搜尋縮到一批之後，逐件勾就是「互動次數＝可行性」那條判準在打自己 */}
+            {shown(inDomain(sel)).length > 0 && (
+              <button onClick={() => setPicked(new Set(shown(inDomain(sel)).map(keyOf)))}
+                      className="text-xs text-muted-foreground hover:underline">
+                全選這 {shown(inDomain(sel)).length} 件
+              </button>
+            )}
+            {kids(sel).length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                子領域：{kids(sel).map((k) => k.name).join("、")}
+              </span>
+            )}
+          </div>
 
           {(() => {
             const list = shown(inDomain(sel))
             if (list.length === 0) {
               return <p className="py-4 text-sm text-muted-foreground">
-                {sel === null ? "沒有未歸屬的知識了。" : "這個領域底下還沒有這類知識。"}
+                {needle ? "找不到符合的。" : "這個領域底下還沒有這類知識。"}
               </p>
             }
             // 每個領域都有自己的「子領域、來源、對話、核心理解、文章」——分段列
@@ -274,7 +302,7 @@ export default function DomainsPage() {
                       onChange={(e) => { if (e.target.value !== "")
                         startMove(pickedRefs(), e.target.value === "0" ? null : Number(e.target.value)) }}>
                 <option value="">搬到…</option>
-                <option value="0">未歸屬</option>
+                <option value="0">🗂 {ROOT_NAME}</option>
                 {(domains || []).filter((d) => d.id !== sel).map((d) => (
                   <option key={d.id} value={d.id}>{d.path.map((p) => p.name).join(" / ")}</option>
                 ))}
@@ -286,7 +314,7 @@ export default function DomainsPage() {
 
       {sel === null && unfiled.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          既有的知識都還在未歸屬——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
+          既有的知識都在根領域——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
         </p>
       )}
     </div>

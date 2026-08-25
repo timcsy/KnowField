@@ -68,11 +68,15 @@ class TestBatchMove(unittest.TestCase):
         self.assertEqual(refs, [("why_node", r)],
                          f"⚠️ 同一鄰居出現不只一次：{refs}")
 
-    # ── FR-007：未歸屬的鄰居不算糾纏 ─────────────────────────────
+    # ── FR-007：**根領域**的鄰居不算糾纏 ────────────────────────
 
-    def test_unfiled_neighbour_is_not_a_tangle(self):
+    def test_root_domain_neighbour_is_not_a_tangle(self):
+        """糾纏是「兩件**刻意放過**的東西被拆散」；根領域是還沒放過的地方。
+
+        ⚠️ 若把根算成位置，第一次整理就會對所有鄰居報糾纏——那功能第二次沒人用。
+        """
         c = self._conv(self.a)
-        self._root("還沒有位置的理解", c, None)
+        self._root("還在根領域的理解", c, None)
         self.assertEqual(self.repo.batch_tangles([("conversation", c)], self.b), [])
 
     # ── FR-002：真的搬 ──────────────────────────────────────────
