@@ -1016,12 +1016,19 @@ def create_app() -> FastAPI:
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
         # referrers＝以此對話為由來的核心理解主張（給前端：編輯/重生時擋、護溯源）
-        refs = [r["claim"] for r in repo.conversation_referrers(cid)] if conv is not None else []
+        rows = repo.conversation_referrers(cid) if conv is not None else []
+        refs = [r["claim"] for r in rows]
+        # spec 046：讓對話頁標得出**哪幾則已冊封**。回**範圍**不回布林陣列——
+        # ⚠️ 訊息數會變（接著聊），陣列會過期而錯位；範圍讓前端當下算。
+        # 沒有範圍的舊冊封（正式庫 34/75）回 0/0，前端只在對話層級呈現，不猜是哪幾則。
+        anointed = [{"id": r["id"], "claim": r["claim"],
+                     "from": r["src_from"], "to": r["src_to"]} for r in rows]
         repo.close()
         if conv is None:
             return _JSON({"found": False}, status_code=404)
         return _JSON({"found": True, "id": conv.id, "title": conv.title,
-                      "messages": conv.messages, "referrers": refs})
+                      "messages": conv.messages, "referrers": refs,
+                      "anointed": anointed})
 
     @app.post("/api/conversations/{cid}/rename")
     async def api_conversation_rename(cid: int, request: Request):

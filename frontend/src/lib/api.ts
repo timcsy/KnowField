@@ -157,6 +157,9 @@ export const pages = {
     fetch("/api/conversations").then(json),
   conversation: (id: number, resume = false): Promise<{
     found: boolean; id: number; title: string; messages: Message[]; referrers: string[]
+    // spec 046：這段對話已冊封的**範圍**（1-based 則數）。回範圍不回布林陣列——
+    // 訊息數會變（接著聊），陣列會過期而錯位。from/to 為 0＝舊資料沒範圍，只算對話層級。
+    anointed: { id: number; claim: string; from: number; to: number }[]
   }> => fetch(`/api/conversations/${id}${resume ? "?resume=1" : ""}`).then(json),
   renameConv: (id: number, title: string) => post(`/api/conversations/${id}/rename`, { title }),
   deleteConv: (id: number): Promise<{ deleted: boolean; blocked_by: string[] }> =>

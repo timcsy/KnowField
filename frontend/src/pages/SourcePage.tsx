@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { pages, type WhyNode } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
+import { KINDS } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -10,7 +11,6 @@ type Paper = { title: string; authors: string[]; abstract: string; published: st
 type Src = { found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
              original_url: string; pdf_path: string; paper: Paper | null; s2t_applied: boolean
              is_english: boolean }
-const KINDS = ["已證實", "推論", "類比", "猜想"]
 
 export default function SourcePage() {
   const [sp] = useSearchParams()

@@ -743,10 +743,16 @@ class Repository:
         return {int(r["cid"]): int(r["c"]) for r in rows}
 
     def conversation_referrers(self, cid: int) -> list[dict]:
-        """哪些核心理解以這段對話為由來（why_node.conversation_id=cid）。回 [{id, claim}]。
-        用於刪除保護：有引用者不可刪（否則核心理解的溯源斷掉，原則 3）。"""
+        """哪些核心理解以這段對話為由來（why_node.conversation_id=cid）。
+        回 [{id, claim, src_from, src_to}]。
+
+        用於刪除保護（有引用者不可刪，否則溯源斷掉，原則 3），
+        ＋ spec 046：讓對話頁標得出**哪幾則已冊封**。
+        ⚠️ 舊資料沒有範圍時回 0/0 而不是缺鍵——缺鍵會讓前端拿到 undefined 而靜默算錯。
+        """
         return [dict(r) for r in self.conn.execute(
-            "SELECT id, claim FROM why_nodes WHERE conversation_id=%s ORDER BY id", (cid,))]
+            "SELECT id, claim, COALESCE(src_from,0) AS src_from, COALESCE(src_to,0) AS src_to"
+            " FROM why_nodes WHERE conversation_id=%s ORDER BY id", (cid,))]
 
     def delete_conversation(self, cid: int) -> bool:
         """刪一段對話（呼叫端須先以 conversation_referrers 確認無核心理解引用）。回是否刪到。"""

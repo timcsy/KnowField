@@ -3,10 +3,12 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { api, pages, streamChat, type Candidate, type Message } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 import { Sources, FoundExtra } from "@/components/Sources"
-import { KindBadge } from "@/components/KindBadge"
+import { KINDS } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { coveredSet, coverageSummary, type Range } from "@/lib/coverage"
 import { Copy, GitBranch, Pencil, RefreshCw } from "lucide-react"
 
 type Chapter = { title: string; start: number; end: number }
@@ -37,6 +39,8 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false)
   const [rootCount, setRootCount] = useState(0)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  // spec 046：候選在冊封前可以改（主張＋層次）。空＝沿用 AI 提的原樣。
+  const [edits, setEdits] = useState<Record<number, { claim?: string; kind?: string }>>({})
   const [candDone, setCandDone] = useState<Record<number, string>>({})
   const [saveConvo, setSaveConvo] = useState(false)
   const [convTitle, setConvTitle] = useState("")   // 本對話落點標題（抬頭顯示）
@@ -45,6 +49,9 @@ export default function ChatPage() {
   const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
   const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
+  // spec 046：這段對話已冊封的範圍。⚠️ 用**集合**逐則判斷，不用水位線——
+  // 實測覆蓋不連續（對話 44 收到第 44 則卻缺 3–8），水位線會把中間的洞藏起來。
+  const [anointed, setAnointed] = useState<{ id: number; claim: string; from: number; to: number }[]>([])
   const [nudgeDismissed, setNudgeDismissed] = useState(false)        // 分章提醒關掉了
   const chapterRefs = useRef<(HTMLDetailsElement | null)[]>([])   // 各章 <details>，供大綱跳章＋預設展開
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -64,13 +71,14 @@ export default function ChatPage() {
     setFocusFrom(from); setNudgeDismissed(false)
     tempId.current = c.id   // 接回就綁定這筆：繼續聊就地更新同一筆，不另開（spec 040 起無分層）
     referrers.current = c.referrers || []   // 這段是不是某核心理解的由來（編輯/重生要擋）
+    setAnointed(c.anointed || [])
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
     pages.segment(id).then((r) =>
       setChapters(r.found && r.chapters.length > 1 ? r.chapters : null)).catch(() => setChapters(null))
   }
   function newChat() {
-    setCarried(null); setCarriedOpen(true); setCarriedBody(null)   // 文章不跨對話殘留（FR-001c）
+    setCarried(null); setCarriedOpen(true); setCarriedBody(null); setAnointed([])   // 文章不跨對話殘留（FR-001c）
     setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
@@ -213,9 +221,13 @@ export default function ChatPage() {
     setCandDone({})
   }
 
+  const setEdit = (i: number, patch: { claim?: string; kind?: string }) =>
+    setEdits((e) => ({ ...e, [i]: { ...e[i], ...patch } }))
+
   async function anointOne(i: number, c: Candidate) {
+    // ⚠️ 送**改過的**值——不是 c.claim。這條是 spec 046 的整個重點。
     const r = await api.anoint({
-      claim: c.claim, kind: c.kind, ladder: c.ladder.join("\n"),
+      claim: (edits[i]?.claim ?? c.claim).trim(), kind: edits[i]?.kind ?? c.kind, ladder: c.ladder.join("\n"),
       evidence_urls: c.evidence_urls.join(", "),
       save_convo: saveConvo, history: messages, temp_id: tempId.current,
       src_from: c.src_from, src_to: c.src_to,
@@ -278,10 +290,17 @@ export default function ChatPage() {
 
   const freshCands = (candidates || []).filter((c) => !c.already)
 
+  // spec 046：哪幾則已冊封。⚠️ 集合，不是水位線（見 lib/coverage.ts 的理由）。
+  const covered = coveredSet(anointed as Range[], messages.length)
+  const cov = coverageSummary(anointed as Range[], messages.length)
+  // 沒有範圍的舊冊封（正式庫 34/75）：只能算在對話層級，**不猜是哪幾則**（猜就是造假資料）。
+  const rangelessCount = anointed.filter((a) => !a.from || !a.to).length
+
   const renderMsg = (m: Message, i: number) =>
     m.role === "user" ? (
       <div key={i} className="group flex flex-col items-end gap-0.5">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2">{m.content}</div>
+        <div className={cn("max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2",
+                           covered.has(i + 1) && "border-l-2 border-primary/40")}>{m.content}</div>
         <button onClick={() => editMessage(i)} title="編輯這句重問（改這串）"
                 className="pr-1 text-muted-foreground opacity-100 hover:text-foreground md:opacity-0 md:transition md:group-hover:opacity-100">
           <Pencil className="size-3.5" />
@@ -289,7 +308,7 @@ export default function ChatPage() {
       </div>
     ) : (
       // SOTA：AI 回覆＝全寬無框文字流（不裝卡片），文字區最大化；用留白＋對齊區分你我，不用框
-      <div key={i} className="group">
+      <div key={i} className={cn("group", covered.has(i + 1) && "border-l-2 border-primary/40 pl-3")}>
         <Markdown text={m.content} prefix={`m${i}`} />
         {/* 不完整就明說是哪一種——靜默半句看起來像講完了，兩種斷法也得分得出來（憲章 V） */}
         {m.truncated && (
@@ -347,6 +366,16 @@ export default function ChatPage() {
         <h1 className="truncate text-base font-bold md:text-lg" title={convTitle || undefined}>
           {convTitle ? `💬 ${convTitle}` : "🧠 跟你的知識庫聊"}
         </h1>
+        {/* spec 046：收到哪裡了。⚠️ 講的是**集合大小**不是水位線——
+            覆蓋不連續時（實測對話 44 缺第 3–8 則），水位線會把洞藏起來。 */}
+        {messages.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {cov.covered === 0
+              ? `${cov.total} 則，還沒收過任何一條`
+              : `${cov.total} 則中 ${cov.covered} 則已收（左側有線），還有 ${cov.uncovered} 則沒收`}
+            {rangelessCount > 0 && `　·　另有 ${rangelessCount} 條沒記出處範圍（標不到則）`}
+          </p>
+        )}
         {/* 副標只在還沒開始聊時顯示（聊起來就收，省上邊空間） */}
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground">
@@ -458,14 +487,31 @@ export default function ChatPage() {
             {candidates.map((c, i) =>
               c.already ? (
                 <div key={i} className="text-xs text-muted-foreground">✓ 已在核心理解：{c.claim}</div>
+              ) : candDone[i] ? (
+                <div key={i} className="rounded-lg border p-3 text-sm text-primary">{candDone[i]}</div>
               ) : (
+                // spec 046：⚠️ 冊封前可以改。沿用來源頁 SourceCandidateCard 的形狀
+                //（主張可改、層次可改）——同一件事不要有兩套介面。
+                // 後端本來就收改過的 claim/kind（`_do_anoint`），所以這是純前端。
                 <div key={i} className="space-y-2 rounded-lg border p-3">
-                  <div className="flex items-start gap-2 font-medium"><KindBadge kind={c.kind} /><span>💡 {c.claim}</span></div>
-                  {candDone[i] ? (
-                    <div className="text-sm text-primary">{candDone[i]}</div>
-                  ) : (
-                    <Button size="sm" onClick={() => anointOne(i, c)}>精選這條</Button>
-                  )}
+                  <Input value={edits[i]?.claim ?? c.claim}
+                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEdit(i, { claim: e.target.value })}
+                         className="font-medium" />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">層次：</span>
+                    {KINDS.map((k) => {
+                      const cur = edits[i]?.kind ?? c.kind ?? ""
+                      return (
+                        <button key={k} onClick={() => setEdit(i, { kind: cur === k ? "" : k })}
+                                className={cn("rounded px-2 py-0.5 text-xs transition",
+                                  cur === k ? "bg-primary text-primary-foreground"
+                                            : "bg-muted text-muted-foreground hover:text-foreground")}>
+                          {k}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <Button size="sm" onClick={() => anointOne(i, c)}>精選這條</Button>
                 </div>
               ),
             )}
