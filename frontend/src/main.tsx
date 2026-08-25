@@ -26,6 +26,7 @@ registerSW({
 import Layout from "./Layout"
 import ChatPage from "./ChatPage"
 import RootsPage from "./pages/RootsPage"
+import DomainsPage from "./pages/DomainsPage"
 import ArticlesPage from "./pages/ArticlesPage"
 import ArticleViewPage from "./pages/ArticleViewPage"
 import SourcesPage from "./pages/SourcesPage"
@@ -46,6 +47,7 @@ createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<ChatPage />} />
+          <Route path="domains" element={<DomainsPage />} />
           <Route path="roots" element={<RootsPage />} />
           <Route path="articles" element={<ArticlesPage />} />
           <Route path="articles/:id" element={<ArticleViewPage />} />

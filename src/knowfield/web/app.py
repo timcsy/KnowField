@@ -596,7 +596,8 @@ def create_app() -> FastAPI:
             tid = repo.autosave_temporary(_temp_id(str(body.get("temp_id") or "")) or None,
                                           body.get("history") or [], _now_iso(),
                                           str(body.get("carried_kind") or "")[:16],
-                                          str(body.get("carried_ref") or "")[:500])
+                                          str(body.get("carried_ref") or "")[:500],
+                                          body.get("domain_id"))
             if tid:                        # 回落點標題，讓聊天頁抬頭即時顯示對話名
                 c = repo.get_conversation(int(tid))
                 title = c.title if c else None
@@ -992,6 +993,68 @@ def create_app() -> FastAPI:
             return _ingest_result("text", text=text, title=title, note="手機分享", ingested_at=at)
         return _JSON({"status": "empty", "count": 0})
 
+    # ══ 領域樹（spec 048，階段 43）══
+    # 領域＝節點、**主題 Topic ＝從根到節點的路徑**。⚠️ 路徑由 parent_id 導出、不另存字串。
+    # ⚠️ 這一刀**完全不碰 grounding**：撒網仍看全場。樹是**導航**，不是檢索權重
+    #（原則 5：權重由人冊封，不由位置給）。有測試釘住脈絡逐字不變。
+    @app.get("/api/domains")
+    async def api_domains():
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            ds = repo.list_domains()
+            out = [{**d, "path": repo.domain_path(d["id"])} for d in ds]
+        finally:
+            repo.close()
+        return _JSON({"domains": out})
+
+    @app.post("/api/domains")
+    async def api_domain_create(request: Request):
+        b = await request.json()
+        name = str(b.get("name") or "").strip()
+        if not name:
+            return _JSON({"ok": False, "err": "領域要有名字"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            did = repo.create_domain(name, b.get("parent_id"))
+        finally:
+            repo.close()
+        return _JSON({"ok": True, "id": did})
+
+    @app.post("/api/domains/{did}/rename")
+    async def api_domain_rename(did: int, request: Request):
+        b = await request.json()
+        name = str(b.get("name") or "").strip()
+        if not name:
+            return _JSON({"ok": False, "err": "領域要有名字"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            repo.rename_domain(did, name)
+        finally:
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/domains/{did}/move")
+    async def api_domain_move(did: int, request: Request):
+        b = await request.json()
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            repo.move_domain(did, b.get("parent_id"))
+        except ValueError as e:      # 成環 → 明講，不靜默照做（FR-004）
+            return _JSON({"ok": False, "err": str(e)})
+        finally:
+            repo.close()
+        return _JSON({"ok": True})
+
+    @app.post("/api/conversations/{cid}/domain")
+    async def api_conversation_domain(cid: int, request: Request):
+        b = await request.json()
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            repo.set_conversation_domain(cid, b.get("domain_id"))
+        finally:
+            repo.close()
+        return _JSON({"ok": True})
+
     @app.get("/api/conversations")
     async def api_conversations():
         repo = app.state.repo_factory(app.state.config)
@@ -1008,7 +1071,8 @@ def create_app() -> FastAPI:
             # 只更新 why_nodes 側 ⇒ 讀它會漏掉 2/3（正式庫實測 12 → 4）。
             return {"id": c.id, "title": c.title, "created_at": c.created_at,
                     "why_node_id": c.why_node_id, "count": len(c.messages),
-                    "yield_count": yields.get(c.id, 0)}
+                    "yield_count": yields.get(c.id, 0),
+                    "domain_id": c.domain_id}
         return _JSON({"conversations": [_cv(c) for c in convs]})
 
     @app.get("/api/conversations/{cid}")

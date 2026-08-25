@@ -60,12 +60,14 @@ export const api = {
     // ⚠️ 元資料，不是內容——不進 messages、不影響模型脈絡、介面上不顯示。
     // 只在後端建立那筆時寫入，之後送什麼都不會改到它。
     carried?: { kind: string; ref: string },
+    domainId?: number | null,   // spec 048：這段對話開在哪個領域（只在建立那筆時寫）
   ): Promise<{ temp_id: number | null; title: string | null }> =>
     fetch("/api/chat/autosave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history, temp_id,
-                            carried_kind: carried?.kind || "", carried_ref: carried?.ref || "" }),
+                            carried_kind: carried?.kind || "", carried_ref: carried?.ref || "",
+                            domain_id: domainId ?? null }),
     }).then(json),
   save: (history: Message[], temp_id: number | null): Promise<{ saved: boolean; msg: string }> =>
     fetch("/api/chat/save", {
@@ -111,6 +113,7 @@ export type ConvRow = {
   // spec 045：以這段對話為由來的核心理解**條數**（讀事實來源 why_nodes.conversation_id）。
   // 舊做法讀 why_node_id，而那欄只在 save_conversation 那條路才填，冊封路徑不填 ⇒ 漏掉 2/3。
   yield_count: number
+  domain_id: number | null     // spec 048：歸屬的領域（null＝未歸屬）
   count: number
 }
 
@@ -172,6 +175,19 @@ export const pages = {
     fetch("/api/conversations-dedupe/preview").then(json),
   dedupeApply: (): Promise<{ removed: number; repointed: number }> =>
     post("/api/conversations-dedupe/apply", {}),
+  // ── 領域樹（spec 048）：領域＝節點、主題 Topic＝從根到節點的路徑 ──
+  // ⚠️ path 由後端從 parent_id **導出**，前端不要自己拼字串存起來。
+  domains: (): Promise<{ domains: { id: number; name: string; parent_id: number | null;
+                                    path: { id: number; name: string }[] }[] }> =>
+    fetch("/api/domains").then(json),
+  createDomain: (name: string, parent_id: number | null = null): Promise<{ ok: boolean; id?: number; err?: string }> =>
+    post("/api/domains", { name, parent_id }),
+  renameDomain: (id: number, name: string) => post(`/api/domains/${id}/rename`, { name }),
+  moveDomain: (id: number, parent_id: number | null): Promise<{ ok: boolean; err?: string }> =>
+    post(`/api/domains/${id}/move`, { parent_id }),
+  setConvDomain: (cid: number, domain_id: number | null) =>
+    post(`/api/conversations/${cid}/domain`, { domain_id }),
+
   // conversationId（spec 043）：用那段對話冊封出的核心理解當骨幹（0＝不帶，行為與現況相同）
   generateArticle: (topic: string, length: string, level: string, conversationId = 0): Promise<{ title?: string; markdown?: string; length?: string; level?: string; error?: string }> =>
     post("/api/article", { topic, length, level, conversation_id: conversationId }),

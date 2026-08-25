@@ -39,6 +39,9 @@ export default function ChatPage() {
   // 帶進脈絡卻看不到，等於只有 AI 讀得到它——就地展開（041 FR-001a）
   const [carriedOpen, setCarriedOpen] = useState(true)   // 它是「第一則」，預設就看得到
   const [carriedBody, setCarriedBody] = useState<string | null>(null)
+  // spec 048：這段對話要開在哪個領域。⚠️ 只在**建立那筆**時寫（同 044 的由來），
+  // 之後 autosave 送什麼都不會改到它。
+  const pendingDomain = useRef<number | null>(null)
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -84,6 +87,7 @@ export default function ChatPage() {
   }
   function newChat() {
     notifyActiveConv(null)
+    pendingDomain.current = null
     setCarried(null); setCarriedOpen(true); setCarriedBody(null); setAnointed([])   // 文章不跨對話殘留（FR-001c）
     setMessages([]); tempId.current = null; referrers.current = []; setChapters(null); baseCount.current = 0; setFocusFrom(0)
     setConvTitle(""); setNudgeDismissed(false)
@@ -116,7 +120,13 @@ export default function ChatPage() {
       sp.delete("source"); sp.delete("stitle"); setSp(sp, { replace: true })
       return
     }
-    if (sp.get("new")) { newChat(); sp.delete("new"); setSp(sp, { replace: true }); return }
+    if (sp.get("new")) {
+      newChat()
+      const d = Number(sp.get("domain") || 0)
+      pendingDomain.current = d || null     // spec 048：在某領域底下開的新對話
+      sp.delete("new"); sp.delete("domain"); setSp(sp, { replace: true })
+      return
+    }
     const rid = Number(sp.get("resume") || 0)
     if (rid) {
       const from = Number(sp.get("from") || 0)
@@ -169,7 +179,7 @@ export default function ChatPage() {
         // spec 044：把由來一起送（只有建立那筆時後端才會寫；之後送了也不會改到）
         api.autosave(next, tempId.current, carried
           ? { kind: carried.kind, ref: carried.kind === "article" ? String(carried.id) : carried.url }
-          : undefined).then((r) => {
+          : undefined, pendingDomain.current).then((r) => {
           tempId.current = r.temp_id
           if (r.title) setConvTitle(r.title)
           notifyConversations()

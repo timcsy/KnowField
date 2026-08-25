@@ -553,6 +553,62 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # --- 領域樹（spec 048）：領域＝節點、主題 Topic＝從根到節點的路徑 ---
+    # ⚠️ **路徑不存**，一律由 `parent_id` 導出。存一份路徑字串的話，改名／搬家就要全量重算，
+    # 而**漏算不會報錯**——只會讓路徑慢慢對不上。這是「節點與路徑分得開」的實作形態。
+    def create_domain(self, name: str, parent_id: int | None = None) -> int:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cid = self._insert_id(
+            "INSERT INTO domains (name, parent_id, created_at) VALUES (%s,%s,%s)",
+            (name.strip(), parent_id, now))
+        self.conn.commit()
+        return cid
+
+    def list_domains(self) -> list[dict]:
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, name, parent_id, created_at FROM domains ORDER BY id")]
+
+    def rename_domain(self, did: int, name: str) -> None:
+        self.conn.execute("UPDATE domains SET name=%s WHERE id=%s", (name.strip(), did))
+        self.conn.commit()
+
+    def domain_path(self, did: int) -> list[dict]:
+        """從根到這個領域的序列（＝主題 Topic）。回 [{id, name}, …]，根在前。"""
+        rows = {d["id"]: d for d in self.list_domains()}
+        out, cur, seen = [], did, set()
+        while cur is not None and cur in rows and cur not in seen:
+            seen.add(cur)                      # 防禦：資料若已成環也不會無窮迴圈
+            out.append({"id": cur, "name": rows[cur]["name"]})
+            cur = rows[cur]["parent_id"]
+        return list(reversed(out))
+
+    def domain_descendants(self, did: int) -> set[int]:
+        """這個領域的所有子孫（含自己）。用於擋成環。"""
+        children: dict[int, list[int]] = {}
+        for d in self.list_domains():
+            children.setdefault(d["parent_id"], []).append(d["id"])
+        out, stack = set(), [did]
+        while stack:
+            n = stack.pop()
+            if n in out:
+                continue
+            out.add(n)
+            stack.extend(children.get(n, []))
+        return out
+
+    def move_domain(self, did: int, new_parent: int | None) -> None:
+        """搬動領域。⚠️ **擋成環**——把節點搬到自己的子孫底下，路徑計算不會報錯，
+        只會變成無意義的結果（FR-004）。"""
+        if new_parent is not None and new_parent in self.domain_descendants(did):
+            raise ValueError("不能把領域搬到它自己或它的子孫底下（會成環）")
+        self.conn.execute("UPDATE domains SET parent_id=%s WHERE id=%s", (new_parent, did))
+        self.conn.commit()
+
+    def set_conversation_domain(self, cid: int, domain_id: int | None) -> None:
+        self.conn.execute("UPDATE conversations SET domain_id=%s WHERE id=%s", (domain_id, cid))
+        self.conn.commit()
+
     # --- 譯文快取（spec 039）：**逐翻譯單位**，不是逐文件 ---
     # ⚠️ 為什麼是逐單位：一份 45 個單位的來源，只要有 1 個降級，逐文件快取就一個字都不能存
     #（FR-006）。真跑實測 colah 那篇就是 45 取 1，機率上 (1-p)^45 讓逐文件快取多半落空
@@ -636,7 +692,8 @@ class Repository:
             temporary=bool(r["temporary"]) if "temporary" in keys else False,
             last_activity_at=(r["last_activity_at"] if "last_activity_at" in keys else "")
             or (r["created_at"] or ""),
-            chapters=json.loads((r["chapters"] if "chapters" in keys else "[]") or "[]"))
+            chapters=json.loads((r["chapters"] if "chapters" in keys else "[]") or "[]"),
+            domain_id=(r["domain_id"] if "domain_id" in keys else None))
 
     def set_conversation_chapters(self, cid: int, chapters: list) -> None:
         """存切好的章節（階段29 持久化，避免每次檢視重切）。"""
@@ -646,7 +703,7 @@ class Repository:
         self.conn.commit()
 
     _CONV_COLS = ("id, title, messages, why_node_id, created_at, temporary,"
-                  " last_activity_at, chapters")
+                  " last_activity_at, chapters, domain_id")
 
     def list_conversations(self) -> list:
         rows = self.conn.execute(
@@ -660,7 +717,8 @@ class Repository:
 
     # --- 暫時存檔＋TTL 衰減（spec 028）---
     def autosave_temporary(self, temp_id, messages: list, now: str,
-                           carried_kind: str = "", carried_ref: str = ""):
+                           carried_kind: str = "", carried_ref: str = "",
+                           domain_id: int | None = None):
         """自動存（每輪 upsert 一筆）。空→None。temp_id 存在→**就地更新同一筆**（永久維持永久、暫存維持暫存
         ——接回已存檔對話繼續聊時不再另開暫存）；查無 id→新建暫存。回 id。
 
@@ -681,10 +739,10 @@ class Repository:
         from ..chat.capture import cheap_title
         cid = self._insert_id(
             "INSERT INTO conversations (title, messages, why_node_id, created_at,"
-            " temporary, last_activity_at, carried_kind, carried_ref)"
-            " VALUES (%s,%s,%s,%s,1,%s,%s,%s)",
+            " temporary, last_activity_at, carried_kind, carried_ref, domain_id)"
+            " VALUES (%s,%s,%s,%s,1,%s,%s,%s,%s)",
             (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now,
-             carried_kind or "", carried_ref or ""))
+             carried_kind or "", carried_ref or "", domain_id))
         self.conn.commit()
         return cid
 

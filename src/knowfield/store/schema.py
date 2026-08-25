@@ -116,6 +116,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     carried_ref TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS domains (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_id INTEGER,
+    created_at TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS translation_units (
     unit_key TEXT PRIMARY KEY,
     markdown TEXT NOT NULL,
@@ -152,6 +159,7 @@ def _statements(script: str) -> list[str]:
 _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("conversations", "carried_kind", "TEXT DEFAULT ''"),   # ''｜article｜source
     ("conversations", "carried_ref", "TEXT DEFAULT ''"),    # 文章 id 或來源 url
+    ("conversations", "domain_id", "INTEGER"),              # spec 048：歸屬的領域（NULL＝未歸屬）
 ]
 
 

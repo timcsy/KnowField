@@ -42,4 +42,4 @@ class TestConversationsYield(unittest.TestCase):
         repo.close()
         row = TestClient(build_app(db)).get("/api/conversations").json()["conversations"][0]
         self.assertEqual(set(row.keys()),
-                         {"id", "title", "created_at", "why_node_id", "count", "yield_count"})
+                         {"id", "title", "created_at", "why_node_id", "count", "yield_count", "domain_id"})

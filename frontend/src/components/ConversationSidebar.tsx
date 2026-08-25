@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 // nav 順序＝膜的流向：來源（原料）→ 對話（消化）→ 核心理解（沉澱地基）→ 文章（輸出）
+// spec 048：領域（樹）擺最前——它是**位置**，不在膜的流向上，是給人導航用的。
 const NAV = [
+  { label: "🗂 領域", to: "/domains" },
   { label: "📚 來源", to: "/sources" },
   { label: "💬 對話", to: "/conversations" },
   { label: "💡 核心理解", to: "/roots" },
