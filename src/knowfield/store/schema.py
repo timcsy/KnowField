@@ -169,6 +169,8 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("articles", "conversation_id", "INTEGER"),             # spec 049：從哪段對話生的
     ("articles", "domain_id", "INTEGER"),                   # spec 049：歸屬的領域
     ("why_nodes", "domain_id", "INTEGER"),                  # spec 049：歸屬的領域
+    # spec 050：來源也歸屬。⚠️ 一個「來源」＝一個 url ＝**多個塊**，所以整組塊一起設。
+    ("digest_entries", "domain_id", "INTEGER"),
 ]
 
 

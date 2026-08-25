@@ -1,4 +1,4 @@
-"""契約：糾纏預覽與搬動（spec 049）。"""
+"""契約：糾纏預覽與搬動（spec 049；spec 050 起走批次端點）。"""
 import unittest
 
 from fastapi.testclient import TestClient
@@ -24,15 +24,17 @@ class TestTangleApi(unittest.TestCase):
     def test_preview_lists_tangles_with_labels(self):
         db = temp_db(); a, b, c, w = _seed(db)
         r = TestClient(build_app(db)).post(
-            f"/api/knowledge/conversation/{c}/tangles", json={"domain_id": b}).json()
-        self.assertEqual([t["id"] for t in r["tangles"]], [w])
+            "/api/knowledge/tangles",
+            json={"items": [{"kind": "conversation", "ref": c}], "domain_id": b}).json()
+        self.assertEqual([t["ref"] for t in r["tangles"]], [w])
         self.assertIn("某條理解", r["tangles"][0]["label"])
 
     def test_preview_changes_nothing(self):
         """⚠️ 預覽就是預覽——不能有副作用。"""
         db = temp_db(); a, b, c, w = _seed(db)
         cl = TestClient(build_app(db))
-        cl.post(f"/api/knowledge/conversation/{c}/tangles", json={"domain_id": b})
+        cl.post("/api/knowledge/tangles",
+            json={"items": [{"kind": "conversation", "ref": c}], "domain_id": b})
         repo = Repository(db)
         self.assertEqual(repo.get_conversation(c).domain_id, a)
         self.assertEqual(repo.knowledge_domain("why_node", w), a)
@@ -41,7 +43,8 @@ class TestTangleApi(unittest.TestCase):
     def test_move_without_bring_along_leaves_tangle(self):
         db = temp_db(); a, b, c, w = _seed(db)
         r = TestClient(build_app(db)).post(
-            f"/api/knowledge/conversation/{c}/move", json={"domain_id": b}).json()
+            "/api/knowledge/move",
+            json={"items": [{"kind": "conversation", "ref": c}], "domain_id": b}).json()
         self.assertEqual(r["tangles"], 1)
         repo = Repository(db)
         self.assertEqual(repo.get_conversation(c).domain_id, b)
@@ -51,13 +54,15 @@ class TestTangleApi(unittest.TestCase):
     def test_move_with_bring_along(self):
         db = temp_db(); a, b, c, w = _seed(db)
         TestClient(build_app(db)).post(
-            f"/api/knowledge/conversation/{c}/move",
-            json={"domain_id": b, "bring_along": True})
+            "/api/knowledge/move",
+            json={"items": [{"kind": "conversation", "ref": c}],
+                  "domain_id": b, "bring_along": True})
         repo = Repository(db)
         self.assertEqual(repo.knowledge_domain("why_node", w), b)
         repo.close()
 
     def test_unknown_kind_rejected(self):
         db = temp_db(); _seed(db)
-        r = TestClient(build_app(db)).post("/api/knowledge/banana/1/move", json={})
+        r = TestClient(build_app(db)).post(
+            "/api/knowledge/move", json={"items": [{"kind": "banana", "ref": 1}]})
         self.assertEqual(r.status_code, 400)

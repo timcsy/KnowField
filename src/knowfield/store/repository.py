@@ -635,65 +635,103 @@ class Repository:
     # 兩條防爆界線（違反任一條，這功能第二次就沒人用）：
     # ① **只算直接連結**，不算傳遞閉包。66/75 條理解連著對話，搬一段跳 15 條詢問＝廢。
     # ② **連帶只走一層**，不遞迴。知識的連結是**網不是樹**，不設界線會搬走半個場。
-    _KIND_TABLE = {"conversation": "conversations", "why_node": "why_nodes", "article": "articles"}
+    # spec 050：`kind → (表, 鍵欄位)`。
+    # ⚠️ 來源打破了「身分＝整數 id」的形狀：一個「來源」＝**一個 url ＝多個 digest_entries 塊**
+    # （`list_source_groups` 就是 `GROUP BY de.url`）。所以它的鍵是 url，設領域時整組塊一起設。
+    # 否決用 `MIN(id)` 當代表——那是一個會隨新增塊漂移的主鍵。
+    _KIND_TABLE = {
+        "conversation": ("conversations", "id"),
+        "why_node": ("why_nodes", "id"),
+        "article": ("articles", "id"),
+        "source": ("digest_entries", "url"),
+    }
 
-    def knowledge_domain(self, kind: str, kid: int) -> int | None:
-        t = self._KIND_TABLE[kind]
-        r = self.conn.execute(f"SELECT domain_id FROM {t} WHERE id=%s", (kid,)).fetchone()
+    def knowledge_domain(self, kind: str, ref) -> int | None:
+        t, k = self._KIND_TABLE[kind]
+        r = self.conn.execute(
+            f"SELECT domain_id FROM {t} WHERE {k}=%s", (ref,)).fetchone()
         return r["domain_id"] if r else None
 
-    def set_knowledge_domain(self, kind: str, kid: int, domain_id: int | None) -> None:
-        t = self._KIND_TABLE[kind]
-        self.conn.execute(f"UPDATE {t} SET domain_id=%s WHERE id=%s", (domain_id, kid))
+    def set_knowledge_domain(self, kind: str, ref, domain_id: int | None) -> None:
+        t, k = self._KIND_TABLE[kind]
+        # 來源時 `k='url'` ⇒ 這一句會套到該 url 的**所有塊**，那正是要的（FR-008）。
+        self.conn.execute(f"UPDATE {t} SET domain_id=%s WHERE {k}=%s", (domain_id, ref))
         self.conn.commit()
 
-    def _neighbours(self, kind: str, kid: int) -> list[tuple[str, int]]:
+    def _neighbours(self, kind: str, ref) -> list[tuple[str, object]]:
         """這個知識**直接**連著誰（一層，不遞迴）。"""
-        out: list[tuple[str, int]] = []
+        out: list[tuple[str, object]] = []
         if kind == "conversation":
             out += [("why_node", int(r["id"])) for r in self.conn.execute(
-                "SELECT id FROM why_nodes WHERE conversation_id=%s", (kid,))]
+                "SELECT id FROM why_nodes WHERE conversation_id=%s", (ref,))]
             out += [("article", int(r["id"])) for r in self.conn.execute(
-                "SELECT id FROM articles WHERE conversation_id=%s", (kid,))]
+                "SELECT id FROM articles WHERE conversation_id=%s", (ref,))]
+            r = self.conn.execute(
+                "SELECT carried_kind, carried_ref FROM conversations WHERE id=%s", (ref,)).fetchone()
+            if r and r["carried_kind"] == "source" and r["carried_ref"]:
+                out.append(("source", r["carried_ref"]))
+            elif r and r["carried_kind"] == "article" and str(r["carried_ref"]).isdigit():
+                out.append(("article", int(r["carried_ref"])))
         elif kind == "why_node":
             r = self.conn.execute(
-                "SELECT conversation_id FROM why_nodes WHERE id=%s", (kid,)).fetchone()
+                "SELECT conversation_id, source_entry_id FROM why_nodes WHERE id=%s", (ref,)).fetchone()
             if r and r["conversation_id"]:
                 out.append(("conversation", int(r["conversation_id"])))
+            # ⚠️ `source_entry_id` **預設 0 不是 NULL**——`IS NOT NULL` 在這裡恆真。
+            if r and (r["source_entry_id"] or 0) > 0:
+                e = self.conn.execute(
+                    "SELECT url FROM digest_entries WHERE id=%s", (r["source_entry_id"],)).fetchone()
+                if e and e["url"]:
+                    out.append(("source", e["url"]))
             out += [("article", int(x["article_id"])) for x in self.conn.execute(
-                "SELECT article_id FROM article_roots WHERE why_node_id=%s", (kid,))]
+                "SELECT article_id FROM article_roots WHERE why_node_id=%s", (ref,))]
         elif kind == "article":
             out += [("why_node", int(x["why_node_id"])) for x in self.conn.execute(
-                "SELECT why_node_id FROM article_roots WHERE article_id=%s", (kid,))]
+                "SELECT why_node_id FROM article_roots WHERE article_id=%s", (ref,))]
             r = self.conn.execute(
-                "SELECT conversation_id FROM articles WHERE id=%s", (kid,)).fetchone()
+                "SELECT conversation_id FROM articles WHERE id=%s", (ref,)).fetchone()
             if r and r["conversation_id"]:
                 out.append(("conversation", int(r["conversation_id"])))
+        elif kind == "source":
+            out += [("why_node", int(x["id"])) for x in self.conn.execute(
+                "SELECT wn.id AS id FROM why_nodes wn JOIN digest_entries de"
+                " ON wn.source_entry_id=de.id WHERE de.url=%s AND wn.source_entry_id>0", (ref,))]
+            out += [("conversation", int(x["id"])) for x in self.conn.execute(
+                "SELECT id FROM conversations WHERE carried_kind='source' AND carried_ref=%s", (ref,))]
         return out
 
-    def tangles_for(self, kind: str, kid: int, new_domain: int | None) -> list[dict]:
-        """把這個知識搬到 `new_domain` 之後，**會被拆散**的直接鄰居。
+    # ── 批次（spec 050）：單件操作＝一個元素的清單，不另留一套 ──────────────
 
-        ⚠️ 鄰居**未歸屬**時不算糾纏——它還沒有位置，談不上被拆散。
+    def batch_tangles(self, items, new_domain: int | None) -> list[dict]:
+        """把 `items` 整批搬到 `new_domain` 之後，**會被拆散**的直接鄰居（去重）。
+
+        ⚠️ 判準是「**搬完之後**兩端是否不同域」，不是「現在」。
+        ⇒ **同批成員之間不算糾纏**——一起搬的東西沒有被拆散（FR-003）。
+        ⚠️ 鄰居**未歸屬**時不算糾纏——它還沒有位置，談不上被拆散（FR-007）。
         """
-        out = []
-        for nk, nid in self._neighbours(kind, kid):
-            d = self.knowledge_domain(nk, nid)
-            if d is not None and d != new_domain:
-                out.append({"kind": nk, "id": nid, "domain_id": d})
+        moving = {(k, str(r)) for k, r in items}
+        seen: set[tuple[str, str]] = set()
+        out: list[dict] = []
+        for kind, ref in items:
+            for nk, nref in self._neighbours(kind, ref):     # 一層，不是閉包（FR-005）
+                key = (nk, str(nref))
+                if key in moving or key in seen:
+                    continue
+                d = self.knowledge_domain(nk, nref)
+                if d is not None and d != new_domain:
+                    seen.add(key)
+                    out.append({"kind": nk, "ref": nref, "domain_id": d})
         return out
 
-    def move_knowledge(self, kind: str, kid: int, new_domain: int | None,
-                       bring_along: bool = False) -> list[dict]:
-        """搬一個知識。`bring_along` ＝ 把**被拆散的直接鄰居**也搬過去（⚠️ 只一層）。
-
-        回搬動前偵測到的糾纏（呼叫端可用來顯示「留下了幾條糾纏」）。
-        """
-        tangles = self.tangles_for(kind, kid, new_domain)
-        self.set_knowledge_domain(kind, kid, new_domain)
+    def batch_move(self, items, new_domain: int | None,
+                   bring_along: bool = False) -> list[dict]:
+        """整批搬。`bring_along` ＝ 把被拆散的直接鄰居也搬過去（⚠️ 只一層，FR-006）。"""
+        tangles = self.batch_tangles(items, new_domain)
+        for kind, ref in items:
+            self.set_knowledge_domain(kind, ref, new_domain)
         if bring_along:
-            for t in tangles:          # ⚠️ 只搬這一層，不對它們再遞迴
-                self.set_knowledge_domain(t["kind"], t["id"], new_domain)
+            for t in tangles:      # ⚠️ 只搬這一層，不對它們再遞迴
+                self.set_knowledge_domain(t["kind"], t["ref"], new_domain)
         return tangles
 
     # --- 譯文快取（spec 039）：**逐翻譯單位**，不是逐文件 ---

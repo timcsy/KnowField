@@ -1,5 +1,11 @@
 // /api client（re-platform 階段一）：包 FastAPI 的 JSON/SSE 端點。
 export type Source = { n: number; url: string; title: string; kind: string }
+
+// 整理台（spec 050）。⚠️ 來源的 ref 是 **url**（一個來源＝多個塊），其餘三種是整數 id
+// ——所以 ref 是 number | string，不要在前端窄化成 number。
+export type KnowledgeKind = "conversation" | "why_node" | "article" | "source"
+export type KnowledgeRef = { kind: KnowledgeKind; ref: number | string }
+export type KnowledgeItem = KnowledgeRef & { label: string; domain_id: number | null }
 export type Message = {
   role: "user" | "assistant"
   content: string
@@ -187,12 +193,16 @@ export const pages = {
     post(`/api/domains/${id}/move`, { parent_id }),
   // 糾纏 Tangle（spec 049）＝樹裝不下的那條連結。
   // ⚠️ 預覽**不改任何東西**；搬動才寫。連帶只走一層（後端釘死）。
-  tangles: (kind: string, id: number, domain_id: number | null): Promise<{
-    ok: boolean; tangles: { kind: string; id: number; domain_id: number; label: string }[] }> =>
-    post(`/api/knowledge/${kind}/${id}/tangles`, { domain_id }),
-  moveKnowledge: (kind: string, id: number, domain_id: number | null, bring_along = false):
-    Promise<{ ok: boolean; tangles: number }> =>
-    post(`/api/knowledge/${kind}/${id}/move`, { domain_id, bring_along }),
+  // ⚠️ spec 050：**只有批次一條路**——單件操作＝送一個元素的清單。
+  //    來源的 ref 是 **url**（一個來源＝多個塊），其餘三種是整數 id。
+  inventory: (): Promise<{ ok: boolean; items: KnowledgeItem[] }> =>
+    fetch("/api/knowledge/inventory").then(json),
+  tangles: (items: KnowledgeRef[], domain_id: number | null): Promise<{
+    ok: boolean; tangles: { kind: string; ref: number | string; domain_id: number; label: string }[] }> =>
+    post("/api/knowledge/tangles", { items, domain_id }),
+  moveKnowledge: (items: KnowledgeRef[], domain_id: number | null, bring_along = false):
+    Promise<{ ok: boolean; moved: number; tangles: number }> =>
+    post("/api/knowledge/move", { items, domain_id, bring_along }),
   setConvDomain: (cid: number, domain_id: number | null) =>
     post(`/api/conversations/${cid}/domain`, { domain_id }),
 
