@@ -74,14 +74,31 @@ helm upgrade knowfield deploy/helm/knowfield -n knowfield --reuse-values --set i
 
 ### 5. 核對 digest（沒做這步就沒出貨）
 
-```bash
-kubectl -n knowfield get pod -l app.kubernetes.io/component=app \
-  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}{"  ready="}{.items[0].status.containerStatuses[0].ready}'
-gh api "/user/packages/container/knowfield/versions" \
-  --jq ".[] | select(.metadata.container.tags[]? == \"$SHA\") | .name"
+⚠️ **先等 rollout，再讀 digest**——沒等的話，`.items[0]` 會挑到還沒起來的新 pod
+（或正在終止的舊 pod），`imageID` 是**空字串**，而輸出長這樣：
+
+```
+  ready=false
 ```
 
-兩個 `sha256:` **必須逐字相同**，且 `ready=true`。不同就是拉到舊映像，回頭查 push。
+那看起來像「digest 對不上」，實際上是「還沒有 digest 可讀」。⇒ 空的結果有兩個原因。
+
+```bash
+kubectl -n knowfield rollout status deploy/knowfield-knowfield --timeout=180s
+POD=$(kubectl -n knowfield get pod -l app.kubernetes.io/component=app \
+  --field-selector=status.phase=Running -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
+GHCR=$(gh api "/user/packages/container/knowfield/versions" \
+  --jq ".[] | select(.metadata.container.tags[]? == \"$SHA\") | .name")
+[ -n "$POD" ] && [ -n "$GHCR" ] || { echo "❌ 有一邊是空的——不是不符，是沒讀到"; }
+echo "pod=${POD#*@}"; echo "ghcr=$GHCR"
+```
+
+兩個 `sha256:` **必須逐字相同**。不同就是拉到舊映像，回頭查 push。
+⚠️ **任何一邊是空的都不算通過**——空的和不符是兩件事，而 `[ "$a" = "$b" ]` 只認得一件。
+
+ⓘ `deploy` 的名字是 `knowfield-knowfield`（release 名 ＋ chart 名）。
+`kubectl rollout status deploy -l app.kubernetes.io/component=app` **選不到它**
+——那個 label 在 **pod** 上，不在 Deployment 上，而 kubectl 只會說 `No resources found`。
 
 ### 5.5 有加欄時：確認正式庫真的長出來了（⚠️ migration 是**懶跑**的）
 
