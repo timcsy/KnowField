@@ -51,20 +51,24 @@ class TestArticleLayer:
         assert before == after
 
     def test_marked_as_ai_derivative(self):
-        """US2：標明是 AI 依核心理解生成的衍生物，且不得蓋過核心理解。"""
+        """US2：標明是 AI 依理解生成的衍生物，且**不得蓋過**理解。
+
+        ⚠️ 原本只斷言「字串裡有『理解』」——那個條件光靠 prompt 提一次就滿足，
+        **不保證優先序那句還在**。改成斷言優先序本身。
+        """
         fc = FieldChat(_Rec())
-        blob = str(_msgs(fc, article=_ARTICLE))
+        blob = str(_msgs(fc, article=_ARTICLE)).replace("**", "")
         assert "AI" in blob
-        assert "核心理解" in blob
+        assert "以理解為準" in blob, f"衝突時的優先序不見了：{blob[:300]}"
 
     def test_separate_block_from_roots(self):
-        """文章自成一層，不混進核心理解那段。"""
+        """帶入的應用自成一層，不混進理解那段。"""
         fc = FieldChat(_Rec())
         ms = _msgs(fc, article=_ARTICLE)
         root_blocks = [m for m in ms if m["role"] == "system" and "既有根因" in m["content"]]
-        assert root_blocks, "找不到核心理解區塊"
+        assert root_blocks, "找不到理解區塊"
         for b in root_blocks:
-            assert _MARK not in b["content"], "文章被混進核心理解區塊了"
+            assert _MARK not in b["content"], "文章被混進理解區塊了"
 
     def test_bare_mode_excludes_article(self):
         """FR-007：bare＝屏蔽知識庫，而文章是知識庫的衍生物。"""

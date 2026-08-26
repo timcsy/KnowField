@@ -55,7 +55,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="source" element={<SourcePage />} />
           <Route path="conversations" element={<ConversationsPage />} />
           {/* spec 047：對話不再分「檢視」與「接著聊」——只有聊天頁一個去處。
-              ⚠️ 舊網址（書籤、核心理解的由來連結）要導過去而不是 404，
+              ⚠️ 舊網址（書籤、理解的由來連結）要導過去而不是 404，
               而且**必須把 from/to 帶著走**——由來定位靠它，斷了就是溯源斷掉（原則 3）。 */}
           <Route path="conversations/:id" element={<ResumeRedirect />} />
           {/* 舊 IA → 新 IA（對話＝聊天＋存檔、來源＝知識庫＋收進） */}

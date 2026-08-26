@@ -117,7 +117,7 @@ export type ConvRow = {
   title: string
   created_at: string
   why_node_id: number | null   // ⚠️ 舊欄位，別拿來判斷「聊出了東西」——見 yield_count
-  // spec 045：以這段對話為由來的核心理解**條數**（讀事實來源 why_nodes.conversation_id）。
+  // spec 045：以這段對話為由來的理解**條數**（讀事實來源 why_nodes.conversation_id）。
   // 舊做法讀 why_node_id，而那欄只在 save_conversation 那條路才填，冊封路徑不填 ⇒ 漏掉 2/3。
   yield_count: number
   domain_id: number | null     // spec 048：歸屬的領域（null＝未歸屬）
@@ -220,7 +220,7 @@ export const pages = {
   setConvDomain: (cid: number, domain_id: number | null) =>
     post(`/api/conversations/${cid}/domain`, { domain_id }),
 
-  // conversationId（spec 043）：用那段對話冊封出的核心理解當骨幹（0＝不帶，行為與現況相同）
+  // conversationId（spec 043）：用那段對話冊封出的理解當骨幹（0＝不帶，行為與現況相同）
   // ⚠️ `used_body_ids` / `used_ext_ids` 後端一直算得出來，但直到 spec 051 前端才接
   //    ——沒接的話存下去的文章不知道自己長自哪些理解，出生歸位與糾纏偵測都是半瞎的。
   generateArticle: (topic: string, length: string, level: string, conversationId = 0): Promise<{
@@ -249,7 +249,7 @@ export type StreamHandlers = {
 export async function streamChat(
   history: Message[],
   message: string,
-  bare: boolean,   // 這輪暫時屏蔽知識庫（不注入核心理解、不撒網、不查收藏）
+  bare: boolean,   // 這輪暫時屏蔽知識庫（不注入理解、不撒網、不查收藏）
   h: StreamHandlers,
   articleId = 0,   // spec 041：使用者明確帶進來的一篇生成文章（0＝沒帶）
   sourceUrl = "",  // spec 042：使用者明確帶進來的一份收進來源（空＝沒帶）

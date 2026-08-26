@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { pages, type ConvRow } from "@/lib/api"
 
 // 對話 ⋮ 選單（側欄＋總對話頁共用）。portal 到 body＋fixed 定位 → 不被捲動容器裁切（暫存在最底時的 bug）；
-// 靠底自動往上開。刪除：被核心理解引用（由來）→擋刪、提示先刪核心理解（護溯源，原則 3）。
+// 靠底自動往上開。刪除：被理解引用（由來）→擋刪、提示先刪理解（護溯源，原則 3）。
 export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onChange }: {
   c: ConvRow
   open: boolean
@@ -48,7 +48,7 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
     if (!confirm(`刪除對話「${c.title || "未命名"}」？`)) return
     const r = await pages.deleteConv(c.id)
     if (!r.deleted && r.blocked_by?.length) {
-      alert("這段對話是下列核心理解的『由來』，刪不掉。\n請先到「💡 核心理解」把它們退回/刪掉，再刪這段對話：\n\n"
+      alert("這段對話是下列理解的『由來』，刪不掉。\n請先到「💡 理解」把它們退回/刪掉，再刪這段對話：\n\n"
         + r.blocked_by.map((s) => "• " + s).join("\n"))
       return
     }

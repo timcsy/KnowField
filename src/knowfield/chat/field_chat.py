@@ -18,7 +18,7 @@ from .capture import norm_claim
 _MEMBRANE = """你是使用者的思考夥伴——幫他把新東西接到他既有的理解上，而且「不順著他說好聽話」。
 用繁體中文、自然口語。**不要用內部術語**（別說「冊封、場、根因、grounded、derived、場-增量」這類字），
 也**不要在每段開頭貼「**grounded**」這種標籤**——用一般人看得懂的話。務必：
-1. 先從下面「使用者已經想清楚、存下來的核心理解」往下接，連到他既有的想法，不要給對誰都一樣的通用答案。
+1. 先從下面「使用者已經想清楚、存下來的理解」往下接，連到他既有的想法，不要給對誰都一樣的通用答案。
 2. 誠實區分把握程度，但用自然的話講：有紮實依據就直說；只是推測就講「這比較像我的推測」；沒把握或
    可能有誤就明講。別硬套標籤。
 3. 分辨三種強度、別讓弱的冒充強的：**能證明/被邏輯逼出來的** vs **觀察到的規律（不一定必然）** vs
@@ -28,8 +28,8 @@ _MEMBRANE = """你是使用者的思考夥伴——幫他把新東西接到他�
 6. 有建設性、給實際幫助，不為反對而反對；使用者講得有道理就大方認同、修正自己。
 7. 可以自然地點出：這接到他之前哪個想法、還缺什麼——用一兩句白話，別做成僵硬的段落。
 8. 若有一條想法夠紮實、值得長期留著，可以**建議**他存起來，但只是建議；要不要存是他決定，你不能自己存。
-分清資料的**三層份量**：**他精選的核心理解＝地基**（從這往下推）；**他收藏的文章/論文＝外部證言**
-（可引用，但比核心理解軟、可能是他人觀點或有誤，別當成他的地基、別自動當成他的想法）；**web＝最外圈的外部資料**。
+分清資料的**三層份量**：**他精選的理解＝地基**（從這往下推）；**他收藏的文章/論文＝外部證言**
+（可引用，但比理解軟、可能是他人觀點或有誤，別當成他的地基、別自動當成他的想法）；**web＝最外圈的外部資料**。
 可用 Markdown（粗體、清單、$數學$）讓回答好讀。
 **長度紀律**：預設精簡。先用 3–5 句給出核心答案，只有在使用者要求或問題真的需要時才展開細節。
 不要為了展示上面每一條原則而把它們逐條演出來——那些是你的判準，不是要寫給使用者看的段落。"""
@@ -82,21 +82,21 @@ class CandidateDraft:
     ladder: list[str] = field(default_factory=list)
     evidence_urls: list[str] = field(default_factory=list)
     kind: str = ""          # 認識論層次：已證實/推論/類比/猜想（vision 階段 28）
-    already: bool = False    # 這條的主張已在核心理解裡（精選時標「已收過」、不重複收）
+    already: bool = False    # 這條的主張已在理解裡（精選時標「已收過」、不重複收）
     src_from: int = 0        # 出處：對話第幾則（階段29第2階段，1-indexed；0=未知）
     src_to: int = 0
 
 
 # bare 模式（暫時屏蔽知識庫）的場脈絡：明說這輪不接他的知識庫，人格照舊。
 _BARE_NOTE = (
-    "（這輪使用者暫時屏蔽了知識庫：**不參考他存的核心理解、不撒網、不查他收進的資料**，"
+    "（這輪使用者暫時屏蔽了知識庫：**不參考他存的理解、不撒網、不查他收進的資料**，"
     "就當一般 AI 對話。但人格不變：不說好聽話、不把猜測講成事實、不確定就說不確定。這輪不附佐證 [n]。）")
 
 
 def build_field_system_prompt(roots) -> str:
     """膜指令 ＋ 場脈絡注入（每條已冊封根因的 claim＋ladder）。roots 空 → 註明未接場。"""
     if not roots:
-        ctx = ("（使用者的知識庫還空——還沒存任何核心理解。仍可一般聊，但要說明還沒接到他存的東西，"
+        ctx = ("（使用者的知識庫還空——還沒存任何理解。仍可一般聊，但要說明還沒接到他存的東西，"
                "並鼓勵他存幾條。）")
     else:
         lines = []
@@ -106,7 +106,7 @@ def build_field_system_prompt(roots) -> str:
             lines.append(f"◆ {tag}{r.claim}")
             for step in (r.ladder or []):
                 lines.append(f"   ↳ {step}")
-        ctx = ("使用者已經想清楚、存下來的核心理解（從這裡往下接；方括號是它的確定性層次——"
+        ctx = ("使用者已經想清楚、存下來的理解（從這裡往下接；方括號是它的確定性層次——"
                "**類比／猜想別當定論用、要講明還沒站穩；已證實／推論才據以斷言**）：\n"
                + "\n".join(lines))
     return f"{_MEMBRANE}\n\n{ctx}"
@@ -197,7 +197,7 @@ class FieldChat:
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
-        # bare＝這輪暫時屏蔽知識庫：不注入核心理解、也不會有 sources；但保留反逢迎人格（膜）。
+        # bare＝這輪暫時屏蔽知識庫：不注入理解、也不會有 sources；但保留反逢迎人格（膜）。
         sys_prompt = f"{_MEMBRANE}\n\n{_BARE_NOTE}" if bare else build_field_system_prompt(roots)
         messages = [{"role": "system", "content": sys_prompt}]
         messages += hist
@@ -210,16 +210,16 @@ class FieldChat:
         if article and not bare:
             body = (article.get("markdown") or "")[:self._ARTICLE_CAP]
             messages.append({"role": "system", "content": (
-                "使用者帶了一篇**他自己知識庫生成的文章**進來，因為他讀完之後想接著想。\n"
-                "**這是 AI 依他冊封的核心理解生成的衍生物**——比核心理解軟、也比他收藏的外部來源軟：\n"
-                "・它**不是**新證據，只是把既有理解重新排過；引用它時要說「你那篇文章裡…」。\n"
-                "・**與核心理解衝突時以核心理解為準**，不要用文章來蓋過他的地基。\n"
-                "・他要的多半是**接著想**，不是要你改這篇文章——除非他明講。\n"
+                "使用者帶了一份**他自己知識庫生成的應用**進來，因為他讀完之後想接著想。\n"
+                "**這是 AI 依他冊封的理解生成的衍生物**——比理解軟、也比他收藏的外部來源軟：\n"
+                "・它**不是**新證據，只是把既有理解重新排過；引用它時要說「你那份裡…」。\n"
+                "・**與理解衝突時以理解為準**，不要用它來蓋過他的地基。\n"
+                "・他要的多半是**接著想**，不是要你改這一份——除非他明講。\n"
                 f"【{article.get('title') or '（無標題）'}】\n{body}")})
 
         # spec 042：使用者明確帶進來的**一份收進的來源**。它與文章是不同層——
         # 來源是**他挑進來的一手素材**（可能是他人觀點、也可能有誤，但不是 AI 產物），
-        # 文章則是自家衍生物。⚠️ 這一層**比核心理解軟、比文章硬**。
+        # 文章則是自家衍生物。⚠️ 這一層**比理解軟、比文章硬**。
         # ⚠️ FR-010：spec 041 對文章那道「冊封候選不得由它生成」的閘門**不套用在這裡**
         # ——那道閘門擋的是 model collapse，前提是文章為 AI 產物；來源不是，
         # 而且從來源冊封（/api/source/distill）本來就是既有的合法功能。
@@ -233,7 +233,7 @@ class FieldChat:
             messages.append({"role": "system", "content": (
                 "使用者帶了**一份他收進的來源**進來，因為他想針對這一份談。\n"
                 "・這是**外部證言**，不是他的地基：引用時說「你收的這份說…」，"
-                "**與核心理解衝突時以核心理解為準**。\n"
+                "**與理解衝突時以理解為準**。\n"
                 "・⚠️ 他在頁面上看到的可能是**繁體化或翻譯後**的版本，"
                 "以下給你的是**原文**——他引用某句時，必要時替他做原文↔他看到的版本的對應，"
                 "也可以指出翻譯失真的地方。\n"
@@ -264,7 +264,7 @@ class FieldChat:
                 lines.append(f"[{i}]（{label}）{title}：{text[:cap]}（{getattr(s, 'url', '')}）")
             messages.append({"role": "system", "content": (
                 "以下是為這個問題找到的參考資料，分兩類——**分層看待**：\n"
-                "・**你收藏的**＝使用者以前收進的文章/論文，是**外部證言**：可以引用，但**比他精選的核心理解軟**"
+                "・**你收藏的**＝使用者以前收進的文章/論文，是**外部證言**：可以引用，但**比他精選的理解軟**"
                 "（可能是他人觀點、也可能有誤）；**別當成他的地基、別替他把它說成就是他的想法**，"
                 "要說「你收的資料說…」。\n"
                 "・**web**＝剛撒網找到的外部資料。\n"
@@ -277,7 +277,7 @@ class FieldChat:
               bare: bool = False, max_history: int = 0, url_contents=None,
               article=None, source=None) -> str:
         """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。
-        bare=True＝這輪暫時屏蔽知識庫（不注入核心理解、不撒網）。"""
+        bare=True＝這輪暫時屏蔽知識庫（不注入理解、不撒網）。"""
         return self.backend.reply(
             self._messages(history, user_msg, roots, sources, bare, max_history,
                            url_contents, article, source))
@@ -344,7 +344,7 @@ class FieldChat:
         return normalize_chapters(raw, n)
 
     def distill(self, history: list[dict], roots) -> list[CandidateDraft]:
-        """蒸餾出一到多條值得留的重點（可能不同層次）。已在核心理解（roots）的標 already。"""
+        """蒸餾出一到多條值得留的重點（可能不同層次）。已在理解（roots）的標 already。"""
         convo = "\n".join(f"[{i + 1}] {m.get('role')}：{m.get('content')}"
                           for i, m in enumerate(history))   # 帶則號→AI 標出處（階段29第2階段）
         messages = [{"role": "system", "content": _DISTILL},

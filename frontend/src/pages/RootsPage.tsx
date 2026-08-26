@@ -25,7 +25,7 @@ export default function RootsPage() {
   const [gen, setGen] = useState(false)
   const [used, setUsed] = useState<{ body: number[]; ext: number[] }>({ body: [], ext: [] })
   const [genMsg, setGenMsg] = useState<string | null>(null)
-  // spec 043：從某段對話帶過來——那段冊封出的核心理解會被**釘住必進**，其餘由場補滿。
+  // spec 043：從某段對話帶過來——那段冊封出的理解會被**釘住必進**，其餘由場補滿。
   const [sp, setSp] = useSearchParams()
   const [conv, setConv] = useState<{ id: number; title: string } | null>(null)
   const { inScope, banner } = useScope("why_node")
@@ -42,7 +42,7 @@ export default function RootsPage() {
 
   async function genArticle() {
     if (!topic.trim() || gen) return
-    setGen(true); setGenMsg("生成中…（只用已證實／推論的核心理解）"); setArticle(null)
+    setGen(true); setGenMsg("生成中…（只用已證實／推論的理解）"); setArticle(null)
     try {
       const r = await pages.generateArticle(topic.trim(), length, level, conv?.id || 0)
       setGen(false)
@@ -60,11 +60,11 @@ export default function RootsPage() {
     await pages.saveArticle({ topic: topic.trim(), title: artTitle, markdown: article, length, level,
                               root_ids: used.body, ext_ids: used.ext,
                               conversation_id: conv?.id || 0 })
-    setGenMsg("已保存 → 到「📝 文章」面看")
+    setGenMsg("已保存 → 到「🧩 應用」看")
   }
 
   async function remove(id: number) {
-    if (!confirm("移除這條核心理解？（聊天將不再優先參考它）")) return
+    if (!confirm("移除這條理解？（聊天將不再優先參考它）")) return
     await pages.whynodeRemove(id)
     load()
   }
@@ -79,16 +79,16 @@ export default function RootsPage() {
     <div className="space-y-5 pb-8">
       {banner}
       <div>
-        <h1 className="text-2xl font-bold">💡 你的核心理解</h1>
+        <h1 className="text-2xl font-bold">💡 你的理解</h1>
         <p className="text-xs text-muted-foreground">
-          你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成核心理解」時精選。）
+          你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成理解」時精選。）
         </p>
       </div>
 
-      {/* 知識的輸出（階段 30）：從核心理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
+      {/* 知識的輸出（階段 30）：從理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
       {anointed.length > 0 && (
         <section className="space-y-2 rounded-xl border bg-card p-4">
-          <h2 className="text-sm font-semibold">✍️ 從核心理解生成文章（高證實）</h2>
+          <h2 className="text-sm font-semibold">✍️ 從理解生成應用（高證實）</h2>
           {conv && (
             // 帶了對話：說清楚它做了什麼（釘住 vs 取代），否則使用者以為文章只會有那幾條
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -107,7 +107,7 @@ export default function RootsPage() {
             <select value={level} onChange={(e) => setLevel(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
               <option value="intro">入門</option><option value="intermediate">進階</option><option value="expert">專家</option>
             </select>
-            <Button disabled={gen} onClick={genArticle}>生成文章</Button>
+            <Button disabled={gen} onClick={genArticle}>生成</Button>
           </div>
           {genMsg && <div className="text-xs text-muted-foreground">{genMsg}</div>}
           {article && (
@@ -124,7 +124,7 @@ export default function RootsPage() {
 
       {anointed.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          還沒有精選的核心理解。到聊天「🧵 整理成重點」、或「來源」開一份資料按「🧠 整理成核心理解」，挑認同的收進。
+          還沒有精選的理解。到聊天「🧵 整理成重點」、或「來源」開一份資料按「🧠 整理成理解」，挑認同的收進。
         </p>
       ) : (
         <div className="space-y-2">

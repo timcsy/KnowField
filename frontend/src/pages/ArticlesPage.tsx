@@ -3,8 +3,8 @@ import { Link } from "react-router-dom"
 import { useScope } from "@/lib/scope"
 import { pages } from "@/lib/api"
 
-// 文章庫＝場的輸出面（與地基「核心理解」分離）：版面對齊「來源」頁，點進去＝獨立詳情頁 /articles/:id。
-// 文章＝輸出物、不回灌場（原則 6）——這裡只列/刪，生成留在核心理解頁（貼原料）。
+// 文章庫＝場的輸出面（與地基「理解」分離）：版面對齊「來源」頁，點進去＝獨立詳情頁 /articles/:id。
+// 文章＝輸出物、不回灌場（原則 6）——這裡只列/刪，生成留在理解頁（貼原料）。
 const LEN: Record<string, string> = { short: "短", medium: "中", long: "長" }
 const LVL: Record<string, string> = { intro: "入門", intermediate: "進階", expert: "專家" }
 
@@ -16,7 +16,7 @@ export default function ArticlesPage() {
   useEffect(() => { load() }, [])
 
   async function del(id: number) {
-    if (!confirm("刪除這篇文章？（不可復原）")) return
+    if (!confirm("刪除這份應用？（不可復原）")) return
     await pages.deleteArticle(id); load()
   }
 
@@ -24,12 +24,12 @@ export default function ArticlesPage() {
     <div className="space-y-5 pb-8">
       {banner}
       <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold">📝 文章</h1>
+        <h1 className="text-2xl font-bold">🧩 應用</h1>
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          從核心理解生成、保存下來的高證實文章——輸出物，不回灌場。
+          從理解長出來的東西——把地基用出去的地方。⚠️ 輸出物，不回灌場。
         </span>
         <Link to="/roots" className="ml-auto rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90">
-          ✍️ 生成新文章
+          ✍️ 生成新的
         </Link>
       </div>
 
@@ -37,7 +37,7 @@ export default function ArticlesPage() {
         <p className="text-sm text-muted-foreground">載入中…</p>
       ) : list.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          還沒有保存的文章。到「💡 核心理解」給一個主題生成，再按「💾 保存」收進這裡。
+          還沒有保存的應用。到「💡 理解」給一個主題生成，再按「💾 保存」收進這裡。
         </p>
       ) : (
         <div className="space-y-2">

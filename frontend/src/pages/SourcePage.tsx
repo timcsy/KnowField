@@ -122,7 +122,7 @@ export default function SourcePage() {
           <Button size="sm" variant="ghost" onClick={saveMeta}>存</Button>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button size="sm" disabled={busy} onClick={distill}>🧠 整理成核心理解</Button>
+          <Button size="sm" disabled={busy} onClick={distill}>🧠 整理成理解</Button>
           <span className="text-xs text-muted-foreground">AI 從這份來源抽候選，你在下面挑認同的收進——不會自動變地基。</span>
         </div>
         {/* spec 042：帶著這份開**一段新對話**（形狀與「帶著這篇聊」逐項相同）。
@@ -135,7 +135,7 @@ export default function SourcePage() {
         {msg && <div className="mt-2 rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
       </div>
 
-      {/* 這份來源的候選——直接在這裡精選（不用跳到核心理解頁） */}
+      {/* 這份來源的候選——直接在這裡精選（不用跳到理解頁） */}
       {cands.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">整理出這幾條——挑要精選的（你決定，順便標層次）</h2>
@@ -209,7 +209,7 @@ function SourceCandidateCard({ w, onDone }: { w: WhyNode; onDone: () => void }) 
   async function anoint() { await pages.whynodeAnoint(w.id, claim, kind, did); setDone(true); onDone() }
   async function remove() { if (confirm("退回這條候選？")) { await pages.whynodeRemove(w.id); onDone() } }
 
-  if (done) return <div className="rounded-xl border bg-card p-3 text-sm text-primary">✅ 已精選收進核心理解</div>
+  if (done) return <div className="rounded-xl border bg-card p-3 text-sm text-primary">✅ 已精選收進理解</div>
   return (
     <div className="space-y-2 rounded-xl border bg-card p-4">
       <div className="flex items-center gap-2">

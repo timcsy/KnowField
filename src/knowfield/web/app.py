@@ -74,7 +74,7 @@ def _now_iso() -> str:
 
 
 # spec 042：帶入來源的脈絡預算。比文章的 6000 寬——來源是這一輪明講的談話對象，
-# 而且實測一份 20k–38k 字；但仍要留空間給核心理解與對話本身。
+# 而且實測一份 20k–38k 字；但仍要留空間給理解與對話本身。
 _SOURCE_CAP = 12000
 _SOURCE_HEAD = 2500        # 開頭保底：沒有它就答不出「這篇整體在講什麼」
 
@@ -221,7 +221,7 @@ def create_app() -> FastAPI:
         return getattr(app.state, "chat_backend_for_test", None) or make_chat_backend(app.state.config)
 
     def _extractor():
-        """根因萃取後端（spec 032 整理成核心理解，復用階段 10）；可注入離線 stub（教訓 1）。"""
+        """根因萃取後端（spec 032 整理成理解，復用階段 10）；可注入離線 stub（教訓 1）。"""
         from ..backends.factory import make_root_cause_extractor
         return getattr(app.state, "extractor_for_test", None) or make_root_cause_extractor(app.state.config)
 
@@ -288,7 +288,7 @@ def create_app() -> FastAPI:
 
     def _default_chat(history, message, bare=False):
         from ..chat.field_chat import FieldChat
-        # bare＝這輪屏蔽知識庫：不查核心理解、不撒網、不查收藏
+        # bare＝這輪屏蔽知識庫：不查理解、不撒網、不查收藏
         if bare:
             roots = []
         else:
@@ -320,7 +320,7 @@ def create_app() -> FastAPI:
         from ..chat.field_chat import FieldChat
         repo = app.state.repo_factory(app.state.config)
         try:
-            roots = repo.list_why_nodes("anointed")   # 傳既有核心理解→標「已收過」（去重）
+            roots = repo.list_why_nodes("anointed")   # 傳既有理解→標「已收過」（去重）
         finally:
             repo.close()
         return FieldChat(_chat_backend()).distill(history, roots)
@@ -457,7 +457,7 @@ def create_app() -> FastAPI:
 
     def _stream_gen(hist, message, bare, article_id=0, source_url=""):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
-        bare＝這輪暫時屏蔽知識庫：不注入核心理解、不撒網、不查收藏。
+        bare＝這輪暫時屏蔽知識庫：不注入理解、不撒網、不查收藏。
         article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。
         source_url＝使用者**明確**帶進來的一份收進來源（spec 042），空＝沒帶。"""
         from ..chat.field_chat import FieldChat
@@ -474,7 +474,7 @@ def create_app() -> FastAPI:
             finally:
                 _r.close()
             if not _a:
-                yield _sse({"type": "error", "message": "找不到那篇文章（可能已刪除）。"})
+                yield _sse({"type": "error", "message": "找不到那份應用（可能已刪除）。"})
                 return
             _article = {"id": _a.get("id", article_id),
                         "title": _a.get("title") or "",
@@ -558,7 +558,7 @@ def create_app() -> FastAPI:
                                     src_from=src_from, src_to=src_to)
             repo.anoint_why_node(wid)
             status = "created"
-            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『核心理解』頁檢視或刪除）"
+            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『理解』頁檢視或刪除）"
         if save_convo == "1":                   # 連同這段對話存成由來（既有或新建都連）
             messages = _parse_history(history)
             if messages:
@@ -725,7 +725,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/article")
     async def api_article(request: Request):
-        """知識的輸出（階段 30）：從已冊封核心理解生成高證實文章。守衛：只採已證實/推論、
+        """知識的輸出（階段 30）：從已冊封理解生成高證實文章。守衛：只採已證實/推論、
         結構化 References、不回灌場。"""
         from ..backends.factory import make_embedder
         from ..output.article import generate_article
@@ -745,7 +745,7 @@ def create_app() -> FastAPI:
                 ref_ids = {r["id"] for r in repo.conversation_referrers(cid)}
                 if not ref_ids:
                     # FR-006：死路變成下一步——不是空白、也不是錯誤碼。
-                    return _JSON({"error": "這段對話還沒精選出核心理解——先精選，再用它生文章。"})
+                    return _JSON({"error": "這段對話還沒精選出理解——先精選，再用它生應用。"})
                 # ⚠️ 釘住的是**節點物件本身**（同一份 nodes 裡的），不是另外查一份：
                 # 另查會拿到不同物件，去重就對不上、同一條被寫進去兩次。
                 pinned = [w for w in nodes if getattr(w, "id", None) in ref_ids]
@@ -763,7 +763,7 @@ def create_app() -> FastAPI:
             _log.error("生成文章失敗", extra={"extra": {"reason": str(e)}})
             return _JSON({"error": str(e)}, status_code=502)
         if out.get("empty"):
-            return _JSON({"error": "場裡還沒有夠格（已證實／推論）的核心理解可寫成文章"}, status_code=200)
+            return _JSON({"error": "場裡還沒有夠格（已證實／推論）的理解可寫成應用"}, status_code=200)
         out["length"], out["level"] = length, level
         if cid:
             _log.info("從對話生文章", extra={"extra": {"cid": cid, "pinned": len(pinned),
@@ -958,7 +958,7 @@ def create_app() -> FastAPI:
         except SourceUnavailable as e:
             return _JSON({"ok": False, "err": str(e)}, status_code=502)
         if cand is None:
-            return _JSON({"ok": False, "err": "這份來源沒有足夠內容可整理出核心理解"})
+            return _JSON({"ok": False, "err": "這份來源沒有足夠內容可整理出理解"})
         return _JSON({"ok": True})
 
     @app.post("/api/library/reclassify")
@@ -1212,7 +1212,7 @@ def create_app() -> FastAPI:
     async def api_conversation(cid: int, resume: int = Query(0)):
         repo = app.state.repo_factory(app.state.config)
         conv = repo.get_conversation(cid)
-        # referrers＝以此對話為由來的核心理解主張（給前端：編輯/重生時擋、護溯源）
+        # referrers＝以此對話為由來的理解主張（給前端：編輯/重生時擋、護溯源）
         rows = repo.conversation_referrers(cid) if conv is not None else []
         refs = [r["claim"] for r in rows]
         # spec 046：讓對話頁標得出**哪幾則已冊封**。回**範圍**不回布林陣列——
@@ -1237,7 +1237,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/conversations/{cid}/delete")
     async def api_conversation_delete(cid: int):
-        """刪對話——但**被核心理解引用（由來）的刪不掉**（護溯源，原則 3）：回 blocked_by＝那些核心理解主張，
+        """刪對話——但**被理解引用（由來）的刪不掉**（護溯源，原則 3）：回 blocked_by＝那些理解主張，
         使用者要先刪掉它們才能刪這段對話。"""
         repo = app.state.repo_factory(app.state.config)
         refs = repo.conversation_referrers(cid)

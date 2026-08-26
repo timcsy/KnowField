@@ -1,7 +1,7 @@
 import type { KnowledgeItem, KnowledgeKind, KnowledgeRef } from "./api"
 
 // 整理台的選取鍵（spec 050）。
-// ⚠️ **必須含 kind**：文章 #5 和核心理解 #5 是兩件不同的東西，只用 ref 會撞在一起
+// ⚠️ **必須含 kind**：應用 #5 和理解 #5 是兩件不同的東西，只用 ref 會撞在一起
 // ——撞了不會報錯，只會讓你勾一件、搬走兩件。
 // ⚠️ 來源的 ref 是 url（字串），所以一律轉成字串比對。
 export const keyOf = (i: KnowledgeRef) => `${i.kind}:${i.ref}`

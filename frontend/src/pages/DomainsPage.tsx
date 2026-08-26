@@ -20,7 +20,7 @@ type Domain = { id: number; name: string; parent_id: number | null; path: { id: 
 const ROOT_NAME = "知識庫"
 
 const KIND_LABEL: Record<KnowledgeKind, string> = {
-  source: "📚 來源", conversation: "💬 對話", why_node: "💡 核心理解", article: "📝 文章",
+  source: "📚 來源", conversation: "💬 對話", why_node: "💡 理解", article: "🧩 應用",
 }
 
 export default function DomainsPage() {
@@ -282,7 +282,7 @@ export default function DomainsPage() {
                 {needle ? "找不到符合的。" : "這個領域底下還沒有這類知識。"}
               </p>
             }
-            // 每個領域都有自己的「子領域、來源、對話、核心理解、文章」——分段列
+            // 每個領域都有自己的「子領域、來源、對話、理解、文章」——分段列
             return KIND_ORDER.filter((k) => byKind(list, k).length > 0).map((k) => (
               <section key={k} className="space-y-0.5">
                 <h3 className="px-2 pt-2 text-xs font-semibold text-muted-foreground">

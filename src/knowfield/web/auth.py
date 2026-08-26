@@ -144,9 +144,9 @@ def _login_page(denied: bool = False) -> str:
   <h1>KnowField</h1>
   <p class="tag">反逢迎的當下副手</p>
   <div class="feats">
-    <div class="feat"><span>📥</span><span><b>收進你信的來源</b>——文章、論文、對話，沉澱成你的「核心理解」。</span></div>
+    <div class="feat"><span>📥</span><span><b>收進你信的來源</b>——文章、論文、對話，沉澱成你的「理解」。</span></div>
     <div class="feat"><span>💬</span><span><b>跟你的知識場聊</b>——有話直說、有據可溯，不順著你講好聽話。</span></div>
-    <div class="feat"><span>✍️</span><span><b>生成高證實文章</b>——只用已證實/推論、每個引用連回來源。</span></div>
+    <div class="feat"><span>✍️</span><span><b>生成高證實的應用</b>——只用已證實/推論、每個引用連回來源。</span></div>
   </div>
   {err}
   <a class="btn" href="/auth/google">

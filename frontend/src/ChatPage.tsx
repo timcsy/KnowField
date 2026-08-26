@@ -22,7 +22,7 @@ const notifyConversations = () => window.dispatchEvent(new Event("kf-conversatio
 const notifyActiveConv = (id: number | null) =>
   window.dispatchEvent(new CustomEvent("kf-active-conv", { detail: id }))
 
-// 帶入物：文章（AI 依核心理解生成的衍生物）或來源（使用者收進的一手素材）。
+// 帶入物：文章（AI 依理解生成的衍生物）或來源（使用者收進的一手素材）。
 // 兩者在**畫面上同形**，但在**脈絡裡分層**——分層在後端 field_chat._messages 做。
 type Carried =
   | { kind: "article"; id: number; title: string }
@@ -32,7 +32,7 @@ export default function ChatPage() {
   const nav = useNavigate()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
-  const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考核心理解、不撒網、不查收藏
+  const [bare, setBare] = useState(false)   // 這輪暫時屏蔽知識庫：不參考理解、不撒網、不查收藏
   // 使用者**明確**帶進來的東西：一篇生成文章（spec 041）或一份收進的來源（spec 042）。
   // ⚠️ **共用同一條呈現路徑**——那是「形狀差異＝0 處」最強的保證：
   // 只有一個 render 分支，就不可能長出兩套形狀（spec 042 SC-006）。
@@ -55,10 +55,10 @@ export default function ChatPage() {
   const [saveConvo, setSaveConvo] = useState(false)
   const [convTitle, setConvTitle] = useState("")   // 本對話落點標題（抬頭顯示）
   const tempId = useRef<number | null>(null)
-  const referrers = useRef<string[]>([])   // 以本對話為由來的核心理解主張（編輯/重生時擋，護溯源）
+  const referrers = useRef<string[]>([])   // 以本對話為由來的理解主張（編輯/重生時擋，護溯源）
   const [chapters, setChapters] = useState<Chapter[] | null>(null)   // resume 舊訊息的章節（折疊）
   const baseCount = useRef(0)                                         // resume 載入的訊息數（章節涵蓋到此）
-  const [focusFrom, setFocusFrom] = useState(0)                      // 核心理解定位進來的出處起點則
+  const [focusFrom, setFocusFrom] = useState(0)                      // 理解定位進來的出處起點則
   // spec 046：這段對話已冊封的範圍。⚠️ 用**集合**逐則判斷，不用水位線——
   // 實測覆蓋不連續（對話 44 收到第 44 則卻缺 3–8），水位線會把中間的洞藏起來。
   const [anointed, setAnointed] = useState<{ id: number; claim: string; from: number; to: number }[]>([])
@@ -80,7 +80,7 @@ export default function ChatPage() {
     baseCount.current = c.messages.length
     setFocusFrom(from); setNudgeDismissed(false)
     tempId.current = c.id; notifyActiveConv(c.id)   // 接回就綁定這筆：繼續聊就地更新同一筆，不另開（spec 040 起無分層）
-    referrers.current = c.referrers || []   // 這段是不是某核心理解的由來（編輯/重生要擋）
+    referrers.current = c.referrers || []   // 這段是不是某理解的由來（編輯/重生要擋）
     setAnointed(c.anointed || [])
     setCandidates(null); setStreaming(null); setStage(null)
     // 載章節（持久化）：多章才折疊
@@ -96,7 +96,7 @@ export default function ChatPage() {
     setCandidates(null); setCandDone({}); setStreaming(null); setStage(null); setInput("")
   }
 
-  // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回（?from&to＝核心理解定位）
+  // 側欄用 URL 溝通：?new=… 開新對話、?resume=id 接回（?from&to＝理解定位）
   useEffect(() => {
     // spec 041：/?article=<id>&atitle=<標題> → **開一段新對話給這篇文章**（人明確按的，非自動）。
     // ⚠️ 不是把文章掛到當前那段對話上——文章不該在對話間常駐（FR-001c，使用者裁決 2026-08-21）：
@@ -104,7 +104,7 @@ export default function ChatPage() {
     const aid = Number(sp.get("article") || 0)
     if (aid) {
       newChat()                       // 先清空，這是新的一段
-      setCarried({ kind: "article", id: aid, title: sp.get("atitle") || "文章" })
+      setCarried({ kind: "article", id: aid, title: sp.get("atitle") || "應用" })
       setCarriedOpen(true); setCarriedBody(null)
       pages.getArticle(aid).then((a) => setCarriedBody(a?.markdown || "")).catch(() => setCarriedBody(""))
       sp.delete("article"); sp.delete("atitle"); setSp(sp, { replace: true })
@@ -209,11 +209,11 @@ export default function ChatPage() {
     await runStream(messages, msg)
   }
 
-  // 編輯/重生的護欄：由來→擋（先處理核心理解，護溯源）；會丟後面訊息→確認可取消。
+  // 編輯/重生的護欄：由來→擋（先處理理解，護溯源）；會丟後面訊息→確認可取消。
   function guardMutate(discardCount: number): boolean {
     if (referrers.current.length > 0) {
-      alert("這段對話是下列核心理解的『由來』，編輯/重新生成會改動它、斷開溯源。\n"
-        + "請先到「💡 核心理解」把它們退回/處理，再改這段：\n\n"
+      alert("這段對話是下列理解的『由來』，編輯/重新生成會改動它、斷開溯源。\n"
+        + "請先到「💡 理解」把它們退回/處理，再改這段：\n\n"
         + referrers.current.map((s) => "• " + s).join("\n"))
       return false
     }
@@ -410,7 +410,7 @@ export default function ChatPage() {
         {/* 副標只在還沒開始聊時顯示（聊起來就收，省上邊空間） */}
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            從你存下的 {rootCount} 條核心理解出發，有話直說、不順著你講好聽話。
+            從你存下的 {rootCount} 條理解出發，有話直說、不順著你講好聽話。
           </p>
         )}
       </div>
@@ -432,8 +432,8 @@ export default function ChatPage() {
               {carried.kind === "article" ? "📄" : "📚"} {carried.title}
               <span className="ml-2 truncate text-xs font-normal text-muted-foreground">
                 {carried.kind === "article"
-                  ? "AI 依你的核心理解生成，比核心理解軟"
-                  : "你收進的來源，外部證言——比核心理解軟"}
+                  ? "AI 依你的理解生成，比理解軟"
+                  : "你收進的來源，外部證言——比理解軟"}
               </span>
               <button onClick={(e) => { e.preventDefault(); setCarried(null) }}
                       className="ml-auto shrink-0 pl-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:underline">
@@ -517,7 +517,7 @@ export default function ChatPage() {
             )}
             {candidates.map((c, i) =>
               c.already ? (
-                <div key={i} className="text-xs text-muted-foreground">✓ 已在核心理解：{c.claim}</div>
+                <div key={i} className="text-xs text-muted-foreground">✓ 已在理解：{c.claim}</div>
               ) : candDone[i] ? (
                 <div key={i} className="rounded-lg border p-3 text-sm text-primary">{candDone[i]}</div>
               ) : (
@@ -577,7 +577,7 @@ export default function ChatPage() {
         </div>
         <div className="flex items-center gap-x-4 pt-1">
           <label className="flex items-center gap-1 text-xs text-muted-foreground"
-                 title="這輪暫時不參考你的核心理解與收藏、也不撒網，就當一般 AI 聊（隨時可取消）">
+                 title="這輪暫時不參考你的理解與收藏、也不撒網，就當一般 AI 聊（隨時可取消）">
             <input type="checkbox" checked={bare}
                    onChange={(e) => setBare(e.target.checked)} />
             🔌 不接知識庫
@@ -589,10 +589,10 @@ export default function ChatPage() {
               <div className="absolute bottom-full left-0 z-30 mb-1 w-40 overflow-hidden rounded-md border bg-popover py-1 shadow-md">
                 <button onClick={distill} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🧵 整理成重點</button>
                 <button onClick={saveConversation} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">💾 存下這段</button>
-                {/* spec 043：用這段對話冊封出的核心理解當骨幹生一篇文章。
+                {/* spec 043：用這段對話冊封出的理解當骨幹生一篇文章。
                     ⚠️ 需要這段已經被存下來（tempId）——autosave 每輪都會做，所以正常情況一定有。 */}
                 <button onClick={genArticleFromConv} disabled={busy}
-                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📝 用這段生一篇文章</button>
+                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🧩 用這段生一份應用</button>
                 {/* spec 047：檢視頁退場，它獨有的動作搬過來——刪頁面最容易的錯
                     就是順手弄丟一個只有那頁有的動作（SC-003：能力集合的差＝0）。 */}
                 <button onClick={retitleConv} disabled={busy || !tempId.current}

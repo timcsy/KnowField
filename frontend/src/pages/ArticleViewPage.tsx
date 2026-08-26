@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { pages } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 
-// 文章詳情＝獨立閱讀頁（對齊來源頁 /source）：頂部「← 文章」上一頁、右上「✍️ 生成新文章」。
+// 文章詳情＝獨立閱讀頁（對齊來源頁 /source）：頂部「← 文章」上一頁、右上「✍️ 生成新的」。
 // 文章＝輸出物、唯讀（原則 6）。
 export default function ArticleViewPage() {
   const { id } = useParams()
@@ -22,21 +22,21 @@ export default function ArticleViewPage() {
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-center gap-3">
-        <Link to="/articles" className="text-sm text-muted-foreground hover:underline">← 文章</Link>
+        <Link to="/articles" className="text-sm text-muted-foreground hover:underline">← 應用</Link>
         <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
           {art && art !== "missing" && (
             <button onClick={copy} className="hover:text-foreground">📋 複製 Markdown</button>
           )}
           {/* spec 041：讀完想接著想 → 帶著這篇開一輪對話（人明確按，非自動注入） */}
           {art && art !== "missing" && (
-            <Link to={`/?article=${art.id}&atitle=${encodeURIComponent(art.title || "文章")}`}
+            <Link to={`/?article=${art.id}&atitle=${encodeURIComponent(art.title || "應用")}`}
                   className="rounded-md border px-3 py-1.5 font-medium hover:bg-accent"
-                  title="讀完有想法？帶著這篇接著想——它會進這輪的脈絡，但不會蓋過你的核心理解">
+                  title="讀完有想法？帶著這篇接著想——它會進這輪的脈絡，但不會蓋過你的理解">
               💬 帶著這篇聊
             </Link>
           )}
           <Link to="/roots" className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:opacity-90">
-            ✍️ 生成新文章
+            ✍️ 生成新的
           </Link>
         </div>
       </div>
@@ -45,7 +45,7 @@ export default function ArticleViewPage() {
       {art === null ? (
         <p className="text-sm text-muted-foreground">載入中…</p>
       ) : art === "missing" ? (
-        <p className="text-sm text-muted-foreground">找不到這篇文章。<Link to="/articles" className="text-primary hover:underline">← 回文章</Link></p>
+        <p className="text-sm text-muted-foreground">找不到這份應用。<Link to="/articles" className="text-primary hover:underline">← 回應用</Link></p>
       ) : (
         // 文章正文＝閱讀內容→全寬無框（像讀文章，不裝卡片）
         <article>

@@ -76,7 +76,7 @@ function Card({ c, onResume, onChange }: {
           <span>{c.created_at.slice(0, 10)}</span>
           <span>{c.count} 則</span>
           {c.yield_count > 0 && (
-            <span>💡 聊出了 {c.yield_count} 條核心理解</span>
+            <span>💡 聊出了 {c.yield_count} 條理解</span>
           )}
         </div>
       </button>

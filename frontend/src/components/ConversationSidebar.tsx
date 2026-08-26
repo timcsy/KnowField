@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { pages, type ConvRow, type KnowledgeKind } from "@/lib/api"
-import { DomainNav } from "@/components/DomainNav"
+import { DomainEntry } from "@/components/DomainEntry"
 import { ROOT_NAME, useCurrentDomain, withDomain } from "@/lib/domain"
+import { liveRecent, readRecent, touchRecent, type RecentDomain } from "@/lib/recent"
 import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-// 側欄的四種葉節點（spec 052）。順序＝膜的流向：
-// 來源（原料）→ 對話（消化）→ 核心理解（沉澱地基）→ 文章（輸出）。
-// ⚠️ 這裡列的是**當前領域底下**的東西，不是全知識庫
-// ——「全部的核心理解」＝站到根領域再看這一格（使用者裁決：當前領域含子領域）。
+// 側欄的四種葉節點（spec 052/053）。順序＝**膜的流向**：
+// 來源（原料）→ 對話（消化）→ 理解（地基）→ **應用**（輸出）。
+// ⚠️ spec 053 把「文章」改名為「應用」：**「文章」是一種形式，「應用」是一種用途**
+// ——換成用途，出海口才容得下決策、計畫、清單，而不只是散文。
+//    ⓘ 本刀只換名字讓位置空出來，**沒有**真的多做幾種（YAGNI）。
+// ⚠️ 這裡列的是**當前領域底下**（含子孫）的東西，不是全知識庫
+// ——「全部的理解」＝站到根領域再看這一格。
 const KINDS: { kind: KnowledgeKind; label: string; to: string }[] = [
   { kind: "source", label: "📚 來源", to: "/sources" },
   { kind: "conversation", label: "💬 對話", to: "/conversations" },
-  { kind: "why_node", label: "💡 核心理解", to: "/roots" },
-  { kind: "article", label: "📝 文章", to: "/articles" },
+  { kind: "why_node", label: "💡 理解", to: "/roots" },
+  { kind: "article", label: "🧩 應用", to: "/articles" },
 ]
 
 // 單一側欄（各大 AI 手順）：Logo＋新對話＋導覽＋對話歷史，全在一欄。
@@ -33,8 +37,10 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const [me, setMe] = useState<{ user: string | null; auth_enabled: boolean }>({ user: null, auth_enabled: false })
   const { did, go } = useCurrentDomain()
   const [view, setView] = useState<Awaited<ReturnType<typeof pages.domainView>> | null>(null)
-  const load = () => Promise.all([pages.conversations(), pages.domainView(did)])
-    .then(([c, v]) => { setConvs(c.conversations); setView(v) })
+  const [allDomains, setAllDomains] = useState<{ id: number; name: string; path: { id: number; name: string }[] }[]>([])
+  const [recent, setRecent] = useState<RecentDomain[]>(() => readRecent())
+  const load = () => Promise.all([pages.conversations(), pages.domainView(did), pages.domains()])
+    .then(([c, v, d]) => { setConvs(c.conversations); setView(v); setAllDomains(d.domains) })
     .catch(() => {})
   useEffect(() => {
     load()
@@ -49,7 +55,14 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
     }
   }, [])
   // 換領域＝換視野。⚠️ did 進相依陣列，不然站到別的領域側欄不會變。
-  useEffect(() => { load() }, [did])
+  useEffect(() => { load(); setRecent(touchRecent(did)) }, [did])
+
+  // 最近的領域：⚠️ 過濾掉**已經不存在**的——列一個點了會壞的東西比不列更糟。
+  const liveDomains = liveRecent(recent, new Set(allDomains.map((d) => d.id)))
+    .map((r) => {
+      const d = allDomains.find((x) => x.id === r.id)!
+      return { id: r.id, label: d.path.map((p) => p.name).join(" / ") }
+    })
 
   const isActive = (to: string) =>
     to === "/conversations" ? pathname === "/" || pathname.startsWith("/conversations")
@@ -63,7 +76,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   async function dedupe() {
     const p = await pages.dedupePreview()
     if (p.n_extra === 0) { setMsg("沒有重複的對話。"); return }
-    if (!confirm(`發現 ${p.n_extra} 份重複（${p.n_groups} 組）。併掉多餘、重指 ${p.n_roots} 條核心理解的由來？`)) return
+    if (!confirm(`發現 ${p.n_extra} 份重複（${p.n_groups} 組）。併掉多餘、重指 ${p.n_roots} 條理解的由來？`)) return
     const r = await pages.dedupeApply()
     setMsg(`✅ 併掉 ${r.removed} 份、重指 ${r.repointed} 條由來。`); load()
   }
@@ -76,38 +89,23 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
       </div>
       <Button size="sm" onClick={goNew}>＋ 新對話{did !== null && "（在這裡）"}</Button>
 
-      {/* 麵包屑＝換地方 ＋「我現在會影響誰」 */}
-      <DomainNav onNavigate={onNavigate} />
+      {/* ── 五個入口（spec 053）：領域 · 來源 · 對話 · 理解 · 應用 ────────── */}
+      <nav className="flex flex-col gap-0.5">
+        <DomainEntry onNavigate={onNavigate} onChanged={load} />
+        {KINDS.map((k) => {
+          const n = (view?.items || []).filter((i) => i.kind === k.kind).length
+          return (
+            <Link key={k.kind} to={withDomain(k.to, did)} onClick={onNavigate}
+              className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+                isActive(k.to) && "bg-sidebar-accent font-medium")}>
+              <span className="min-w-0 flex-1 truncate">{k.label}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{n || ""}</span>
+            </Link>
+          )
+        })}
+      </nav>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
-        {/* 子領域：往下走 */}
-        {(view?.children.length ?? 0) > 0 && (
-          <nav className="flex flex-col gap-0.5">
-            {view!.children.map((c) => (
-              <button key={c.id} onClick={() => { go(c.id); onNavigate?.() }}
-                      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm hover:bg-sidebar-accent">
-                <span className="min-w-0 flex-1 truncate">📁 {c.name}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{c.count || ""}</span>
-              </button>
-            ))}
-          </nav>
-        )}
-
-        {/* 這個領域裡有什麼——四種葉節點 */}
-        <nav className="flex flex-col gap-0.5 border-t pt-2">
-          {KINDS.map((k) => {
-            const n = (view?.items || []).filter((i) => i.kind === k.kind).length
-            return (
-              <Link key={k.kind} to={withDomain(k.to, did)} onClick={onNavigate}
-                className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
-                  isActive(k.to) && "bg-sidebar-accent font-medium")}>
-                <span className="min-w-0 flex-1 truncate">{k.label}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{n || ""}</span>
-              </Link>
-            )
-          })}
-        </nav>
-
         {/* 通往外面＝場的邊界。⚠️ 寫「通往外面」不寫「糾纏」——後者看起來像有待辦要清，
             而這只是「從我站的地方看，這幾條通到別的領域」。 */}
         {(view?.outward.length ?? 0) > 0 && (
@@ -118,7 +116,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
             </h3>
             {view!.outward.slice(0, 6).map((o) => (
               <button key={`${o.kind}:${o.ref}`} onClick={() => { go(o.domain_id); onNavigate?.() }}
-                      title={`跳到它所在的領域`}
+                      title="跳到它所在的領域"
                       className="block w-full truncate rounded-lg px-3 py-1 text-left text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
                 {o.label}
               </button>
@@ -126,11 +124,25 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
           </section>
         )}
 
-        {/* 🕘 最近＝**時間軸**。⚠️ 位置和時間是兩個軸，側欄不能只給一個
-            ——不然「我昨天在聊什麼」就不見了。這一格刻意**不**依領域過濾。 */}
+        {/* ── 底部＝**時間軸**：最近的領域 ＋ 最近的對話 ───────────────────
+            ⚠️ 位置和時間是兩個軸，側欄不能只給一個——上面全是位置，這裡是時間。
+            這兩格刻意**不**依領域過濾（「我昨天在哪／在聊什麼」跟你現在站哪無關）。 */}
+        {liveDomains.length > 0 && (
+          <section className="border-t pt-2">
+            <h3 className="mb-0.5 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近的領域</h3>
+            {liveDomains.map((d) => (
+              <button key={d.id} onClick={() => { go(d.id); onNavigate?.() }}
+                      className={cn("block w-full truncate rounded-lg px-3 py-1 text-left text-xs hover:bg-sidebar-accent",
+                                    d.id === did ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                📁 {d.label}
+              </button>
+            ))}
+          </section>
+        )}
+
         <section className="border-t pt-2">
           <div className="mb-0.5 flex items-center justify-between px-2">
-            <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近</h3>
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近的對話</h3>
             {convs.length > 0 && (
               <button onClick={dedupe} className="text-[11px] text-muted-foreground hover:underline">🧹 清理重複</button>
             )}
@@ -202,7 +214,7 @@ function Row({ c, active, onPick, onChange }: {
       <button onClick={handlePick}
               onTouchStart={pressStart} onTouchEnd={pressCancel} onTouchMove={pressCancel}
               onContextMenu={(e) => { e.preventDefault(); setMenu(true) }}
-              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.yield_count > 0 ? `·聊出了 ${c.yield_count} 條核心理解` : ""}（點＝接著聊、長按＝選單）`}
+              title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.yield_count > 0 ? `·聊出了 ${c.yield_count} 條理解` : ""}（點＝接著聊、長按＝選單）`}
               className="min-w-0 flex-1 truncate text-left text-sm">
         {c.title || "（未命名對話）"}
       </button>
