@@ -5,7 +5,8 @@ export type Source = { n: number; url: string; title: string; kind: string }
 // ——所以 ref 是 number | string，不要在前端窄化成 number。
 export type KnowledgeKind = "conversation" | "why_node" | "article" | "source"
 export type KnowledgeRef = { kind: KnowledgeKind; ref: number | string }
-export type KnowledgeItem = KnowledgeRef & { label: string; domain_id: number | null }
+export type KnowledgeItem = KnowledgeRef & { label: string; domain_id: number | null
+                                             at?: string }   // spec 057：更新時間（排序用）
 export type Message = {
   role: "user" | "assistant"
   content: string

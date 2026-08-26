@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { pages, type KnowledgeItem, type KnowledgeKind, type KnowledgeRef } from "@/lib/api"
 import { keyOf, pickedRefs as pickRefs, inDomain as inDom, KIND_ORDER } from "@/lib/knowledge"
-import { useCurrentDomain } from "@/lib/domain"
+import { useCurrentDomain, withDomain } from "@/lib/domain"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -31,7 +31,9 @@ export default function DomainsPage() {
   // ⚠️ 從側欄點「領域」進來時，**接上你站的地方**——不然管理頁每次都從根開始，
   //    你得再找一次自己剛剛在哪。
   const { did, go } = useCurrentDomain()
-  const [sel, setSel] = useState<number | null>(did)
+  // ⚠️ **不要**另外存一份 `sel`：當前位置只有一個真相，就是 URL 裡的 `did`。
+  //    兩份真相的下場就是側欄進去了、清單沒進去（2026-08-26 實跑撞到）。
+  const sel = did
   const [name, setName] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -42,6 +44,11 @@ export default function DomainsPage() {
   const [attic, setAttic] = useState<Awaited<ReturnType<typeof pages.archived>> | null>(null)
   const [showAttic, setShowAttic] = useState(false)
   const [dropOn, setDropOn] = useState<number | null | "none">("none")
+  // 檔案總管的三件事（spec 057）
+  const [sort, setSort] = useState<{ by: "name" | "kind" | "at"; asc: boolean }>({ by: "at", asc: false })
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: "domain"; d: Domain }
+                                  | { x: number; y: number; kind: "item"; i: KnowledgeItem } | null>(null)
+  const anchor = useRef<string | null>(null)   // shift 連選的起點
   // 搬東西時若有糾纏，先問。⚠️ 糾纏不是我們建的，是**既有連結被樹拆散**。
   const [ask, setAsk] = useState<{ items: KnowledgeRef[]; to: number | null
                                    tangles: { label: string }[] } | null>(null)
@@ -78,7 +85,6 @@ export default function DomainsPage() {
     await pages.archiveDomain(d.id)
     // ⚠️ 站在被封存的領域上就要移走——不能站在一個不在活樹上的地方（FR-008）
     if (did === d.id) go(p.to, { replace: true })
-    if (sel === d.id) setSel(p.to)
     setMsg(what ? `封存了「${d.name}」——連同 ${what}` : `封存了「${d.name}」`)
     load()
   }
@@ -135,9 +141,33 @@ export default function DomainsPage() {
 
   const pickedRefs = (): KnowledgeRef[] => pickRefs(items, picked)
 
+  // ⚠️ 檔案總管的選取模型：**點一下＝開啟**，不是選取。
+  //    勾選框只在「已經有選取」或滑鼠移過去時出現——常駐的勾選框是整理模式的家具，
+  //    而你多數時候只是想看看（spec 057）。
   function toggle(i: KnowledgeItem) {
     const k = keyOf(i)
+    anchor.current = k
     setPicked((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n })
+  }
+
+  /** shift 連選：在**目前看到的順序**上取區間——不是在原始清冊上。 */
+  function rangeTo(i: KnowledgeItem, rows: KnowledgeItem[]) {
+    const k = keyOf(i)
+    const a = anchor.current
+    if (!a) { toggle(i); return }
+    const ks = rows.map(keyOf)
+    const s0 = ks.indexOf(a), s1 = ks.indexOf(k)
+    if (s0 < 0 || s1 < 0) { toggle(i); return }
+    const [lo, hi] = s0 < s1 ? [s0, s1] : [s1, s0]
+    setPicked(new Set([...picked, ...ks.slice(lo, hi + 1)]))
+  }
+
+  /** 點一下：對話 → 開啟；其餘 → 到它的頁。 */
+  function open(i: KnowledgeItem) {
+    if (i.kind === "conversation") nav(`/?resume=${i.ref}`)
+    else if (i.kind === "article") nav(`/articles/${i.ref}`)
+    else if (i.kind === "source") nav(`/source?u=${encodeURIComponent(String(i.ref))}`)
+    else nav(withDomain("/roots", sel))
   }
 
   // ── 拖放（Pointer Events，不是 HTML5 DnD）────────────────────────────
@@ -147,9 +177,12 @@ export default function DomainsPage() {
   // 拖的是**目前選取的那批**；拖一個沒被選取的，就當成只拖它自己。
   function beginDrag(e: React.PointerEvent, i: KnowledgeItem) {
     if (e.button !== 0 && e.pointerType === "mouse") return
+    // ⚠️ 別碰勾選框：它自己有 onChange，pointerdown 攔下來兩邊會互相抵消
+    if ((e.target as HTMLElement).tagName === "INPUT") return
     const key = keyOf(i)
     const batch = picked.has(key) ? picked : new Set([key])
-    if (batch !== picked) setPicked(batch)
+    // ⚠️ **選取只在真的拖起來時才動**——在 pointerdown 就 setPicked 的話，
+    //    它會跟同一個元素上的點擊／勾選打架（2026-08-26 實跑：勾選框完全沒反應）。
     const start = { x: e.clientX, y: e.clientY }
     let armed = false
 
@@ -161,7 +194,7 @@ export default function DomainsPage() {
     }
     const onMove = (ev: PointerEvent) => {
       if (!armed && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return
-      armed = true                       // 門檻：小於 6px 當成點擊，不當拖曳
+      if (!armed) { armed = true; if (batch !== picked) setPicked(batch) }   // 真的拖了才選取
       const t = targetAt(ev.clientX, ev.clientY)
       const next = t ? t.to : "none"
       // ⚠️ 只在**真的變了**才 setState——pointermove 一秒幾十次，
@@ -185,26 +218,13 @@ export default function DomainsPage() {
 
   // ⚠️ 這兩個是**函式**不是元件：定義在元件內部的 JSX 元件每次 render 都是新型別，
   // React 會把整棵子樹卸載重掛——拖曳時一秒幾十次 render，105 列就這樣卡死頁面。
-  const renderRow = (i: KnowledgeItem) => (
-    <label key={keyOf(i)} onPointerDown={(e) => beginDrag(e, i)}
-           className="flex cursor-grab select-none items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
-      <input type="checkbox" checked={picked.has(keyOf(i))} onChange={() => toggle(i)} />
-      <span className="shrink-0 text-xs text-muted-foreground">{KIND_LABEL[i.kind].slice(0, 2)}</span>
-      <span className="min-w-0 flex-1 truncate">{i.label}</span>
-      {i.kind === "conversation" && (
-        <button onClick={(e) => { e.preventDefault(); nav(`/?resume=${i.ref}`) }}
-                className="shrink-0 text-xs text-muted-foreground hover:underline">開啟</button>
-      )}
-    </label>
-  )
-
   const renderNode = (d: Domain, depth: number) => (
     <div key={d.id}>
       <div className={cn("group flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
                          sel === d.id && "bg-muted",
                          dropOn === d.id && "outline outline-2 outline-primary")}
            style={{ paddingLeft: 8 + depth * 16 }} {...dropProps(d.id)}>
-        <button onClick={() => setSel(sel === d.id ? null : d.id)} className="min-w-0 flex-1 truncate text-left text-sm">
+        <button onClick={() => go(sel === d.id ? null : d.id)} className="min-w-0 flex-1 truncate text-left text-sm">
           📁 {d.name}
           <span className="ml-2 text-xs text-muted-foreground">{inDomain(d.id).length || ""}</span>
         </button>
@@ -229,161 +249,211 @@ export default function DomainsPage() {
 
   const selected = (domains || []).find((d) => d.id === sel)
   const needle = q.trim().toLowerCase()
-  const shown = (list: KnowledgeItem[]) => list
-    .filter((i) => filter === "all" || i.kind === filter)
-    .filter((i) => !needle || i.label.toLowerCase().includes(needle))
-  const byKind = (list: KnowledgeItem[], k: KnowledgeKind) => list.filter((i) => i.kind === k)
+  const KIND_RANK: Record<KnowledgeKind, number> = { source: 0, conversation: 1, why_node: 2, article: 3 }
+  const shown = (list: KnowledgeItem[]) => {
+    const out = list
+      .filter((i) => filter === "all" || i.kind === filter)
+      .filter((i) => !needle || i.label.toLowerCase().includes(needle))
+    const dir = sort.asc ? 1 : -1
+    return [...out].sort((a, b) =>
+      sort.by === "name" ? dir * a.label.localeCompare(b.label, "zh-Hant")
+      : sort.by === "at" ? dir * ((a.at || "") < (b.at || "") ? -1 : (a.at || "") > (b.at || "") ? 1 : 0)
+      : dir * (KIND_RANK[a.kind] - KIND_RANK[b.kind] || a.label.localeCompare(b.label, "zh-Hant")))
+  }
+  /** 目前這一層看到的子資料夾（檔案總管：資料夾排在檔案前面）。 */
+  const folders = kids(sel).filter((d) => !needle || d.name.toLowerCase().includes(needle))
+  const rows = shown(inDomain(sel))
+  const path = selected ? selected.path : []
+
+  const folderRow = (d: Domain) => (
+    <div key={`d${d.id}`} {...dropProps(d.id)}
+         onClick={() => go(d.id)}
+         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
+         title="點一下進去；右鍵有更多"
+         className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
+                       dropOn === d.id && "outline outline-2 outline-primary")}>
+      <span />
+      <span className="min-w-0 truncate font-medium">📁 {d.name}</span>
+      <span className="text-xs text-muted-foreground">資料夾</span>
+      <span className="text-xs text-muted-foreground">
+        {inDomain(d.id).length ? `${inDomain(d.id).length} 件` : "空的"}
+      </span>
+    </div>
+  )
+
+  const itemRow = (i: KnowledgeItem) => {
+    const k = keyOf(i)
+    const on = picked.has(k)
+    return (
+      <div key={k} onPointerDown={(e) => beginDrag(e, i)}
+           onClick={(e) => {
+             if (e.metaKey || e.ctrlKey) toggle(i)
+             else if (e.shiftKey) rangeTo(i, rows)
+             else if (picked.size) toggle(i)     // 已在選取模式 → 點一下＝加選
+             else open(i)
+           }}
+           onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "item", i }) }}
+           className={cn("group grid cursor-pointer select-none grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
+                         on && "bg-muted")}>
+        {/* ⚠️ 勾選框不常駐：沒選任何東西時它只在 hover 出現——常駐＝整理模式的家具 */}
+        <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggle(i)}
+               className={cn("h-3.5 w-3.5", !on && !picked.size && "opacity-0 group-hover:opacity-100")} />
+        <span className="min-w-0 truncate">{KIND_LABEL[i.kind].slice(0, 2)} {i.label}</span>
+        <span className="text-xs text-muted-foreground">{KIND_LABEL[i.kind].slice(2).trim()}</span>
+        <span className="text-xs text-muted-foreground">{(i.at || "").slice(0, 10)}</span>
+      </div>
+    )
+  }
+
+  const SortHead = ({ by, children, cls }: { by: "name" | "kind" | "at"; children: React.ReactNode; cls?: string }) => (
+    <button onClick={() => setSort((s0) => ({ by, asc: s0.by === by ? !s0.asc : true }))}
+            className={cn("text-left text-xs text-muted-foreground hover:text-foreground", cls)}>
+      {children}{sort.by === by && (sort.asc ? " ▲" : " ▼")}
+    </button>
+  )
 
   return (
-    <div className="space-y-5 pb-8">
-      <div>
-        <h1 className="text-2xl font-bold">🗂 領域</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          管理知識庫的樹——新增、改名、搬動、封存；勾選右邊的知識，拖到左邊的領域上放開。
-          <br />
-          ⚠️ <b>封存不是刪除</b>：它連同底下的知識一起離開活的知識庫，<b>不會消失</b>，之後可以一起復原。
-        </p>
+    <div className="flex h-full min-h-0 flex-col" onClick={() => menu && setMenu(null)}>
+      {/* ── 工具列：上一層 · 麵包屑 · 新資料夾 · 搜尋 ───────────────── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+        <button onClick={() => go(path.length > 1 ? path[path.length - 2].id : null)}
+                disabled={sel === null} title="上一層"
+                className="rounded px-2 py-1 text-sm hover:bg-muted disabled:opacity-30">⬆</button>
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-sm">
+          <button onClick={() => go(null)}
+                  className={cn("rounded px-1.5 py-0.5 hover:bg-muted", sel === null && "font-semibold")}>
+            🗂 {ROOT_NAME}
+          </button>
+          {path.map((seg) => (
+            <span key={seg.id} className="flex items-center gap-0.5">
+              <span className="text-muted-foreground/50">/</span>
+              <button onClick={() => go(seg.id)}
+                      className={cn("max-w-[10rem] truncate rounded px-1.5 py-0.5 hover:bg-muted",
+                                    seg.id === sel && "font-semibold")}>{seg.name}</button>
+            </span>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) create() }}
+                 placeholder="新資料夾名稱…" className="h-8 w-40 text-sm" />
+          <Button size="sm" variant="secondary" onClick={create}>＋ 新資料夾</Button>
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="在這個領域裡找…"
+                 className="h-8 w-44 text-sm" />
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)}
-               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) create() }}
-               placeholder={sel ? "在選取的領域底下新增子領域…" : `在${ROOT_NAME}底下新增領域…`}
-               className="w-64 max-w-full" />
-        <Button size="sm" onClick={create}>＋ 新增</Button>
-        {sel && <button onClick={() => setSel(null)} className="text-xs text-muted-foreground hover:underline">回根領域</button>}
-      </div>
-
-      {msg && <div className="rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
+      {msg && <div className="shrink-0 bg-muted px-3 py-1.5 text-sm">{msg}</div>}
 
       {ask && (
-        <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/40 p-4 dark:bg-amber-950/20">
-          <p className="text-sm">
-            搬這 <b>{ask.items.length}</b> 件過去，會跟這 {ask.tangles.length} 個分開：
-          </p>
-          <ul className="ml-4 max-h-40 list-disc overflow-y-auto text-sm text-muted-foreground">
-            {ask.tangles.map((t, i) => <li key={i}>{t.label}</li>)}
+        <div className="shrink-0 space-y-2 border-b border-amber-300 bg-amber-50/60 px-3 py-2 dark:bg-amber-950/30">
+          <p className="text-sm">搬這 <b>{ask.items.length}</b> 件過去，會跟這 {ask.tangles.length} 個分開：</p>
+          <ul className="ml-4 max-h-24 list-disc overflow-y-auto text-sm text-muted-foreground">
+            {ask.tangles.map((t, n) => <li key={n}>{t.label}</li>)}
           </ul>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => doMove(ask.items, ask.to, true)}>連帶一起搬</Button>
-            <Button size="sm" variant="secondary" onClick={() => doMove(ask.items, ask.to, false)}>
-              留一條糾纏
-            </Button>
-            <button onClick={() => setAsk(null)} className="text-sm text-muted-foreground hover:underline">
-              取消
-            </button>
+            <Button size="sm" variant="secondary" onClick={() => doMove(ask.items, ask.to, false)}>留一條糾纏</Button>
+            <button onClick={() => setAsk(null)} className="text-sm text-muted-foreground hover:underline">取消</button>
+            <span className="text-xs text-muted-foreground">
+              ⚠️「連帶」只走<b className="text-foreground">一層</b>——它們自己連著的東西不會跟著搬。
+            </span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            ⚠️ 「連帶」只走<b className="text-foreground">一層</b>——它們自己連著的東西不會跟著搬（知識的連結是網不是樹）。
-          </p>
         </div>
       )}
 
-      <div className="grid items-start gap-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
-        {/* ── 左：領域樹（每個節點都是放置目標）──────────────────── */}
-        {/* 置頂不捲走：清冊有上百列，樹捲掉了就沒地方可以放。 */}
-        <div className="space-y-2 md:sticky md:top-4">
-          {domains === null ? (
-            <p className="text-sm text-muted-foreground">載入中…</p>
-          ) : (
-            <div className="rounded-xl border bg-card p-2">
-              {/* ⚠️ 根領域是樹的**頂**，不是樹外面的桶子 */}
-              <div className={cn("flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
-                                 sel === null && "bg-muted",
-                                 dropOn === null && "outline outline-2 outline-primary")}
-                   style={{ paddingLeft: 8 }} {...dropProps(null)}>
-                <button onClick={() => setSel(null)} className="text-left text-sm font-medium">
-                  🗂 {ROOT_NAME}
-                </button>
-                <span className="text-xs text-muted-foreground">{inDomain(null).length}</span>
-              </div>
-              {kids(null).map((d) => renderNode(d, 1))}
-            </div>
-          )}
-          {domains !== null && domains.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              還沒有子領域。上面打一個名字就能在根領域底下建第一個。
-            </p>
-          )}
-        </div>
-
-        {/* ── 右：待整理清冊 ──────────────────────────────────── */}
-        <div className="space-y-2 rounded-xl border bg-card p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold">
-              {selected ? [ROOT_NAME, ...selected.path.map((p) => p.name)].join(" / ") : ROOT_NAME}
-            </span>
-            <div className="ml-auto flex flex-wrap items-center gap-1">
-              {(["all", ...KIND_ORDER] as const).map((k) => (
-                <button key={k} onClick={() => setFilter(k as KnowledgeKind | "all")}
-                        className={cn("rounded px-2 py-0.5 text-xs",
-                                      filter === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
-                  {k === "all" ? "全部" : KIND_LABEL[k as KnowledgeKind]}
-                </button>
-              ))}
-            </div>
+      {/* ── 兩欄：左樹、右內容（都吃滿高度）───────────────────────── */}
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r p-2 md:block">
+          <div {...dropProps(null)}
+               onClick={() => go(null)}
+               className={cn("flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted",
+                             sel === null && "bg-muted font-medium",
+                             dropOn === null && "outline outline-2 outline-primary")}>
+            <span className="min-w-0 flex-1 truncate">🗂 {ROOT_NAME}</span>
+            <span className="text-xs text-muted-foreground">{items.length}</span>
           </div>
+          {kids(null).map((d) => renderNode(d, 1))}
+        </aside>
 
-          <div className="flex flex-wrap items-center gap-2 border-b pb-2">
-            <Button size="sm" variant="secondary"
-                    onClick={() => nav(selected ? `/?new=1&domain=${selected.id}` : "/?new=1")}>
-              ＋ 在這裡開新對話
-            </Button>
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="在這個領域裡找…"
-                   className="h-8 w-44 max-w-full text-sm" />
-            {/* 搜尋縮到一批之後，逐件勾就是「互動次數＝可行性」那條判準在打自己 */}
-            {shown(inDomain(sel)).length > 0 && (
-              <button onClick={() => setPicked(new Set(shown(inDomain(sel)).map(keyOf)))}
-                      className="text-xs text-muted-foreground hover:underline">
-                全選這 {shown(inDomain(sel)).length} 件
+        <section className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1.5">
+            {(["all", ...KIND_ORDER] as const).map((k) => (
+              <button key={k} onClick={() => setFilter(k as KnowledgeKind | "all")}
+                      className={cn("rounded px-2 py-0.5 text-xs",
+                                    filter === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+                {k === "all" ? "全部" : KIND_LABEL[k as KnowledgeKind]}
               </button>
-            )}
-            {kids(sel).length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                子領域：{kids(sel).map((k) => k.name).join("、")}
-              </span>
-            )}
+            ))}
+            <Button size="sm" variant="secondary" className="ml-auto h-7"
+                    onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}>＋ 在這裡開新對話</Button>
           </div>
 
-          {(() => {
-            const list = shown(inDomain(sel))
-            if (list.length === 0) {
-              return <p className="py-4 text-sm text-muted-foreground">
-                {needle ? "找不到符合的。" : "這個領域底下還沒有這類知識。"}
+          {/* 欄位標題（可排序） */}
+          <div className="grid shrink-0 grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 border-b px-2 py-1">
+            <span />
+            <SortHead by="name">名稱</SortHead>
+            <SortHead by="kind">種類</SortHead>
+            <SortHead by="at">更新</SortHead>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-1">
+            {folders.length === 0 && rows.length === 0 && (
+              <p className="p-4 text-sm text-muted-foreground">
+                {needle ? "找不到符合的。" : "這個領域是空的。"}
               </p>
-            }
-            // 每個領域都有自己的「子領域、來源、對話、理解、文章」——分段列
-            return KIND_ORDER.filter((k) => byKind(list, k).length > 0).map((k) => (
-              <section key={k} className="space-y-0.5">
-                <h3 className="px-2 pt-2 text-xs font-semibold text-muted-foreground">
-                  {KIND_LABEL[k]}（{byKind(list, k).length}）
-                </h3>
-                {byKind(list, k).map(renderRow)}
-              </section>
-            ))
-          })()}
+            )}
+            {folders.map(folderRow)}
+            {rows.map(itemRow)}
+          </div>
 
           {picked.size > 0 && (
-            <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t bg-card pt-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t px-3 py-2">
               <span className="text-sm">已選 <b>{picked.size}</b> 件</span>
-              <button onClick={() => setPicked(new Set())}
-                      className="text-xs text-muted-foreground hover:underline">清除</button>
+              <button onClick={() => setPicked(new Set())} className="text-xs text-muted-foreground hover:underline">清除</button>
+              <button onClick={() => setPicked(new Set(rows.map(keyOf)))}
+                      className="text-xs text-muted-foreground hover:underline">全選這 {rows.length} 件</button>
               <button onClick={archivePicked}
                       className="text-xs text-muted-foreground hover:underline hover:text-destructive">📦 封存</button>
-              <select value="" className="ml-auto rounded border bg-background px-2 py-1 text-sm"
+              <select value="" className="ml-auto h-8 rounded border bg-background px-2 text-sm"
                       onChange={(e) => { if (e.target.value !== "")
                         startMove(pickedRefs(), e.target.value === "0" ? null : Number(e.target.value)) }}>
                 <option value="">搬到…</option>
                 <option value="0">🗂 {ROOT_NAME}</option>
                 {(domains || []).filter((d) => d.id !== sel).map((d) => (
-                  <option key={d.id} value={d.id}>{d.path.map((p) => p.name).join(" / ")}</option>
+                  <option key={d.id} value={d.id}>{d.path.map((x) => x.name).join(" / ")}</option>
                 ))}
               </select>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
+      {/* 右鍵選單 */}
+      {menu && (
+        <div style={{ left: menu.x, top: menu.y }}
+             className="fixed z-50 w-44 rounded-lg border bg-popover p-1 shadow-lg">
+          {menu.kind === "domain" ? (
+            <>
+              <button onClick={() => { go(menu.d.id); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">開啟</button>
+              <button onClick={() => { rename(menu.d); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">✏️ 改名</button>
+              {menu.d.parent_id !== null && (
+                <button onClick={() => { moveDomain(menu.d.id, null); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">⤴ 移到最上層</button>
+              )}
+              <button onClick={() => { archiveDomain(menu.d); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm text-destructive hover:bg-accent">📦 封存</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { open(menu.i); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">開啟</button>
+              <button onClick={() => { toggle(menu.i); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">選取</button>
+              <button onClick={async () => { setMenu(null); await pages.archiveKnowledge([{ kind: menu.i.kind, ref: menu.i.ref }]); setMsg("封存了 1 件"); load() }}
+                      className="block w-full rounded px-2 py-1 text-left text-sm text-destructive hover:bg-accent">📦 封存</button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="shrink-0 border-t px-3 py-2">
       {/* 遺骸——封存過的東西。⚠️ 沒有這一格，「封存」在使用者眼裡就等於「刪除」 */}
       {((attic?.items.length ?? 0) + (attic?.domains.length ?? 0)) > 0 && (
         <section className="space-y-1 rounded-xl border border-dashed p-3">
@@ -435,11 +505,12 @@ export default function DomainsPage() {
         </section>
       )}
 
-      {sel === null && unfiled.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          既有的知識都在根領域——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
-        </p>
-      )}
+        {sel === null && unfiled.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            既有的知識都在根領域——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
+          </p>
+        )}
+      </div>
     </div>
   )
 }

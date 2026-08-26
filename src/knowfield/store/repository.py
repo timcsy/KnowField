@@ -709,28 +709,39 @@ class Repository:
                 "path": [] if did is None else self.domain_path(did)}
 
     def _inventory_rows(self) -> list[dict]:
-        """四種知識的扁平清冊（整理台與領域視野共用一份定義）。"""
+        """四種知識的扁平清冊（整理台與領域視野共用一份定義）。
+
+        `at`＝那件東西的時間（spec 057：檔案總管要有「更新時間」欄才排得了序）。
+        ⚠️ 四種的時間欄名字**不一樣**——對話用最後活動、來源用收進日、其餘用建立日。
+        假設它們同名的話，缺的那幾種會安靜地排在最後面。
+        """
         out = []
         for r in self.conn.execute(
-                f"SELECT id, title, domain_id FROM conversations"
-                f" WHERE {self._LIVE} ORDER BY id DESC"):
+                f"SELECT id, title, domain_id,"
+                f" COALESCE(NULLIF(last_activity_at,''), created_at, '') AS at"
+                f" FROM conversations WHERE {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "conversation", "ref": r["id"],
-                        "label": r["title"] or "未命名", "domain_id": r["domain_id"]})
+                        "label": r["title"] or "未命名", "domain_id": r["domain_id"],
+                        "at": r["at"] or ""})
         for r in self.conn.execute(
-                f"SELECT id, claim, domain_id FROM why_nodes"
+                f"SELECT id, claim, domain_id, COALESCE(created_at,'') AS at FROM why_nodes"
                 f" WHERE status='anointed' AND {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "why_node", "ref": r["id"],
-                        "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"]})
+                        "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"],
+                        "at": r["at"] or ""})
         for r in self.conn.execute(
-                f"SELECT id, topic, title, domain_id FROM articles"
+                f"SELECT id, topic, title, domain_id, COALESCE(created_at,'') AS at FROM articles"
                 f" WHERE {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "article", "ref": r["id"],
-                        "label": r["title"] or r["topic"] or "未命名", "domain_id": r["domain_id"]})
+                        "label": r["title"] or r["topic"] or "未命名",
+                        "domain_id": r["domain_id"], "at": r["at"] or ""})
         for r in self.conn.execute(
-                f"SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id"
+                f"SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id,"
+                f" MAX(COALESCE(ingested_at,'')) AS at"
                 f" FROM digest_entries WHERE {self._LIVE} GROUP BY url ORDER BY MAX(id) DESC"):
             out.append({"kind": "source", "ref": r["url"],
-                        "label": r["title"] or r["url"], "domain_id": r["domain_id"]})
+                        "label": r["title"] or r["url"], "domain_id": r["domain_id"],
+                        "at": r["at"] or ""})
         return out
 
     def place_new(self, kind: str, ref, current: int | None = None) -> int | None:

@@ -128,3 +128,33 @@ class TestChildCounts(unittest.TestCase):
         self._conv(self.gen); self._conv(self.flow)
         child = self.repo.domain_view(self.ai)["children"][0]
         self.assertEqual(child["count"], len(self.repo.domain_view(child["id"])["items"]))
+
+
+class TestInventoryDates(unittest.TestCase):
+    """spec 057：清冊要帶時間，檔案總管才排得了序。
+
+    ⚠️ 四種的時間欄名字**不一樣**——假設同名的話，缺的那幾種會**安靜地**排在最後。
+    """
+
+    def setUp(self):
+        self.repo = Repository(temp_db())
+
+    def tearDown(self):
+        self.repo.close()
+
+    def test_every_kind_carries_a_date(self):
+        self.repo.autosave_temporary(None, _M, "2026-08-20T00:00:00Z")
+        self.repo.conn.execute(
+            "INSERT INTO why_nodes (claim, kind, status, created_at)"
+            " VALUES ('理解','推論','anointed','2026-08-21T00:00:00Z')")
+        self.repo.save_article("t", "標題", "內文", created_at="2026-08-22T00:00:00Z")
+        d = self.repo.conn.execute(
+            "INSERT INTO digests (date) VALUES ('__種子__') RETURNING id").fetchone()
+        self.repo.conn.execute(
+            "INSERT INTO digest_entries (digest_id, rank, title, url, ingested_at)"
+            " VALUES (%s,1,'某來源','https://a/b','2026-08-23')", (int(d["id"]),))
+        self.repo.conn.commit()
+        rows = self.repo._inventory_rows()
+        self.assertEqual(len(rows), 4)
+        blank = [r["kind"] for r in rows if not r.get("at")]
+        self.assertEqual(blank, [], f"這幾種沒有時間，排序時會安靜地沉底：{blank}")

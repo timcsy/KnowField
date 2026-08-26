@@ -7,7 +7,9 @@ export default function Layout() {
   const { pathname } = useLocation()
   const [drawer, setDrawer] = useState(false)
   useEffect(() => installMathCopy(), [])   // 選取數學→Ctrl/⌘+C 得 LaTeX，全站生效
-  const isChat = pathname === "/"
+  // 滿版頁：自己管捲動與版面。⚠️ `max-w-3xl` 的置中容器對「兩欄檔案總管」是致命的
+  //    ——樹被擠成一小格、清單只剩半個螢幕（2026-08-26 使用者指出）。
+  const isFull = pathname === "/" || pathname.startsWith("/domains")
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground md:flex-row">
@@ -32,7 +34,7 @@ export default function Layout() {
       )}
 
       <main className="min-h-0 flex-1 overflow-hidden">
-        {isChat ? (
+        {isFull ? (
           <Outlet />
         ) : (
           <div className="h-full overflow-y-auto">
