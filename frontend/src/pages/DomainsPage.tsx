@@ -4,6 +4,7 @@ import { pages, type KnowledgeItem, type KnowledgeKind, type KnowledgeRef } from
 import { keyOf, pickedRefs as pickRefs, inDomain as inDom, KIND_ORDER } from "@/lib/knowledge"
 import { useCurrentDomain, withDomain } from "@/lib/domain"
 import { armLongPress } from "@/lib/longpress"
+import { isTap } from "@/lib/tap"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -50,6 +51,8 @@ export default function DomainsPage() {
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "domain"; d: Domain }
                                   | { x: number; y: number; kind: "item"; i: KnowledgeItem } | null>(null)
   const anchor = useRef<string | null>(null)   // shift 連選的起點
+  // ⚠️ 觸控上捲動與點選開頭一模一樣 ⇒ 記下按下的位置，放開時才判斷得出來
+  const pressAt = useRef<{ x: number; y: number } | null>(null)
   // 手機沒有 hover 也沒有右鍵（spec 058）⇒ 明確的「選取模式」＋ 樹抽屜
   const [selecting, setSelecting] = useState(false)
   const [tree, setTree] = useState(false)
@@ -202,7 +205,12 @@ export default function DomainsPage() {
   //    Pointer Events 滑鼠與觸控同一條路，而且合成事件驅得動 ⇒ 驗得到。
   // 拖的是**目前選取的那批**；拖一個沒被選取的，就當成只拖它自己。
   function beginDrag(e: React.PointerEvent, i: KnowledgeItem) {
-    if (e.button !== 0 && e.pointerType === "mouse") return
+    // ⚠️ **觸控不啟用拖曳。** 捲動與拖曳共用 pointerdown：捲一下 `armed` 就變 true，
+    //    手指放開時若剛好停在某個資料夾列上，會**真的把知識搬過去**——而資料夾就排在
+    //    清單最上面。滑一下就悄悄搬走東西，且畫面上只閃過一句「搬好 1 件」。
+    //    手機要搬東西走長按選單的「搬到…」（spec 058 已把手機拖放列為 out of scope）。
+    if (e.pointerType !== "mouse") return
+    if (e.button !== 0) return
     // ⚠️ 別碰勾選框：它自己有 onChange，pointerdown 攔下來兩邊會互相抵消
     if ((e.target as HTMLElement).tagName === "INPUT") return
     const key = keyOf(i)
@@ -317,8 +325,9 @@ export default function DomainsPage() {
 
   const folderRow = (d: Domain) => (
     <div key={`d${d.id}`} {...dropProps(d.id)}
-         onClick={() => go(d.id)}
-         onPointerDown={(e) => pressMenu(e, (x, y) => ({ x, y, kind: "domain", d }))}
+         onClick={(e) => { if (isTap(pressAt.current, { x: e.clientX, y: e.clientY })) go(d.id) }}
+         onPointerDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }
+                                 pressMenu(e, (x, y) => ({ x, y, kind: "domain", d })) }}
          onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
          title="點一下進去；右鍵有更多"
          className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
@@ -336,8 +345,11 @@ export default function DomainsPage() {
     const k = keyOf(i)
     const on = picked.has(k)
     return (
-      <div key={k} onPointerDown={(e) => { beginDrag(e, i); pressMenu(e, (x, y) => ({ x, y, kind: "item", i })) }}
+      <div key={k} onPointerDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }
+                                          beginDrag(e, i); pressMenu(e, (x, y) => ({ x, y, kind: "item", i })) }}
            onClick={(e) => {
+             // ⚠️ 滑動不是點選——捲清單時瀏覽器不保證會抑制 click
+             if (!isTap(pressAt.current, { x: e.clientX, y: e.clientY })) return
              if (e.metaKey || e.ctrlKey) toggle(i)
              else if (e.shiftKey) rangeTo(i, rows)
              else if (picked.size || selecting) toggle(i)   // 選取模式 → 點一下＝加選
@@ -553,7 +565,23 @@ export default function DomainsPage() {
           ) : (
             <>
               <button onClick={() => { open(menu.i); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">開啟</button>
-              <button onClick={() => { toggle(menu.i); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">選取</button>
+              <button onClick={() => { toggle(menu.i); setSelecting(true); setMenu(null) }} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-accent">選取</button>
+              {/* ⚠️ 手機沒有拖放（捲動會誤觸），所以「搬到…」必須在這裡，否則手機上搬不動東西 */}
+              <div className="px-2 py-1">
+                <select value="" aria-label="搬到" className="w-full rounded border bg-background px-1 py-0.5 text-sm"
+                        onChange={(e) => {
+                          if (e.target.value === "") return
+                          const to = e.target.value === "0" ? null : Number(e.target.value)
+                          const it = menu.i; setMenu(null)
+                          startMove([{ kind: it.kind, ref: it.ref }], to)
+                        }}>
+                  <option value="">搬到…</option>
+                  <option value="0">🗂 {ROOT_NAME}</option>
+                  {(domains || []).filter((d) => d.id !== sel).map((d) => (
+                    <option key={d.id} value={d.id}>{d.path.map((x) => x.name).join(" / ")}</option>
+                  ))}
+                </select>
+              </div>
               <button onClick={async () => { setMenu(null); await pages.archiveKnowledge([{ kind: menu.i.kind, ref: menu.i.ref }]); setMsg("封存了 1 件"); load() }}
                       className="block w-full rounded px-2 py-1 text-left text-sm text-destructive hover:bg-accent">📦 封存</button>
             </>
