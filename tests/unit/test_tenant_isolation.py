@@ -89,6 +89,10 @@ class TestEveryQueryFilters(unittest.TestCase):
     SOURCES = (SRC, ROOT / "src/knowfield/web/app.py")
     # 刻意豁免要寫成 `# owner-exempt: 理由`——把「我忘了」變成「我宣告了」
     EXEMPT = re.compile(r"#\s*owner-exempt:")
+    # ⚠️ spec 067 起 owner 與 persona **共用同一個述詞**（`_own()`／`_OWN`）
+    #    ⇒ 認得它就同時保住了兩者。這正是把兩個過濾收成一份寫法的報酬：
+    #    隱私上線時**不需要再改一次那 88 個查詢點**。
+    HAS_PREDICATE = re.compile(r"_OWN\b|_own\(|owner_id")
 
     def test_reads_and_writes_carry_the_owner_predicate(self):
         pat = re.compile(r"\b(?:FROM|UPDATE|INTO)\s+(" + "|".join(OWNED_TABLES) + r")\b")
@@ -99,7 +103,7 @@ class TestEveryQueryFilters(unittest.TestCase):
                 if not pat.search(line):
                     continue
                 window = "\n".join(lines[max(0, i - 3):i + 7])
-                if "_OWN" in window or "owner_id" in window or self.EXEMPT.search(window):
+                if self.HAS_PREDICATE.search(window) or self.EXEMPT.search(window):
                     continue
                 bad.append(f"{f.name}:{i + 1}: {line.strip()[:90]}")
         self.assertEqual(bad, [], "這些查詢沒有帶 owner 條件：\n" + "\n".join(bad))
@@ -117,7 +121,7 @@ class TestEveryQueryFilters(unittest.TestCase):
             if not re.search(r"\b(?:FROM|UPDATE|INTO)\s+\{", line):
                 continue
             window = "\n".join(lines[max(0, i - 3):i + 7])
-            if "_OWN" in window or self.EXEMPT.search(window):
+            if self.HAS_PREDICATE.search(window) or self.EXEMPT.search(window):
                 continue
             bad.append(f"{self.SRC.name}:{i + 1}: {line.strip()[:90]}")
         self.assertEqual(bad, [], "這些動態表名的查詢沒有帶 owner 條件：\n" + "\n".join(bad))

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
 import re
 from pathlib import Path
@@ -119,9 +120,16 @@ def _pump(gen):
         return full, "connection"
 
 
+#: spec 067：這個請求是在哪個身分底下。⚠️ 用 contextvar 而不是改 `repo_factory` 的簽章
+#: ——後者要動幾十個呼叫點，而**漏掉一個就是跨身分外洩，且不會報錯**。
+_CURRENT_PERSONA: "contextvars.ContextVar[int | None]" = contextvars.ContextVar(
+    "kf_persona", default=None)
+
+
 def _default_repo_factory(config: Config) -> Repository:
     from ..cli.fetchers import DEFAULT_SOURCES
-    repo = Repository(config.database_url or None)   # spec 034：PG DSN（env）
+    repo = Repository(config.database_url or None,   # spec 034：PG DSN（env）
+                      persona=_CURRENT_PERSONA.get())
     if not repo.list_sources():
         for s in DEFAULT_SOURCES:
             repo.upsert_source(s)
@@ -1111,6 +1119,52 @@ def create_app() -> FastAPI:
     # 領域＝節點、**主題 Topic ＝從根到節點的路徑**。⚠️ 路徑由 parent_id 導出、不另存字串。
     # ⚠️ 這一刀**完全不碰 grounding**：撒網仍看全場。樹是**導航**，不是檢索權重
     #（原則 5：權重由人冊封，不由位置給）。有測試釘住脈絡逐字不變。
+    @app.middleware("http")
+    async def _persona_ctx(request: Request, call_next):
+        """spec 067：把 cookie 裡的身分放進 contextvar，供 `repo_factory` 取用。
+
+        ⚠️ **不驗證那個 id 屬不屬於你**——不需要：`_own()` 是
+        `owner=你 AND (persona IS NULL OR persona=那個)`，別人的 persona id
+        在你的 owner 底下一列都對不上 ⇒ 最壞情況是**只看到共用層**，不是看到別人的東西。
+        """
+        raw = request.cookies.get("kf_persona") or ""
+        _CURRENT_PERSONA.set(int(raw) if raw.isdigit() else None)
+        return await call_next(request)
+
+    @app.get("/api/personas")
+    async def api_personas():
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            out = repo.list_personas()
+        finally:
+            repo.close()
+        return _JSON({"personas": out, "current": _CURRENT_PERSONA.get()})
+
+    @app.post("/api/personas")
+    async def api_personas_create(request: Request):
+        b = await request.json()
+        name = str(b.get("name") or "").strip()
+        if not name:
+            return _JSON({"error": "身分要有名字。"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            pid = repo.create_persona(name, str(b.get("color") or "")[:16])
+        finally:
+            repo.close()
+        return _JSON({"id": pid, "name": name})
+
+    @app.post("/api/personas/switch")
+    async def api_personas_switch(request: Request):
+        """切換身分。⚠️ 只寫 cookie——切換本身不動任何資料。"""
+        b = await request.json()
+        pid = b.get("id")
+        r = _JSON({"current": int(pid) if pid else None})
+        if pid:
+            r.set_cookie("kf_persona", str(int(pid)), httponly=False, samesite="lax", path="/")
+        else:
+            r.delete_cookie("kf_persona", path="/")
+        return r
+
     @app.get("/api/search")
     async def api_search(request: Request):
         """spec 066：全域搜尋。⚠️ 結果**不摻**「你可能也想看」——那是逛的工作（階段 64）。"""

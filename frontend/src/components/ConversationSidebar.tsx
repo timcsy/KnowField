@@ -8,6 +8,7 @@ import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { PersonaSwitcher, usePersonaColor } from "@/components/PersonaSwitcher"
 
 // 側欄的四種葉節點（spec 052/053）。順序＝**膜的流向**：
 // 來源（原料）→ 對話（消化）→ 理解（地基）→ **應用**（輸出）。
@@ -39,6 +40,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   const [view, setView] = useState<Awaited<ReturnType<typeof pages.domainView>> | null>(null)
   const [allDomains, setAllDomains] = useState<{ id: number; name: string; path: { id: number; name: string }[] }[]>([])
   const [recent, setRecent] = useState<RecentDomain[]>(() => readRecent())
+  const personaColor = usePersonaColor()
   const load = () => Promise.all([pages.conversations(), pages.domainView(did), pages.domains()])
     .then(([c, v, d]) => { setConvs(c.conversations); setView(v); setAllDomains(d.domains) })
     .catch(() => {})
@@ -82,12 +84,18 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 p-2">
+    // ⚠️ spec 067：整條側欄跟著身分換色。文字標籤太弱——**切錯身分而不自知不會報錯**，
+    //    而顏色是唯一你不看也會注意到的訊號。
+    <div className="flex h-full flex-col gap-2 border-l-4 p-2"
+         style={{ borderLeftColor: personaColor || "transparent" }}>
       <div className="flex items-center justify-between px-1">
         <Link to="/" onClick={onNavigate} className="py-1 text-lg font-bold">🧠 KnowField</Link>
         {onNavigate && <button onClick={onNavigate} aria-label="關閉" className="px-1 text-muted-foreground">✕</button>}
       </div>
-      {/* ⚠️ 導航列在「＋新對話」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
+      {/* spec 067：身分在**最上面**，導航列之上。同一條理由的更硬版本——
+          領域放錯還能搬回來；身分放錯是**私人的東西寫進了工作的場**，而且不會報錯。 */}
+      <PersonaSwitcher />
+      {/* ⚠️ 導航列在「＋新互動」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
       <DomainNav onNavigate={onNavigate} />
 
       <Button size="sm" onClick={goNew}>＋ 新互動{did !== null && "（在這裡）"}</Button>

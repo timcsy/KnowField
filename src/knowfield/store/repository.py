@@ -52,14 +52,19 @@ class Repository:
     卻沒帶 `_OWN` 的查詢都讓測試變紅（刻意的例外要寫 `# owner-exempt: 理由`）。
     """
 
-    def __init__(self, dsn: str | None = None, owner: int = DEFAULT_OWNER) -> None:
+    def __init__(self, dsn: str | None = None, owner: int = DEFAULT_OWNER,
+                 persona: int | None = None) -> None:
         from . import db
         dsn = dsn or os.environ.get("KNOWFIELD_DATABASE_URL") or "knowfield.db"
         self.conn = db.connect(dsn)
-        # ⚠️ 強制轉 int：`_OWN` 是直接嵌進 SQL 的（跟 `_LIVE` 同一種述詞常數），
-        #    owner 不是使用者輸入，但這一行讓它**不可能**是。
+        # ⚠️ 強制轉 int：述詞是直接嵌進 SQL 的（跟 `_LIVE` 同一種常數），
+        #    owner／persona 不是使用者輸入，但這兩行讓它們**不可能**是。
         self.owner = int(owner)
-        self._OWN = f"owner_id={self.owner}"
+        self.persona = int(persona) if persona else None
+        self._OWN = self._own()
+        # 寫入時填的身分：`NULL` ＝ 共用。⚠️ 預設歸**當前身分**（同「出生就歸位」：
+        # 不問你，從脈絡決定）——問使用者「這要放哪個身分」等於每次寫入都收一次稅。
+        self._P = "NULL" if self.persona is None else str(self.persona)
         init_db(self.conn)
 
     def close(self) -> None:
@@ -184,8 +189,8 @@ class Repository:
             fig_kind = e.article.figure.kind if (e.article and e.article.figure) else ""
             self.conn.execute(
                 "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
-                " article_body, article_headline, figure_url, figure_kind, source_id, owner_id)"
-                f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{self.owner})",
+                f" article_body, article_headline, figure_url, figure_kind, source_id, owner_id, persona_id)"
+                f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{self.owner},{self._P})",
                 (digest_id, e.rank, e.item.title, e.item.url, e.matched_topic,
                  body, headline, fig_url, fig_kind, e.item.source_id or ""),
             )
@@ -203,7 +208,7 @@ class Repository:
             return []
         ids = [r["id"] for r in rows]
         placeholders = ",".join(["%s"] * len(ids))
-        q = (f"SELECT title FROM digest_entries WHERE owner_id={self.owner} AND digest_id IN ({placeholders})"
+        q = (f"SELECT title FROM digest_entries WHERE {self._OWN} AND digest_id IN ({placeholders})"
              " ORDER BY id")
         return [r["title"] for r in self.conn.execute(q, ids).fetchall() if r["title"]]
 
@@ -218,7 +223,7 @@ class Repository:
         rows = self.conn.execute(
             "SELECT id, rank, title, url, matched_topic, article_body, article_headline,"
             " figure_url, figure_kind, source_id FROM digest_entries"
-            f" WHERE owner_id={self.owner} AND digest_id=%s ORDER BY rank",
+            f" WHERE {self._OWN} AND digest_id=%s ORDER BY rank",
             (row["id"],),
         ).fetchall()
         entries: list[DigestEntry] = []
@@ -245,7 +250,7 @@ class Repository:
             return None
         entry = self.conn.execute(
             "SELECT title, url, matched_topic FROM digest_entries"
-            f" WHERE owner_id={self.owner} AND digest_id=%s AND rank=%s", (row["mid"], rank)
+            f" WHERE {self._OWN} AND digest_id=%s AND rank=%s", (row["mid"], rank)
         ).fetchone()
         if entry is None:
             return None
@@ -257,7 +262,7 @@ class Repository:
         回 (headline_or_title, body, url)；headline 優先（溯源）；不存在→None。純讀，不寫庫。"""
         r = self.conn.execute(
             "SELECT title, article_headline, article_body, url FROM digest_entries"
-            f" WHERE owner_id={self.owner} AND id=%s", (entry_id,)).fetchone()
+            f" WHERE {self._OWN} AND id=%s", (entry_id,)).fetchone()
         if r is None:
             return None
         return (r["article_headline"] or r["title"], r["article_body"] or "", r["url"])
@@ -272,7 +277,7 @@ class Repository:
             f" FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
             # ⚠️ spec 064：**遺骸不進語料**。這一行原本不在，於是封存過的來源
             #    仍在影響每一個回答——而清單頁是對的，所以完全看不出來。
-            f" WHERE de.owner_id={self.owner} AND {self._live('de')}"
+            f" WHERE {self._own('de')} AND {self._live('de')}"
         )
         if today:
             # 最近一份真實每日匯整（種子容器不算「今天」，spec 006 R2）
@@ -303,7 +308,7 @@ class Repository:
         out: list[CorpusEntry] = []
         for r in self.conn.execute(
                 f"SELECT id, claim, evidence_urls, ladder FROM why_nodes"
-                f" WHERE owner_id={self.owner} AND status='anointed' AND {self._LIVE}"    # spec 055：遺骸不餵給聊天／RAG
+                f" WHERE {self._OWN} AND status='anointed' AND {self._LIVE}"    # spec 055：遺骸不餵給聊天／RAG
         ).fetchall():
             urls = _json.loads(r["evidence_urls"] or "[]")
             claim = r["claim"] or ""
@@ -315,6 +320,32 @@ class Repository:
                 url=(urls[0] if urls else ""), headline="", body=body,
                 digest_date="", source_class="root"))
         return out
+
+    # ── persona（spec 067）：隱私的**硬**隔離 ─────────────────────────
+    #
+    # 過濾不在這裡——它在 `_own()`，跟 owner **共用同一個述詞**。
+    # ⚠️ 那是刻意的：88 個查詢點因此自動涵蓋 persona，
+    #    **隱私上線不需要再改一次那 88 個地方**（而「再改一次」正是會漏的那一次）。
+    def create_persona(self, name: str, color: str = "") -> int:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        wid = self._insert_id(
+            f"INSERT INTO personas (owner_id, name, color, created_at)"
+            f" VALUES ({self.owner},%s,%s,%s)", (name.strip()[:40], color, now))
+        self.conn.commit()
+        return wid
+
+    def list_personas(self) -> list[dict]:
+        # owner-exempt: personas 表沒有 persona_id（身分不隸屬於身分），只依 owner 分
+        return [dict(r) for r in self.conn.execute(
+            f"SELECT id, name, color FROM personas WHERE owner_id={self.owner} ORDER BY id")]
+
+    def rename_persona(self, pid: int, name: str) -> None:
+        # owner-exempt: 同上
+        self.conn.execute(
+            f"UPDATE personas SET name=%s WHERE owner_id={self.owner} AND id=%s",
+            (name.strip()[:40], int(pid)))
+        self.conn.commit()
 
     # ── 全域搜尋（spec 066）──────────────────────────────────────────
     #
@@ -376,7 +407,7 @@ class Repository:
         target = canonical_url(url)
         for r in self.conn.execute(
             "SELECT de.title, de.url FROM digest_entries de JOIN digests d"
-            f" ON de.digest_id=d.id WHERE de.owner_id={self.owner} AND d.date=%s", (SEEDS_DATE,)
+            f" ON de.digest_id=d.id WHERE {self._own('de')} AND d.date=%s", (SEEDS_DATE,)
         ).fetchall():
             if canonical_url(r["url"]) == target:
                 return r["title"]
@@ -389,13 +420,13 @@ class Repository:
         fig_url = article.figure.url if article.figure else ""
         fig_kind = article.figure.kind if article.figure else ""
         rank = self.conn.execute(
-            f"SELECT COALESCE(MAX(rank),0)+1 AS r FROM digest_entries WHERE owner_id={self.owner} AND digest_id=%s",
+            f"SELECT COALESCE(MAX(rank),0)+1 AS r FROM digest_entries WHERE {self._OWN} AND digest_id=%s",
             (digest_id,)).fetchone()["r"]
         eid = self._insert_id(
             "INSERT INTO digest_entries (digest_id, rank, title, url, matched_topic,"
             " article_body, article_headline, figure_url, figure_kind, source_class,"
-            " note, ingested_at, owner_id)"
-            f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{self.owner})",
+            f" note, ingested_at, owner_id, persona_id)"
+            f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{self.owner},{self._P})",
             (digest_id, rank, item.title, item.url, "", article.body,
              article.headline, fig_url, fig_kind, source_class, note, ingested_at))
         self.conn.commit()
@@ -419,7 +450,7 @@ class Repository:
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            f" WHERE de.owner_id={self.owner} AND d.date=%s AND {self._live('de')}"    # spec 055/064：遺骸不進語料
+            f" WHERE {self._own('de')} AND d.date=%s AND {self._live('de')}"    # spec 055/064：遺骸不進語料
             " ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
         return [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
@@ -435,11 +466,11 @@ class Repository:
         if sid is None:
             return False
         row = self.conn.execute(
-            f"SELECT id FROM digest_entries WHERE owner_id={self.owner} AND id=%s AND digest_id=%s",
+            f"SELECT id FROM digest_entries WHERE {self._OWN} AND id=%s AND digest_id=%s",
             (entry_id, sid)).fetchone()
         if row is None:
             return False
-        self.conn.execute(f"DELETE FROM digest_entries WHERE owner_id={self.owner} AND id=%s", (entry_id,))
+        self.conn.execute(f"DELETE FROM digest_entries WHERE {self._OWN} AND id=%s", (entry_id,))
         self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (entry_id,))
         self.conn.commit()
         return True
@@ -453,7 +484,7 @@ class Repository:
             " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
             " MIN(de.note) AS note, MIN(de.ingested_at) AS ingested_at"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            f" WHERE de.owner_id={self.owner} AND d.date=%s AND COALESCE(de.archived_at,'')=''"
+            f" WHERE {self._own('de')} AND d.date=%s AND COALESCE(de.archived_at,'')=''"
             " GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
         return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
                  "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"],
@@ -466,7 +497,7 @@ class Repository:
         if sid is None:
             return 0
         cur = self.conn.execute(
-            f"UPDATE digest_entries SET note=%s, ingested_at=%s WHERE owner_id={self.owner} AND digest_id=%s AND url=%s",
+            f"UPDATE digest_entries SET note=%s, ingested_at=%s WHERE {self._OWN} AND digest_id=%s AND url=%s",
             (note, ingested_at, sid, url))
         self.conn.commit()
         return cur.rowcount
@@ -476,7 +507,7 @@ class Repository:
         from ..config import SEEDS_DATE
         r = self.conn.execute(
             "SELECT de.note, de.ingested_at FROM digest_entries de"
-            f" JOIN digests d ON de.digest_id=d.id WHERE de.owner_id={self.owner} AND d.date=%s AND de.url=%s LIMIT 1",
+            f" JOIN digests d ON de.digest_id=d.id WHERE {self._own('de')} AND d.date=%s AND de.url=%s LIMIT 1",
             (SEEDS_DATE, url)).fetchone()
         return {"note": (r["note"] if r else "") or "", "ingested_at": (r["ingested_at"] if r else "") or ""}
 
@@ -485,7 +516,7 @@ class Repository:
         from ..config import SEEDS_DATE
         rows = self.conn.execute(
             "SELECT de.article_body AS body FROM digest_entries de"
-            f" JOIN digests d ON de.digest_id=d.id WHERE de.owner_id={self.owner} AND d.date=%s AND de.url=%s ORDER BY de.id ASC",
+            f" JOIN digests d ON de.digest_id=d.id WHERE {self._own('de')} AND d.date=%s AND de.url=%s ORDER BY de.id ASC",
             (SEEDS_DATE, url)).fetchall()
         return [r["body"] or "" for r in rows]
 
@@ -493,7 +524,7 @@ class Repository:
         from ..config import SEEDS_DATE
         r = self.conn.execute(
             "SELECT de.title FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            f" WHERE de.owner_id={self.owner} AND d.date=%s AND de.url=%s LIMIT 1", (SEEDS_DATE, url)).fetchone()
+            f" WHERE {self._own('de')} AND d.date=%s AND de.url=%s LIMIT 1", (SEEDS_DATE, url)).fetchone()
         return (r["title"] if r else "") or url
 
     def delete_source(self, url: str, now: str = "") -> int:
@@ -508,10 +539,10 @@ class Repository:
         if sid is None:
             return 0
         ids = [r["id"] for r in self.conn.execute(
-            f"SELECT id FROM digest_entries WHERE owner_id={self.owner} AND digest_id=%s AND url=%s", (sid, url)).fetchall()]
+            f"SELECT id FROM digest_entries WHERE {self._OWN} AND digest_id=%s AND url=%s", (sid, url)).fetchall()]
         for eid in ids:
             self.conn.execute(
-                f"UPDATE digest_entries SET archived_at=%s WHERE owner_id={self.owner} AND id=%s", (now, eid))
+                f"UPDATE digest_entries SET archived_at=%s WHERE {self._OWN} AND id=%s", (now, eid))
         self.conn.commit()
         return len(ids)
 
@@ -521,7 +552,7 @@ class Repository:
         if sid is None:
             return 0
         cur = self.conn.execute(
-            f"UPDATE digest_entries SET source_class=%s WHERE owner_id={self.owner} AND digest_id=%s AND url=%s",
+            f"UPDATE digest_entries SET source_class=%s WHERE {self._OWN} AND digest_id=%s AND url=%s",
             (source_class, sid, url))
         self.conn.commit()
         return cur.rowcount
@@ -539,8 +570,8 @@ class Repository:
         wid = self._insert_id(
             "INSERT INTO why_nodes (claim, evidence_urls, touchstones, ladder, fog_flag,"
             " kind, src_from, src_to, source_quote, source_page, status, source_entry_id,"
-            " conversation_id, origin, created_at, owner_id)"
-            f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate',%s,%s,%s,%s,{self.owner})",
+            f" conversation_id, origin, created_at, owner_id, persona_id)"
+            f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate',%s,%s,%s,%s,{self.owner},{self._P})",
             (claim, _json.dumps(evidence_urls, ensure_ascii=False),
              _json.dumps(touchstones, ensure_ascii=False),
              _json.dumps(ladder or [], ensure_ascii=False), 1 if fog_flag else 0,
@@ -553,7 +584,7 @@ class Repository:
         import json as _json
 
         from ..rootcause.extract import WhyNode
-        sql = f"SELECT * FROM why_nodes WHERE owner_id={self.owner} AND {self._LIVE}"    # spec 055：遺骸不進活清單
+        sql = f"SELECT * FROM why_nodes WHERE {self._OWN} AND {self._LIVE}"    # spec 055：遺骸不進活清單
         args: tuple = ()
         if status:
             sql += " AND status=%s"
@@ -588,7 +619,7 @@ class Repository:
             sets.append("kind=%s"); args.append(kind)
         args.append(wid)
         cur = self.conn.execute(
-            f"UPDATE why_nodes SET {', '.join(sets)} WHERE owner_id={self.owner} AND id=%s", tuple(args))
+            f"UPDATE why_nodes SET {', '.join(sets)} WHERE {self._OWN} AND id=%s", tuple(args))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -602,7 +633,7 @@ class Repository:
         from datetime import datetime, timezone
         now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         cur = self.conn.execute(
-            f"UPDATE why_nodes SET archived_at=%s WHERE owner_id={self.owner} AND id=%s AND {self._LIVE}", (now, wid))
+            f"UPDATE why_nodes SET archived_at=%s WHERE {self._OWN} AND id=%s AND {self._LIVE}", (now, wid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -619,7 +650,7 @@ class Repository:
         """
         aid = self._insert_id(
             f"INSERT INTO articles (topic, title, markdown, length, level, created_at,"
-            f" conversation_id, owner_id) VALUES (%s,%s,%s,%s,%s,%s,%s,{self.owner})",
+            f" conversation_id, owner_id, persona_id) VALUES (%s,%s,%s,%s,%s,%s,%s,{self.owner},{self._P})",
             (topic, title, markdown, length, level, created_at, conversation_id))
         for layer, ids in (("body", root_ids or []), ("ext", ext_ids or [])):
             for wid in ids:
@@ -639,10 +670,10 @@ class Repository:
         """列已存文章（不含全文，新在上）。"""
         return [dict(r) for r in self.conn.execute(
             f"SELECT id, topic, title, length, level, created_at FROM articles"
-            f" WHERE owner_id={self.owner} AND {self._LIVE} ORDER BY id DESC")]
+            f" WHERE {self._OWN} AND {self._LIVE} ORDER BY id DESC")]
 
     def get_article(self, aid: int) -> dict | None:
-        r = self.conn.execute(f"SELECT * FROM articles WHERE owner_id={self.owner} AND id=%s", (aid,)).fetchone()
+        r = self.conn.execute(f"SELECT * FROM articles WHERE {self._OWN} AND id=%s", (aid,)).fetchone()
         return dict(r) if r else None
 
     def delete_article(self, aid: int, now: str = "") -> bool:
@@ -650,7 +681,7 @@ class Repository:
         from datetime import datetime, timezone
         now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         cur = self.conn.execute(
-            f"UPDATE articles SET archived_at=%s WHERE owner_id={self.owner} AND id=%s AND {self._LIVE}", (now, aid))
+            f"UPDATE articles SET archived_at=%s WHERE {self._OWN} AND id=%s AND {self._LIVE}", (now, aid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -661,8 +692,8 @@ class Repository:
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         cid = self._insert_id(
-            f"INSERT INTO domains (name, parent_id, created_at, owner_id)"
-            f" VALUES (%s,%s,%s,{self.owner})",
+            f"INSERT INTO domains (name, parent_id, created_at, owner_id, persona_id)"
+            f" VALUES (%s,%s,%s,{self.owner},{self._P})",
             (name.strip(), parent_id, now))
         self.conn.commit()
         return cid
@@ -671,10 +702,10 @@ class Repository:
         """**活的**領域樹。⚠️ 已封存的不在裡面——遺骸不是位置（spec 055 FR-003）。"""
         return [dict(r) for r in self.conn.execute(
             f"SELECT id, name, parent_id, created_at FROM domains"
-            f" WHERE owner_id={self.owner} AND {self._LIVE} ORDER BY id")]
+            f" WHERE {self._OWN} AND {self._LIVE} ORDER BY id")]
 
     def rename_domain(self, did: int, name: str) -> None:
-        self.conn.execute(f"UPDATE domains SET name=%s WHERE owner_id={self.owner} AND id=%s", (name.strip(), did))
+        self.conn.execute(f"UPDATE domains SET name=%s WHERE {self._OWN} AND id=%s", (name.strip(), did))
         self.conn.commit()
 
     def domain_path(self, did: int) -> list[dict]:
@@ -781,26 +812,26 @@ class Repository:
         for r in self.conn.execute(
                 f"SELECT id, title, domain_id,"
                 f" COALESCE(NULLIF(last_activity_at,''), created_at, '') AS at"
-                f" FROM conversations WHERE owner_id={self.owner} AND {self._LIVE} ORDER BY id DESC"):
+                f" FROM conversations WHERE {self._OWN} AND {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "conversation", "ref": r["id"],
                         "label": r["title"] or "未命名", "domain_id": r["domain_id"],
                         "at": r["at"] or ""})
         for r in self.conn.execute(
                 f"SELECT id, claim, domain_id, COALESCE(created_at,'') AS at FROM why_nodes"
-                f" WHERE owner_id={self.owner} AND status='anointed' AND {self._LIVE} ORDER BY id DESC"):
+                f" WHERE {self._OWN} AND status='anointed' AND {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "why_node", "ref": r["id"],
                         "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"],
                         "at": r["at"] or ""})
         for r in self.conn.execute(
                 f"SELECT id, topic, title, domain_id, COALESCE(created_at,'') AS at FROM articles"
-                f" WHERE owner_id={self.owner} AND {self._LIVE} ORDER BY id DESC"):
+                f" WHERE {self._OWN} AND {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "article", "ref": r["id"],
                         "label": r["title"] or r["topic"] or "未命名",
                         "domain_id": r["domain_id"], "at": r["at"] or ""})
         for r in self.conn.execute(
                 f"SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id,"
                 f" MAX(COALESCE(ingested_at,'')) AS at"
-                f" FROM digest_entries WHERE owner_id={self.owner} AND {self._LIVE} GROUP BY url ORDER BY MAX(id) DESC"):
+                f" FROM digest_entries WHERE {self._OWN} AND {self._LIVE} GROUP BY url ORDER BY MAX(id) DESC"):
             out.append({"kind": "source", "ref": r["url"],
                         "label": r["title"] or r["url"], "domain_id": r["domain_id"],
                         "at": r["at"] or ""})
@@ -845,6 +876,19 @@ class Repository:
     # 封存過的知識**仍在影響每一個回答**，而且沒有任何跡象。
     _LIVE = "COALESCE(archived_at,'')='' AND COALESCE(erased_at,'')=''"
 
+    def _own(self, alias: str = "") -> str:
+        """誰看得到這一列。⚠️ **owner 與 persona 共用同一個述詞**——
+
+        這樣 88 個查詢點自動涵蓋 persona，不需要為了隱私再改一次那 88 個地方。
+        `persona_id IS NULL` ＝ **共用**（spec 067）：**預設共用，隔離是選擇**，
+        反過來會讓場碎掉，而北極星第一條是「給你意外的連結」。
+        ⚠️ **沒有「看全部」模式**——有後門就不是硬隔離。
+        """
+        pf = f"{alias}." if alias else ""
+        if self.persona is None:
+            return f"({pf}owner_id={self.owner} AND {pf}persona_id IS NULL)"
+        return (f"({pf}owner_id={self.owner} AND"
+                f" ({pf}persona_id IS NULL OR {pf}persona_id={self.persona}))")
     @classmethod
     def _live(cls, alias: str = "") -> str:
         """`_LIVE` 的別名版。⚠️ **一份寫法**——兩套會漂，而漂掉的那一套不會報錯。"""
@@ -928,7 +972,7 @@ class Repository:
             self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (-int(ref),))
         elif kind == "source":
             for r in self.conn.execute(
-                    f"SELECT id FROM digest_entries WHERE owner_id={self.owner} AND url=%s", (ref,)).fetchall():
+                    f"SELECT id FROM digest_entries WHERE {self._OWN} AND url=%s", (ref,)).fetchall():
                 self.conn.execute(
                     "DELETE FROM entry_embeddings WHERE entry_id=%s", (int(r["id"]),))
         self.conn.commit()
@@ -940,7 +984,7 @@ class Repository:
         那些內容改掛到根領域底下，仍可**單獨**復原：它們原本的位置已經沒有名字了。
         """
         r = self.conn.execute(
-            f"SELECT COALESCE(archived_at,'') AS a FROM domains WHERE owner_id={self.owner} AND id=%s", (did,)).fetchone()
+            f"SELECT COALESCE(archived_at,'') AS a FROM domains WHERE {self._OWN} AND id=%s", (did,)).fetchone()
         if r is None:
             raise ValueError("找不到這個領域")
         if not r["a"]:
@@ -951,7 +995,7 @@ class Repository:
                 f" WHERE {self._OWN} AND (domain_id=%s OR archived_root=%s)", (did, did))
         self.conn.execute(
             "UPDATE domains SET name='', archived_root=NULL, archived_from=NULL,"
-            f" erased_at=%s WHERE owner_id={self.owner} AND id=%s", (now, did))
+            f" erased_at=%s WHERE {self._OWN} AND id=%s", (now, did))
         self.conn.commit()
 
     def scar(self, kind: str, ref) -> dict | None:
@@ -981,7 +1025,7 @@ class Repository:
                 "to": self._parent_of(did)}
 
     def _parent_of(self, did: int) -> int | None:
-        r = self.conn.execute(f"SELECT parent_id FROM domains WHERE owner_id={self.owner} AND id=%s", (did,)).fetchone()
+        r = self.conn.execute(f"SELECT parent_id FROM domains WHERE {self._OWN} AND id=%s", (did,)).fetchone()
         return r["parent_id"] if r else None
 
     def archive_domain(self, did: int, now: str) -> dict:
@@ -999,9 +1043,9 @@ class Repository:
                 f" WHERE {self._OWN} AND domain_id IN ({marks}) AND {self._LIVE}", (now, did, *sub))
         self.conn.execute(
             f"UPDATE domains SET archived_at=%s, archived_root=%s"
-            f" WHERE owner_id={self.owner} AND id IN ({marks}) AND {self._LIVE}", (now, did, *sub))
+            f" WHERE {self._OWN} AND id IN ({marks}) AND {self._LIVE}", (now, did, *sub))
         self.conn.execute(
-            f"UPDATE domains SET archived_from=parent_id WHERE owner_id={self.owner} AND id=%s", (did,))
+            f"UPDATE domains SET archived_from=parent_id WHERE {self._OWN} AND id=%s", (did,))
         self.conn.commit()
         return moved
 
@@ -1009,7 +1053,7 @@ class Repository:
         """遺骸：封存過的領域（名字、原本的父領域、封存時間）。"""
         return [dict(r) for r in self.conn.execute(
             f"SELECT id, name, archived_at, archived_from, archived_root FROM domains"
-            f" WHERE owner_id={self.owner} AND COALESCE(archived_at,'')<>'' AND NOT ({self._ERASED})"
+            f" WHERE {self._OWN} AND COALESCE(archived_at,'')<>'' AND NOT ({self._ERASED})"
             f" ORDER BY archived_at DESC")]
 
     def restore_domain(self, did: int) -> None:
@@ -1022,10 +1066,10 @@ class Repository:
             self.conn.execute(
                 f"UPDATE {t} SET archived_at='', archived_root=NULL WHERE {self._OWN} AND archived_root=%s", (did,))
         self.conn.execute(
-            f"UPDATE domains SET archived_at='', archived_root=NULL WHERE owner_id={self.owner} AND archived_root=%s", (did,))
+            f"UPDATE domains SET archived_at='', archived_root=NULL WHERE {self._OWN} AND archived_root=%s", (did,))
         self.conn.execute(
             "UPDATE domains SET parent_id=COALESCE(archived_from, parent_id), archived_from=NULL"
-            f" WHERE owner_id={self.owner} AND id=%s", (did,))
+            f" WHERE {self._OWN} AND id=%s", (did,))
         self.conn.commit()
 
     def move_domain(self, did: int, new_parent: int | None) -> None:
@@ -1033,11 +1077,11 @@ class Repository:
         只會變成無意義的結果（FR-004）。"""
         if new_parent is not None and new_parent in self.domain_descendants(did):
             raise ValueError("不能把領域搬到它自己或它的子孫底下（會成環）")
-        self.conn.execute(f"UPDATE domains SET parent_id=%s WHERE owner_id={self.owner} AND id=%s", (new_parent, did))
+        self.conn.execute(f"UPDATE domains SET parent_id=%s WHERE {self._OWN} AND id=%s", (new_parent, did))
         self.conn.commit()
 
     def set_conversation_domain(self, cid: int, domain_id: int | None) -> None:
-        self.conn.execute(f"UPDATE conversations SET domain_id=%s WHERE owner_id={self.owner} AND id=%s", (domain_id, cid))
+        self.conn.execute(f"UPDATE conversations SET domain_id=%s WHERE {self._OWN} AND id=%s", (domain_id, cid))
         self.conn.commit()
 
     # --- 糾纏 Tangle（spec 049）：樹裝不下的那條連結 ---
@@ -1074,24 +1118,24 @@ class Repository:
         out: list[tuple[str, object]] = []
         if kind == "conversation":
             out += [("why_node", int(r["id"])) for r in self.conn.execute(
-                f"SELECT id FROM why_nodes WHERE owner_id={self.owner} AND conversation_id=%s", (ref,))]
+                f"SELECT id FROM why_nodes WHERE {self._OWN} AND conversation_id=%s", (ref,))]
             out += [("article", int(r["id"])) for r in self.conn.execute(
-                f"SELECT id FROM articles WHERE owner_id={self.owner} AND conversation_id=%s", (ref,))]
+                f"SELECT id FROM articles WHERE {self._OWN} AND conversation_id=%s", (ref,))]
             r = self.conn.execute(
-                f"SELECT carried_kind, carried_ref FROM conversations WHERE owner_id={self.owner} AND id=%s", (ref,)).fetchone()
+                f"SELECT carried_kind, carried_ref FROM conversations WHERE {self._OWN} AND id=%s", (ref,)).fetchone()
             if r and r["carried_kind"] == "source" and r["carried_ref"]:
                 out.append(("source", r["carried_ref"]))
             elif r and r["carried_kind"] == "article" and str(r["carried_ref"]).isdigit():
                 out.append(("article", int(r["carried_ref"])))
         elif kind == "why_node":
             r = self.conn.execute(
-                f"SELECT conversation_id, source_entry_id FROM why_nodes WHERE owner_id={self.owner} AND id=%s", (ref,)).fetchone()
+                f"SELECT conversation_id, source_entry_id FROM why_nodes WHERE {self._OWN} AND id=%s", (ref,)).fetchone()
             if r and r["conversation_id"]:
                 out.append(("conversation", int(r["conversation_id"])))
             # ⚠️ `source_entry_id` **預設 0 不是 NULL**——`IS NOT NULL` 在這裡恆真。
             if r and (r["source_entry_id"] or 0) > 0:
                 e = self.conn.execute(
-                    f"SELECT url FROM digest_entries WHERE owner_id={self.owner} AND id=%s", (r["source_entry_id"],)).fetchone()
+                    f"SELECT url FROM digest_entries WHERE {self._OWN} AND id=%s", (r["source_entry_id"],)).fetchone()
                 if e and e["url"]:
                     out.append(("source", e["url"]))
             out += [("article", int(x["article_id"])) for x in self.conn.execute(
@@ -1100,15 +1144,15 @@ class Repository:
             out += [("why_node", int(x["why_node_id"])) for x in self.conn.execute(
                 "SELECT why_node_id FROM article_roots WHERE article_id=%s", (ref,))]
             r = self.conn.execute(
-                f"SELECT conversation_id FROM articles WHERE owner_id={self.owner} AND id=%s", (ref,)).fetchone()
+                f"SELECT conversation_id FROM articles WHERE {self._OWN} AND id=%s", (ref,)).fetchone()
             if r and r["conversation_id"]:
                 out.append(("conversation", int(r["conversation_id"])))
         elif kind == "source":
             out += [("why_node", int(x["id"])) for x in self.conn.execute(
                 "SELECT wn.id AS id FROM why_nodes wn JOIN digest_entries de"
-                f" ON wn.source_entry_id=de.id WHERE wn.owner_id={self.owner} AND de.url=%s AND wn.source_entry_id>0", (ref,))]
+                f" ON wn.source_entry_id=de.id WHERE {self._own('wn')} AND de.url=%s AND wn.source_entry_id>0", (ref,))]
             out += [("conversation", int(x["id"])) for x in self.conn.execute(
-                f"SELECT id FROM conversations WHERE owner_id={self.owner} AND carried_kind='source' AND carried_ref=%s", (ref,))]
+                f"SELECT id FROM conversations WHERE {self._OWN} AND carried_kind='source' AND carried_ref=%s", (ref,))]
         return out
 
     # ── 批次（spec 050）：單件操作＝一個元素的清單，不另留一套 ──────────────
@@ -1205,19 +1249,19 @@ class Repository:
         fp = conversation_fingerprint(messages)
         cid = None
         for r in self.conn.execute(
-                f"SELECT id, messages FROM conversations WHERE owner_id={self.owner} ORDER BY id ASC").fetchall():
+                f"SELECT id, messages FROM conversations WHERE {self._OWN} ORDER BY id ASC").fetchall():
             if conversation_fingerprint(json.loads(r["messages"] or "[]")) == fp:
                 cid = r["id"]          # 同段已存→共用（不插入、不刪改既有）
                 break
         if cid is None:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             cid = self._insert_id(
-                "INSERT INTO conversations (title, messages, why_node_id, created_at, owner_id)"
-                f" VALUES (%s,%s,%s,%s,{self.owner})",
+                f"INSERT INTO conversations (title, messages, why_node_id, created_at, owner_id, persona_id)"
+                f" VALUES (%s,%s,%s,%s,{self.owner},{self._P})",
                 (title, json.dumps(messages, ensure_ascii=False), why_node_id, now))
         if why_node_id is not None:    # 連結存 why_node 側（事實來源）
             self.conn.execute(
-                f"UPDATE why_nodes SET conversation_id=%s WHERE owner_id={self.owner} AND id=%s", (cid, why_node_id))
+                f"UPDATE why_nodes SET conversation_id=%s WHERE {self._OWN} AND id=%s", (cid, why_node_id))
         self.conn.commit()
         return cid
 
@@ -1237,7 +1281,7 @@ class Repository:
     def set_conversation_chapters(self, cid: int, chapters: list) -> None:
         """存切好的章節（階段29 持久化，避免每次檢視重切）。"""
         self.conn.execute(
-            f"UPDATE conversations SET chapters=%s WHERE owner_id={self.owner} AND id=%s",
+            f"UPDATE conversations SET chapters=%s WHERE {self._OWN} AND id=%s",
             (json.dumps(chapters, ensure_ascii=False), cid))
         self.conn.commit()
 
@@ -1247,12 +1291,12 @@ class Repository:
     def list_conversations(self) -> list:
         rows = self.conn.execute(
             f"SELECT {self._CONV_COLS} FROM conversations"
-            f" WHERE owner_id={self.owner} AND {self._LIVE} ORDER BY id DESC").fetchall()
+            f" WHERE {self._OWN} AND {self._LIVE} ORDER BY id DESC").fetchall()
         return [self._row_to_conversation(r) for r in rows]
 
     def get_conversation(self, cid: int):
         r = self.conn.execute(
-            f"SELECT {self._CONV_COLS} FROM conversations WHERE owner_id={self.owner} AND id=%s", (cid,)).fetchone()
+            f"SELECT {self._CONV_COLS} FROM conversations WHERE {self._OWN} AND id=%s", (cid,)).fetchone()
         return self._row_to_conversation(r) if r else None
 
     # --- 暫時存檔＋TTL 衰減（spec 028）---
@@ -1271,7 +1315,7 @@ class Repository:
             return None
         if temp_id:
             cur = self.conn.execute(
-                f"UPDATE conversations SET messages=%s, last_activity_at=%s WHERE owner_id={self.owner} AND id=%s",
+                f"UPDATE conversations SET messages=%s, last_activity_at=%s WHERE {self._OWN} AND id=%s",
                 (json.dumps(messages, ensure_ascii=False), now, temp_id))
             if cur.rowcount > 0:
                 self.conn.commit()
@@ -1279,8 +1323,8 @@ class Repository:
         from ..chat.capture import cheap_title
         cid = self._insert_id(
             "INSERT INTO conversations (title, messages, why_node_id, created_at,"
-            " temporary, last_activity_at, carried_kind, carried_ref, domain_id, owner_id)"
-            f" VALUES (%s,%s,%s,%s,1,%s,%s,%s,%s,{self.owner})",
+            f" temporary, last_activity_at, carried_kind, carried_ref, domain_id, owner_id, persona_id)"
+            f" VALUES (%s,%s,%s,%s,1,%s,%s,%s,%s,{self.owner},{self._P})",
             (cheap_title(messages), json.dumps(messages, ensure_ascii=False), None, now, now,
              carried_kind or "", carried_ref or "", domain_id))
         self.conn.commit()
@@ -1289,7 +1333,7 @@ class Repository:
     def touch_conversation(self, cid: int, now: str) -> bool:
         """接回時重設計時（更新 last_activity_at）。"""
         cur = self.conn.execute(
-            f"UPDATE conversations SET last_activity_at=%s WHERE owner_id={self.owner} AND id=%s", (now, cid))
+            f"UPDATE conversations SET last_activity_at=%s WHERE {self._OWN} AND id=%s", (now, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -1303,12 +1347,12 @@ class Repository:
         """
         touched = False
         if title and title.strip():
-            self.conn.execute(f"UPDATE conversations SET title=%s WHERE owner_id={self.owner} AND id=%s",
+            self.conn.execute(f"UPDATE conversations SET title=%s WHERE {self._OWN} AND id=%s",
                               (title.strip(), cid))
             touched = True
         if why_node_id is not None:
             self.conn.execute(
-                f"UPDATE why_nodes SET conversation_id=%s WHERE owner_id={self.owner} AND id=%s", (cid, why_node_id))
+                f"UPDATE why_nodes SET conversation_id=%s WHERE {self._OWN} AND id=%s", (cid, why_node_id))
             touched = True
         self.conn.commit()
         return touched
@@ -1319,7 +1363,7 @@ class Repository:
         if not title:
             return False
         cur = self.conn.execute(
-            f"UPDATE conversations SET title=%s WHERE owner_id={self.owner} AND id=%s", (title, cid))
+            f"UPDATE conversations SET title=%s WHERE {self._OWN} AND id=%s", (title, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -1337,7 +1381,7 @@ class Repository:
         """
         rows = self.conn.execute(
             f"SELECT conversation_id AS cid, COUNT(*) AS c FROM why_nodes"
-            f" WHERE owner_id={self.owner} AND conversation_id IS NOT NULL AND {self._LIVE}"
+            f" WHERE {self._OWN} AND conversation_id IS NOT NULL AND {self._LIVE}"
             f" GROUP BY conversation_id").fetchall()
         return {int(r["cid"]): int(r["c"]) for r in rows}
 
@@ -1351,14 +1395,14 @@ class Repository:
         """
         return [dict(r) for r in self.conn.execute(
             f"SELECT id, claim, COALESCE(src_from,0) AS src_from, COALESCE(src_to,0) AS src_to"
-            f" FROM why_nodes WHERE owner_id={self.owner} AND conversation_id=%s AND {self._LIVE} ORDER BY id", (cid,))]
+            f" FROM why_nodes WHERE {self._OWN} AND conversation_id=%s AND {self._LIVE} ORDER BY id", (cid,))]
 
     def delete_conversation(self, cid: int, now: str = "") -> bool:
         """**封存**一段對話（spec 055）——不再硬刪。回是否封到。"""
         from datetime import datetime, timezone
         now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         cur = self.conn.execute(
-            f"UPDATE conversations SET archived_at=%s WHERE owner_id={self.owner} AND id=%s AND {self._LIVE}", (now, cid))
+            f"UPDATE conversations SET archived_at=%s WHERE {self._OWN} AND id=%s AND {self._LIVE}", (now, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -1373,9 +1417,9 @@ class Repository:
         plan = self.dedupe_plan()
         for wid, survivor in plan.repoint.items():
             self.conn.execute(
-                f"UPDATE why_nodes SET conversation_id=%s WHERE owner_id={self.owner} AND id=%s", (survivor, wid))
+                f"UPDATE why_nodes SET conversation_id=%s WHERE {self._OWN} AND id=%s", (survivor, wid))
         for cid in plan.delete_ids:
-            self.conn.execute(f"DELETE FROM conversations WHERE owner_id={self.owner} AND id=%s", (cid,))
+            self.conn.execute(f"DELETE FROM conversations WHERE {self._OWN} AND id=%s", (cid,))
         self.conn.commit()
         return {"groups": plan.n_groups, "removed": plan.n_extra,
                 "repointed": plan.n_roots}
@@ -1387,7 +1431,7 @@ class Repository:
         for r in self.conn.execute(
             "SELECT w.id AS wid, w.conversation_id AS cid FROM why_nodes w"
             " JOIN conversations c ON c.id=w.conversation_id"
-            f" WHERE w.owner_id={self.owner} AND w.conversation_id IS NOT NULL"
+            f" WHERE {self._own('w')} AND w.conversation_id IS NOT NULL"
             # spec 055：封存過的**兩側**都不算活的由來
             " AND COALESCE(w.archived_at,'')='' AND COALESCE(c.archived_at,'')=''").fetchall():
             out[r["wid"]] = r["cid"]
@@ -1413,7 +1457,7 @@ class Repository:
         if sid is None:
             return False
         cur = self.conn.execute(
-            f"UPDATE digest_entries SET source_class=%s WHERE owner_id={self.owner} AND id=%s AND digest_id=%s",
+            f"UPDATE digest_entries SET source_class=%s WHERE {self._OWN} AND id=%s AND digest_id=%s",
             (cls, entry_id, sid))
         self.conn.commit()
         return cur.rowcount > 0

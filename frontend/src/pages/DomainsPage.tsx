@@ -661,7 +661,7 @@ export default function DomainsPage() {
                   <button title="第二次的死——救不回來（底下已封存的知識不會被連帶抹除）"
                           onClick={async () => {
                             if (!confirm(`抹除領域「${d.name}」？\n\n這是第二次的死，救不回來。\n` +
-                                         `⚠️ 它底下**已封存的知識不會**被一起抹掉——那些仍可單獨復原。`)) return
+                                         `⚠️ 它底下「已封存的知識」不會被一起抹掉——那些仍可單獨復原。`)) return
                             const r = await pages.eraseDomain(d.id)
                             setMsg(r.ok ? `抹除了「${d.name}」` : (r.err || "抹不掉")); load()
                           }}

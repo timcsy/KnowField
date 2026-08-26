@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     source_id TEXT DEFAULT '',
     note TEXT DEFAULT '',
     ingested_at TEXT DEFAULT '',
-    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
+    owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
+    persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
@@ -84,6 +85,14 @@ CREATE TABLE IF NOT EXISTS behavior_signals (
     item_id INTEGER NOT NULL,
     action TEXT NOT NULL,
     at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS personas (
+    id SERIAL PRIMARY KEY,
+    owner_id INTEGER DEFAULT 1,
+    name TEXT NOT NULL,
+    color TEXT DEFAULT '',
+    created_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS why_nodes (
@@ -103,7 +112,8 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     created_at TEXT,
     conversation_id INTEGER,
     origin TEXT DEFAULT '',
-    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
+    owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
+    persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -117,7 +127,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     chapters TEXT DEFAULT '[]',
     carried_kind TEXT DEFAULT '',
     carried_ref TEXT DEFAULT '',
-    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
+    owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
+    persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
 
 CREATE TABLE IF NOT EXISTS article_roots (
@@ -131,7 +142,8 @@ CREATE TABLE IF NOT EXISTS domains (
     name TEXT NOT NULL,
     parent_id INTEGER,
     created_at TEXT DEFAULT '',
-    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
+    owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
+    persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
 
 CREATE TABLE IF NOT EXISTS translation_units (
@@ -148,7 +160,8 @@ CREATE TABLE IF NOT EXISTS articles (
     length TEXT DEFAULT '',
     level TEXT DEFAULT '',
     created_at TEXT DEFAULT '',
-    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
+    owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
+    persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
 """
 
@@ -211,6 +224,13 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("articles", "owner_id", "INTEGER DEFAULT 1"),
     ("conversations", "owner_id", "INTEGER DEFAULT 1"),
     ("digest_entries", "owner_id", "INTEGER DEFAULT 1"),
+    # spec 067：persona ＝ **隱私的硬隔離**。⚠️ NULL ＝ 共用
+    # ——既有資料全部留在共用層（不加預設值就是這個效果，正是要的）。
+    ("domains", "persona_id", "INTEGER"),
+    ("why_nodes", "persona_id", "INTEGER"),
+    ("articles", "persona_id", "INTEGER"),
+    ("conversations", "persona_id", "INTEGER"),
+    ("digest_entries", "persona_id", "INTEGER"),
 ]
 
 

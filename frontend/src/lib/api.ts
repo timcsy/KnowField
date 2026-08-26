@@ -125,6 +125,7 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
+export type Persona = { id: number; name: string; color: string }
 export type SearchHit = { kind: string; ref: number | string; label: string }
 export type SearchGroup = { kind: string; count: number; items: SearchHit[] }
 export type SourceGroup = {
@@ -165,6 +166,11 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 067：persona ＝ 隱私的**硬**隔離。過濾在後端的 `_own()`，前端只負責切換與顯示。
+  personas: (): Promise<{ personas: Persona[]; current: number | null }> =>
+    fetch("/api/personas").then(json),
+  createPersona: (name: string, color: string) => post("/api/personas", { name, color }),
+  switchPersona: (id: number | null) => post("/api/personas/switch", { id }),
   // spec 066：全域搜尋。⚠️ 它跨不了 owner／persona——那是**硬邊界**，由後端擋。
   search: (q: string): Promise<{ q: string; groups: SearchGroup[] }> =>
     fetch(`/api/search?q=${encodeURIComponent(q)}`).then(json),
