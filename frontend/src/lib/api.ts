@@ -205,6 +205,15 @@ export const pages = {
   restoreDomain: (id: number) => post(`/api/domains/${id}/restore`, {}),
   archiveKnowledge: (items: KnowledgeRef[]) => post("/api/knowledge/archive", { items }),
   restoreKnowledge: (items: KnowledgeRef[]) => post("/api/knowledge/restore", { items }),
+  // 第二次的死（spec 056）：抹除，只留一塊疤。⚠️ **只接受已封存的**——
+  // 活的東西沒有任何單一動作能一次消失，路徑上真的沒有捷徑。
+  pointersTo: (items: KnowledgeRef[]): Promise<{
+      ok: boolean; pointers: (KnowledgeRef & { label: string })[] }> =>
+    post("/api/knowledge/pointers", { items }),
+  eraseKnowledge: (items: KnowledgeRef[]): Promise<{ ok: boolean; err?: string }> =>
+    post("/api/knowledge/erase", { items }),
+  eraseDomain: (id: number): Promise<{ ok: boolean; err?: string }> =>
+    post(`/api/domains/${id}/erase`, {}),
   archived: (): Promise<{ ok: boolean
       items: (KnowledgeRef & { label: string; archived_at: string })[]
       domains: { id: number; name: string; archived_at: string }[] }> =>

@@ -74,3 +74,44 @@ class TestArchiveApi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEraseApi(unittest.TestCase):
+    """契約：第二次的死（spec 056）。"""
+
+    def test_erasing_something_alive_is_refused(self):
+        db = temp_db(); ai, gen, flow, c, w = _seed(db)
+        r = TestClient(build_app(db)).post(
+            "/api/knowledge/erase", json={"items": [{"kind": "why_node", "ref": w}]})
+        self.assertEqual(r.status_code, 400)
+        repo = Repository(db)
+        self.assertIn(w, [x.id for x in repo.list_why_nodes()], "活的東西被一步抹掉了")
+        repo.close()
+
+    def test_erase_after_archive_leaves_a_scar(self):
+        db = temp_db(); ai, gen, flow, c, w = _seed(db)
+        cl = TestClient(build_app(db))
+        cl.post("/api/knowledge/archive", json={"items": [{"kind": "why_node", "ref": w}]})
+        self.assertTrue(cl.post("/api/knowledge/erase",
+                                json={"items": [{"kind": "why_node", "ref": w}]}).json()["ok"])
+        repo = Repository(db)
+        self.assertIsNotNone(repo.scar("why_node", w), "疤沒留下——那不是死亡，是從沒存在過")
+        self.assertEqual(repo.archived_items(), [])
+        repo.close()
+
+    def test_pointers_are_disclosed_before_erasing(self):
+        db = temp_db(); ai, gen, flow, c, w = _seed(db)
+        cl = TestClient(build_app(db))
+        r = cl.post("/api/knowledge/pointers",
+                    json={"items": [{"kind": "conversation", "ref": c}]}).json()
+        self.assertTrue(all("label" in p for p in r["pointers"]))
+
+    def test_restoring_an_erased_thing_is_a_clear_refusal_not_a_crash(self):
+        """⚠️ 500 在使用者眼裡是「壞掉了」，不是「這件事不能做」。"""
+        db = temp_db(); ai, gen, flow, c, w = _seed(db)
+        cl = TestClient(build_app(db))
+        cl.post("/api/knowledge/archive", json={"items": [{"kind": "why_node", "ref": w}]})
+        cl.post("/api/knowledge/erase", json={"items": [{"kind": "why_node", "ref": w}]})
+        r = cl.post("/api/knowledge/restore", json={"items": [{"kind": "why_node", "ref": w}]})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("救不回來", r.json()["err"])

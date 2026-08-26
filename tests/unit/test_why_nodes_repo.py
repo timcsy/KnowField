@@ -56,18 +56,28 @@ class TestWhyNodesRepo(unittest.TestCase):
         self.assertNotIn("候選根因", [e.body for e in corpus])  # 候選不進
         repo.close()
 
-    def test_delete_clears_negative_embedding(self):
+    def test_archive_keeps_the_vector_but_erase_clears_it(self):
+        """⚠️ spec 056 起分兩段：**封存不清向量，抹除才清**。
+
+        原本這條斷言「刪 why-node 就清向量」。封存時清它是**多餘的**
+        （檢索一律先過 `list_corpus_entries`，那裡已經濾掉封存的），
+        而且**弄壞復原**——復原後向量沒了、要重算一次 API，還不會報錯。
+        真正不該留幽靈向量的時機是**抹除**：內容都不在了。
+        """
         repo = self._repo()
         wid = repo.add_why_node("x", ["https://a/1"], [], False, 1, "2026-07-25")
         repo.anoint_why_node(wid)
-        # 塞一筆負 id 嵌入，刪 why-node 應一併清
         repo.conn.execute("INSERT INTO entry_embeddings (entry_id, tag, dim, vector_json)"
                           " VALUES (%s,%s,%s,%s)", (-wid, "hashing-256", 1, "[0.1]"))
         repo.conn.commit()
-        repo.delete_why_node(wid)
-        left = repo.conn.execute("SELECT COUNT(*) c FROM entry_embeddings WHERE entry_id=%s",
-                                 (-wid,)).fetchone()["c"]
-        self.assertEqual(left, 0)
+        left = lambda: repo.conn.execute(
+            "SELECT COUNT(*) c FROM entry_embeddings WHERE entry_id=%s", (-wid,)).fetchone()["c"]
+
+        repo.delete_why_node(wid, "2026-08-26T10:00:00Z")      # 封存
+        self.assertEqual(left(), 1, "封存清掉了向量——復原之後檢索就找不到它了")
+
+        repo.erase_knowledge("why_node", wid, "2026-08-26T11:00:00Z")   # 抹除
+        self.assertEqual(left(), 0, "抹除沒清向量——內容不在了，那是幽靈")
         repo.close()
 
 

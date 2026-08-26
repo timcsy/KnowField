@@ -186,6 +186,13 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("conversations", "archived_root", "INTEGER"),
     ("digest_entries", "archived_at", "TEXT DEFAULT ''"),
     ("digest_entries", "archived_root", "INTEGER"),
+    # spec 056：**第二次的死**——抹除。內容全空，`erased_at` 記時間，**列還在**。
+    # ⚠️ 連「這裡曾經有東西」都不見的話，那不是死亡，是從沒存在過。
+    ("domains", "erased_at", "TEXT DEFAULT ''"),
+    ("why_nodes", "erased_at", "TEXT DEFAULT ''"),
+    ("articles", "erased_at", "TEXT DEFAULT ''"),
+    ("conversations", "erased_at", "TEXT DEFAULT ''"),
+    ("digest_entries", "erased_at", "TEXT DEFAULT ''"),
 ]
 
 

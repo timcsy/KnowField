@@ -442,8 +442,8 @@ class Repository:
     def delete_source(self, url: str, now: str = "") -> int:
         """**封存**一來源的所有塊（spec 055）——不再硬刪。回封存的塊數。
 
-        ⚠️ embedding 照樣清掉：留著的話它仍會被檢索命中，而那正是
-        「封存只擋住畫面、沒擋住檢索」的沉默失敗。
+        ⚠️ **不清 embedding**（同 `delete_why_node`）：檢索已在語料層濾掉封存的，
+        清它只會弄壞復原。向量在**抹除**時才清。
         """
         from datetime import datetime, timezone
         now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -455,7 +455,6 @@ class Repository:
         for eid in ids:
             self.conn.execute(
                 "UPDATE digest_entries SET archived_at=%s WHERE id=%s", (now, eid))
-            self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (eid,))
         self.conn.commit()
         return len(ids)
 
@@ -535,14 +534,14 @@ class Repository:
     def delete_why_node(self, wid: int, now: str = "") -> bool:
         """**封存**一條理解（spec 055）——不再硬刪。
 
-        ⚠️ 嵌入照樣清掉：留著的話它仍會被檢索命中，而那正是
-        「封存只擋住畫面、沒擋住檢索」的沉默失敗。復原時 `ensure_embeddings` 會重建。
+        ⚠️ **不清 embedding**：檢索一律先過 `list_corpus_entries`，那裡已經濾掉封存的
+        ⇒ 清它是多餘的，而且**弄壞復原**（向量沒了要重算一次 API，還不會報錯）。
+        向量在**抹除**時才清（spec 056 FR-008）。
         """
         from datetime import datetime, timezone
         now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         cur = self.conn.execute(
             f"UPDATE why_nodes SET archived_at=%s WHERE id=%s AND {self._LIVE}", (now, wid))
-        self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (-wid,))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -771,7 +770,18 @@ class Repository:
     # ⚠️ 唯一會沉默失敗的地方：**封存必須擋住檢索，不只擋住畫面**。
     # 只在清單頁過濾、沒擋住 `list_attractors`／`list_seeds` 的話，
     # 封存過的知識**仍在影響每一個回答**，而且沒有任何跡象。
-    _LIVE = "COALESCE(archived_at,'')=''"
+    _LIVE = "COALESCE(archived_at,'')='' AND COALESCE(erased_at,'')=''"
+    _ERASED = "COALESCE(erased_at,'')<>''"
+    # 抹除時要清空的內容欄（**位址欄不動**：`digest_entries.url` 是位址不是內容，
+    # 抹掉它疤就找不到了——而疤存在的意義就是「這裡曾經有東西」問得出來）。
+    _ERASE_FIELDS = {
+        "why_node": [("claim", "''"), ("evidence_urls", "'[]'"), ("ladder", "'[]'"),
+                     ("touchstones", "'[]'"), ("source_quote", "''")],
+        "article": [("topic", "''"), ("title", "''"), ("markdown", "''")],
+        "conversation": [("title", "''"), ("messages", "'[]'"), ("chapters", "'[]'")],
+        "source": [("title", "''"), ("article_body", "''"), ("article_headline", "''"),
+                   ("note", "''")],
+    }
 
     def archive_knowledge(self, kind: str, ref, now: str, root: int | None = None) -> None:
         """封存一則知識。`root`＝被哪個領域的封存連帶帶走的（None＝自己被封的）。"""
@@ -781,6 +791,9 @@ class Repository:
         self.conn.commit()
 
     def restore_knowledge(self, kind: str, ref) -> None:
+        st = self._archived_state(kind, ref)
+        if st and st[1]:
+            raise ValueError("這件東西已經被抹除了，救不回來")   # 第二次的死（FR-003）
         t, k = self._KIND_TABLE[kind]
         self.conn.execute(
             f"UPDATE {t} SET archived_at='', archived_root=NULL WHERE {k}=%s", (ref,))
@@ -795,14 +808,86 @@ class Repository:
             grp = " GROUP BY url" if kind == "source" else ""
             sel = (f"SELECT {k} AS ref, MIN({label}) AS label, MIN(archived_at) AS archived_at,"
                    f" MIN(archived_root) AS archived_root FROM {t}"
-                   f" WHERE COALESCE(archived_at,'')<>''{grp}") if kind == "source" else (
+                   f" WHERE COALESCE(archived_at,'')<>'' AND NOT ({self._ERASED}){grp}"
+                   ) if kind == "source" else (
                    f"SELECT {k} AS ref, {label} AS label, archived_at, archived_root FROM {t}"
-                   f" WHERE COALESCE(archived_at,'')<>''")
+                   f" WHERE COALESCE(archived_at,'')<>'' AND NOT ({self._ERASED})")
             for r in self.conn.execute(sel):
                 out.append({"kind": kind, "ref": r["ref"], "label": (r["label"] or "")[:80],
                             "archived_at": r["archived_at"],
                             "archived_root": r["archived_root"]})
         return sorted(out, key=lambda x: x["archived_at"], reverse=True)
+
+    # ── 第二次的死（spec 056）：抹除，只留一塊疤 ─────────────────────
+    # ⚠️ **抹除只作用在遺骸上**——活的東西沒有任何單一動作能一次消失。
+    # 這不是多一道確認視窗（那是劇場），是**路徑上真的沒有捷徑**。
+
+    def _archived_state(self, kind: str, ref) -> tuple[str, str] | None:
+        t, k = self._KIND_TABLE[kind]
+        r = self.conn.execute(
+            f"SELECT COALESCE(archived_at,'') AS a, COALESCE(erased_at,'') AS e"
+            f" FROM {t} WHERE {k}=%s", (ref,)).fetchone()
+        return (r["a"], r["e"]) if r else None
+
+    def erase_knowledge(self, kind: str, ref, now: str) -> None:
+        """**第二次的死**：內容全空、記下時間，**列還在**。
+
+        ⚠️ 只接受**已封存**的目標（FR-001）。活的東西要先經過第一次的死。
+        """
+        st = self._archived_state(kind, ref)
+        if st is None:
+            raise ValueError("找不到這件東西")
+        if not st[0]:
+            raise ValueError("要先封存才能抹除——活的東西不能一步消失")
+        t, k = self._KIND_TABLE[kind]
+        sets = ", ".join(f"{c}={v}" for c, v in self._ERASE_FIELDS[kind])
+        self.conn.execute(
+            f"UPDATE {t} SET {sets}, erased_at=%s WHERE {k}=%s", (now, ref))
+        # 內容都不在了，向量留著就是幽靈（FR-008）
+        if kind == "why_node":
+            self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (-int(ref),))
+        elif kind == "source":
+            for r in self.conn.execute(
+                    "SELECT id FROM digest_entries WHERE url=%s", (ref,)).fetchall():
+                self.conn.execute(
+                    "DELETE FROM entry_embeddings WHERE entry_id=%s", (int(r["id"]),))
+        self.conn.commit()
+
+    def erase_domain(self, did: int, now: str) -> None:
+        """抹除一個領域遺骸。
+
+        ⚠️ **MUST NOT 連帶抹除它底下的遺骸內容**（FR-005）——不做第二次死的串聯。
+        那些內容改掛到根領域底下，仍可**單獨**復原：它們原本的位置已經沒有名字了。
+        """
+        r = self.conn.execute(
+            "SELECT COALESCE(archived_at,'') AS a FROM domains WHERE id=%s", (did,)).fetchone()
+        if r is None:
+            raise ValueError("找不到這個領域")
+        if not r["a"]:
+            raise ValueError("要先封存才能抹除——活的領域不能一步消失")
+        for kind, (t, k) in self._KIND_TABLE.items():
+            self.conn.execute(
+                f"UPDATE {t} SET domain_id=NULL, archived_root=NULL"
+                f" WHERE domain_id=%s OR archived_root=%s", (did, did))
+        self.conn.execute(
+            "UPDATE domains SET name='', archived_root=NULL, archived_from=NULL,"
+            " erased_at=%s WHERE id=%s", (now, did))
+        self.conn.commit()
+
+    def scar(self, kind: str, ref) -> dict | None:
+        """疤：這裡曾經有東西，什麼時候被抹掉的。活的（或只是封存的）→ None。"""
+        st = self._archived_state(kind, ref)
+        if st is None or not st[1]:
+            return None
+        return {"kind": kind, "ref": ref, "erased_at": st[1]}
+
+    def pointers_to(self, kind: str, ref) -> list[dict]:
+        """誰指著它——抹除前要說出來（FR-004）。
+
+        ⚠️ 這個專案被同一件事咬過：把明顯壞掉的指標**變成自信地指錯的指標**。
+        所以抹除前先把它們攤開，讓人自己決定。
+        """
+        return [{"kind": nk, "ref": nref} for nk, nref in self._neighbours(kind, ref)]
 
     def archive_domain_preview(self, did: int) -> dict:
         """封存這個領域**會帶走什麼**：整棵子樹的知識件數與子領域數。
@@ -843,8 +928,9 @@ class Repository:
     def archived_domains(self) -> list[dict]:
         """遺骸：封存過的領域（名字、原本的父領域、封存時間）。"""
         return [dict(r) for r in self.conn.execute(
-            "SELECT id, name, archived_at, archived_from, archived_root FROM domains"
-            " WHERE COALESCE(archived_at,'')<>'' ORDER BY archived_at DESC")]
+            f"SELECT id, name, archived_at, archived_from, archived_root FROM domains"
+            f" WHERE COALESCE(archived_at,'')<>'' AND NOT ({self._ERASED})"
+            f" ORDER BY archived_at DESC")]
 
     def restore_domain(self, did: int) -> None:
         """復原：把**同一批**（`archived_root = did`）一起帶回原位。

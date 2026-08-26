@@ -96,6 +96,21 @@ export default function DomainsPage() {
     if (r.tangles.length === 0) { await doMove(refs, to, false); return }   // 沒糾纏就直接搬
     setAsk({ items: refs, to, tangles: r.tangles })
   }
+  // 第二次的死。⚠️ 只出現在**遺骸區**——活的東西沒有捷徑通往這裡。
+  async function erase(refs: KnowledgeRef[], label: string) {
+    const p = await pages.pointersTo(refs)
+    const who = p.pointers.length
+      ? `\n\n⚠️ 這些東西指著它，抹掉之後它們會指向一塊空白：\n` +
+        p.pointers.slice(0, 8).map((x) => `・${x.label}`).join("\n") +
+        (p.pointers.length > 8 ? `\n・…共 ${p.pointers.length} 個` : "")
+      : "\n\n（沒有東西指著它）"
+    if (!confirm(`抹除${label}？\n\n這是第二次的死——內容會直接消失，救不回來。\n` +
+                 `只會留下一塊疤：「這裡曾經有東西，在今天被抹掉了」。${who}`)) return
+    const r = await pages.eraseKnowledge(refs)
+    if (!r.ok) { setMsg(r.err || "抹不掉"); return }
+    setMsg(`抹除了${label}`); load()
+  }
+
   async function archivePicked() {
     const refs = pickedRefs()
     if (!refs.length) return
@@ -384,6 +399,8 @@ export default function DomainsPage() {
             <div className="space-y-0.5 pt-1">
               <p className="pb-1 text-xs text-muted-foreground">
                 離開了活的知識庫，但沒有消失——也不再進入聊天與檢索。
+                <br />
+                <b>抹除</b>是第二次的死：內容直接消失、救不回來，只留下一塊疤。
               </p>
               {attic!.domains.map((d) => (
                 <div key={`d${d.id}`} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
@@ -391,6 +408,14 @@ export default function DomainsPage() {
                   <span className="shrink-0 text-xs text-muted-foreground">{d.archived_at.slice(0, 10)}</span>
                   <button onClick={async () => { await pages.restoreDomain(d.id); setMsg(`復原了「${d.name}」`); load() }}
                           className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-foreground">復原</button>
+                  <button title="第二次的死——救不回來（底下已封存的知識不會被連帶抹除）"
+                          onClick={async () => {
+                            if (!confirm(`抹除領域「${d.name}」？\n\n這是第二次的死，救不回來。\n` +
+                                         `⚠️ 它底下**已封存的知識不會**被一起抹掉——那些仍可單獨復原。`)) return
+                            const r = await pages.eraseDomain(d.id)
+                            setMsg(r.ok ? `抹除了「${d.name}」` : (r.err || "抹不掉")); load()
+                          }}
+                          className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-destructive">抹除</button>
                 </div>
               ))}
               {attic!.items.map((i) => (
@@ -400,6 +425,9 @@ export default function DomainsPage() {
                   <span className="shrink-0 text-xs text-muted-foreground">{i.archived_at.slice(0, 10)}</span>
                   <button onClick={async () => { await pages.restoreKnowledge([{ kind: i.kind, ref: i.ref }]); setMsg("復原了"); load() }}
                           className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-foreground">復原</button>
+                  <button title="第二次的死——救不回來"
+                          onClick={() => erase([{ kind: i.kind, ref: i.ref }], `「${i.label.slice(0, 20)}」`)}
+                          className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-destructive">抹除</button>
                 </div>
               ))}
             </div>

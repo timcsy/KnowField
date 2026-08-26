@@ -1163,9 +1163,69 @@ def create_app() -> FastAPI:
         try:
             for kind, ref in items:
                 repo.restore_knowledge(kind, ref)
+        except ValueError as e:
+            # ⚠️ 抹除過的復原不了，那是**正確的拒絕**——不接住的話會變成 500，
+            # 而 500 在使用者眼裡是「壞掉了」，不是「這件事不能做」。
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
         finally:
             repo.close()
         return _JSON({"ok": True, "restored": len(items)})
+
+    @app.post("/api/knowledge/erase")
+    async def api_erase_knowledge(request: Request):
+        """**第二次的死**（spec 056）：抹除，只留一塊疤。⚠️ 只接受已封存的。"""
+        b = await request.json()
+        try:
+            items = _parse_items(b.get("items"))
+        except (ValueError, TypeError) as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            now = _now_iso()
+            for kind, ref in items:
+                repo.erase_knowledge(kind, ref, now)
+        except ValueError as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        finally:
+            repo.close()
+        _log.info("抹除知識", extra={"extra": {"n": len(items)}})
+        return _JSON({"ok": True, "erased": len(items)})
+
+    @app.post("/api/knowledge/pointers")
+    async def api_pointers(request: Request):
+        """誰指著這些東西——抹除前要說出來（FR-004）。**不改任何東西。**"""
+        b = await request.json()
+        try:
+            items = _parse_items(b.get("items"))
+        except (ValueError, TypeError) as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            out, seen = [], set()
+            moving = {(k, str(r)) for k, r in items}
+            for kind, ref in items:
+                for p in repo.pointers_to(kind, ref):
+                    key = (p["kind"], str(p["ref"]))
+                    if key in moving or key in seen:
+                        continue
+                    seen.add(key)
+                    out.append({**p, "label": _knowledge_label(repo, p["kind"], p["ref"])})
+        finally:
+            repo.close()
+        return _JSON({"ok": True, "pointers": out})
+
+    @app.post("/api/domains/{did}/erase")
+    async def api_domain_erase(did: int):
+        """抹除一個領域遺骸。⚠️ **不連帶抹除**它底下的遺骸內容。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            repo.erase_domain(did, _now_iso())
+        except ValueError as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        finally:
+            repo.close()
+        _log.info("抹除領域", extra={"extra": {"did": did}})
+        return _JSON({"ok": True})
 
     @app.get("/api/archived")
     async def api_archived():
