@@ -39,9 +39,10 @@ def _knowledge_label(repo, kind: str, ref) -> str:
         return f"📝 {a.get('title') or a.get('topic')}" if a else f"📝 #{ref}"
     if kind == "source":
         r = repo.conn.execute(
-            "SELECT MIN(title) AS t FROM digest_entries WHERE url=%s", (ref,)).fetchone()
+            f"SELECT MIN(title) AS t FROM digest_entries WHERE {repo._OWN} AND url=%s", (ref,)).fetchone()
         return f"📚 {(r['t'] if r and r['t'] else ref)[:40]}"
-    r = repo.conn.execute("SELECT claim FROM why_nodes WHERE id=%s", (ref,)).fetchone()
+    r = repo.conn.execute(
+        f"SELECT claim FROM why_nodes WHERE {repo._OWN} AND id=%s", (ref,)).fetchone()
     return f"💡 {(r['claim'] or '')[:40]}" if r else f"💡 #{ref}"
 
 
@@ -657,7 +658,7 @@ def create_app() -> FastAPI:
         if not sid and str(b.get("source_url") or "").strip():
             repo0 = app.state.repo_factory(app.state.config)
             row = repo0.conn.execute(
-                "SELECT MIN(id) AS id FROM digest_entries WHERE url=%s",
+                f"SELECT MIN(id) AS id FROM digest_entries WHERE {repo0._OWN} AND url=%s",
                 (str(b["source_url"]).strip(),)).fetchone()
             repo0.close()
             sid = int(row["id"]) if row and row["id"] else 0

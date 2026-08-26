@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS digest_entries (
     source_class TEXT DEFAULT 'ordinary',
     source_id TEXT DEFAULT '',
     note TEXT DEFAULT '',
-    ingested_at TEXT DEFAULT ''
+    ingested_at TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
 );
 
 CREATE TABLE IF NOT EXISTS entry_embeddings (
@@ -101,7 +102,8 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     source_entry_id INTEGER,
     created_at TEXT,
     conversation_id INTEGER,
-    origin TEXT DEFAULT ''
+    origin TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -114,7 +116,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_activity_at TEXT,
     chapters TEXT DEFAULT '[]',
     carried_kind TEXT DEFAULT '',
-    carried_ref TEXT DEFAULT ''
+    carried_ref TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
 );
 
 CREATE TABLE IF NOT EXISTS article_roots (
@@ -127,7 +130,8 @@ CREATE TABLE IF NOT EXISTS domains (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     parent_id INTEGER,
-    created_at TEXT DEFAULT ''
+    created_at TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
 );
 
 CREATE TABLE IF NOT EXISTS translation_units (
@@ -143,7 +147,8 @@ CREATE TABLE IF NOT EXISTS articles (
     markdown TEXT NOT NULL,
     length TEXT DEFAULT '',
     level TEXT DEFAULT '',
-    created_at TEXT DEFAULT ''
+    created_at TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1        -- spec 063：每一列有主人
 );
 """
 
@@ -199,6 +204,13 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     # ⚠️ 第三種要**存**不要推導：「欄位都空著」和「明確宣告沒有依據」在資料上長得一樣，
     #    而後者是一個**判斷**——資訊存在的時候不要把它丟掉。
     ("why_nodes", "origin", "TEXT DEFAULT ''"),
+    # spec 063（階段 58）：B-底層——每一列有主人。
+    # ⚠️ 預設 1 ＝ 既有的單一使用者 ⇒ 補欄本身就是 backfill，不需要另一支腳本。
+    ("domains", "owner_id", "INTEGER DEFAULT 1"),
+    ("why_nodes", "owner_id", "INTEGER DEFAULT 1"),
+    ("articles", "owner_id", "INTEGER DEFAULT 1"),
+    ("conversations", "owner_id", "INTEGER DEFAULT 1"),
+    ("digest_entries", "owner_id", "INTEGER DEFAULT 1"),
 ]
 
 
