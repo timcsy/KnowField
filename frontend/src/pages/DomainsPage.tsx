@@ -154,7 +154,7 @@ export default function DomainsPage() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
-      if (e.key === "Escape") { setPicked(new Set()); setMenu(null); setSelecting(false); return }
+      if (e.key === "Escape") { exitBatch(); setMenu(null); return }
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return
       const list = shown(inDomain(sel))
       if (!list.length) return
@@ -170,6 +170,12 @@ export default function DomainsPage() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   })
+
+  // ⚠️ **批次模式有兩個來源**（長按設 `selecting`、直接勾選只動 `picked`），
+  //    而按鈕原本只看 `selecting` ⇒ 用勾選進入時它顯示「選取」，按下去反而**推得更深**，
+  //    使用者就退不出來了（2026-08-26 回報）。⇒ 收斂成一個推導值。
+  const inBatch = selecting || picked.size > 0
+  const exitBatch = () => { setSelecting(false); setPicked(new Set()) }
 
   const kids = (p: number | null) => (domains || []).filter((d) => d.parent_id === p)
   const inDomain = (id: number | null) => inDom(items, id)
@@ -385,7 +391,7 @@ export default function DomainsPage() {
              if (!isTap(pressAt.current, { x: e.clientX, y: e.clientY })) return
              if (e.metaKey || e.ctrlKey) toggle(i)
              else if (e.shiftKey) rangeTo(i, rows)
-             else if (picked.size || selecting) toggle(i)   // 選取模式 → 點一下＝加選
+             else if (inBatch) toggle(i)                    // 批次模式 → 點一下＝加選
              else open(i)
            }}
            onDoubleClick={() => open(i)}
@@ -400,7 +406,7 @@ export default function DomainsPage() {
         <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggle(i)}
                className={cn("h-4 w-4",
                              // ⚠️ 觸控沒有 hover ⇒ 只靠 group-hover 的話手機上選不到任何東西
-                             !on && !picked.size && !selecting && "opacity-0 group-hover:opacity-100")} />
+                             !on && !inBatch && "opacity-0 group-hover:opacity-100")} />
         <span className="min-w-0 truncate">{KIND_LABEL[i.kind].slice(0, 2)} {i.label}</span>
         <span className="hidden text-xs text-muted-foreground md:block">{KIND_LABEL[i.kind].slice(2).trim()}</span>
         <span className="hidden text-xs text-muted-foreground md:block">{(i.at || "").slice(0, 10)}</span>
@@ -452,9 +458,9 @@ export default function DomainsPage() {
                  className="h-8 w-44 text-sm" />
         </div>
         {/* 手機：對齊 iOS Files／Drive 的「選取／完成」 */}
-        <button onClick={() => { setSelecting((v) => !v); if (selecting) setPicked(new Set()) }}
+        <button onClick={() => (inBatch ? exitBatch() : setSelecting(true))}
                 className="shrink-0 rounded px-2 py-1 text-sm text-primary md:hidden">
-          {selecting ? "完成" : "選取"}
+          {inBatch ? "完成" : "選取"}
         </button>
       </div>
 
@@ -547,7 +553,7 @@ export default function DomainsPage() {
           {picked.size > 0 && (
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-t px-3 py-2">
               <span className="text-sm">已選 <b>{picked.size}</b> 件</span>
-              <button onClick={() => setPicked(new Set())} className="text-xs text-muted-foreground hover:underline">清除</button>
+              <button onClick={exitBatch} className="text-xs text-muted-foreground hover:underline">完成</button>
               <button onClick={() => setPicked(new Set(rows.map(keyOf)))}
                       className="text-xs text-muted-foreground hover:underline">全選這 {rows.length} 件</button>
               <button onClick={archivePicked}

@@ -44,6 +44,54 @@ export default function ChatPage() {
   // 之後 autosave 送什麼都不會改到它。
   const pendingDomain = useRef<number | null>(null)
   const { did } = useCurrentDomain()      // 你站的地方（spec 052）
+  // 「⋯ 更多」改成受控選單：`<details>` 點空白處收不起來（使用者回報 2026-08-26）
+  const [more, setMore] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const [allDomains, setAllDomains] = useState<{ id: number; name: string; path: { id: number; name: string }[] }[]>([])
+  useEffect(() => {
+    if (!more) return
+    pages.domains().then((r) => setAllDomains(r.domains)).catch(() => {})
+    const close = (e: Event) => { if (!moreRef.current?.contains(e.target as Node)) setMore(false) }
+    // ⚠️ 兩種輸入都要接：只掛 mousedown 的話手機上關不掉（同一族的第四次）
+    document.addEventListener("mousedown", close)
+    document.addEventListener("touchstart", close)
+    return () => {
+      document.removeEventListener("mousedown", close)
+      document.removeEventListener("touchstart", close)
+    }
+  }, [more])
+
+  async function moveThisConv(v: string) {
+    const cid = tempId.current
+    if (!cid) return
+    setMore(false)
+    const to = v === "0" ? null : Number(v)
+    const t = await pages.tangles([{ kind: "conversation", ref: cid }], to)
+    if (t.tangles.length && !confirm(
+      `搬過去會跟這 ${t.tangles.length} 個分開：\n\n` +
+      t.tangles.slice(0, 6).map((x) => "・" + x.label).join("\n") +
+      "\n\n仍要搬？（它們會留在原地，成為一條糾纏）")) return
+    await pages.moveKnowledge([{ kind: "conversation", ref: cid }], to, false)
+    notifyConversations()
+    toast("搬好了")
+  }
+
+  async function archiveThisConv() {
+    const cid = tempId.current
+    if (!cid) return
+    setMore(false)
+    if (!confirm("封存這段對話？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。")) return
+    const r = await pages.deleteConv(cid)
+    if (!r.deleted && r.blocked_by?.length) {
+      alert("這段對話是下列理解的『由來』，封存不了。\n請先封存它們：\n\n"
+        + r.blocked_by.map((x) => "• " + x).join("\n"))
+      return
+    }
+    notifyConversations()
+    newChat()
+    toast("已封存")
+  }
+
   const [stage, setStage] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -262,12 +310,6 @@ export default function ChatPage() {
 
   const [flash, setFlash] = useState<string | null>(null)
   function toast(t: string) { setFlash(t); setTimeout(() => setFlash(null), 2200) }
-
-  async function saveConversation() {
-    const r = await api.save(messages, tempId.current)
-    if (r.saved) { tempId.current = null; notifyConversations() }
-    toast(r.msg)
-  }
 
   async function copyChat(as: "md" | "urls") {
     const r = await fetch("/api/chat/export", {
@@ -584,11 +626,12 @@ export default function ChatPage() {
           </label>
           {/* 其餘動作收進「⋯ 更多」，預設收起（省底部空間，尤其手機） */}
           {messages.length > 0 && (
-            <details className="relative">
-              <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground">⋯ 更多</summary>
-              <div className="absolute bottom-full left-0 z-30 mb-1 w-40 overflow-hidden rounded-md border bg-popover py-1 shadow-md">
+            <div ref={moreRef} className="relative">
+              <button onClick={() => setMore((v) => !v)}
+                      className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">⋯ 更多</button>
+              {more && (
+              <div className="absolute bottom-full left-0 z-30 mb-1 w-44 overflow-hidden rounded-md border bg-popover py-1 shadow-md">
                 <button onClick={distill} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🧵 整理成重點</button>
-                <button onClick={saveConversation} disabled={busy} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">💾 存下這段</button>
                 {/* spec 043：用這段對話冊封出的理解當骨幹生一篇文章。
                     ⚠️ 需要這段已經被存下來（tempId）——autosave 每輪都會做，所以正常情況一定有。 */}
                 <button onClick={genArticleFromConv} disabled={busy}
@@ -601,8 +644,24 @@ export default function ChatPage() {
                         className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔖 重新分章</button>
                 <button onClick={() => copyChat("md")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">📋 複製 Markdown</button>
                 <button onClick={() => copyChat("urls")} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent">🔗 複製來源</button>
+                {/* 整理與離場也該在這裡——不然要離開對話、繞去領域頁才做得到 */}
+                <div className="my-1 border-t" />
+                <div className="px-3 py-1">
+                  <select value="" aria-label="搬到領域" disabled={busy || !tempId.current}
+                          className="w-full rounded border bg-background px-1 py-0.5 text-sm"
+                          onChange={(e) => { if (e.target.value !== "") moveThisConv(e.target.value) }}>
+                    <option value="">🗂 搬到領域…</option>
+                    <option value="0">🗂 知識庫</option>
+                    {allDomains.map((d) => (
+                      <option key={d.id} value={d.id}>{d.path.map((x) => x.name).join(" / ")}</option>
+                    ))}
+                  </select>
+                </div>
+                <button onClick={archiveThisConv} disabled={busy || !tempId.current}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent">📦 封存這段</button>
               </div>
-            </details>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -77,6 +77,11 @@ export const api = {
                             carried_kind: carried?.kind || "", carried_ref: carried?.ref || "",
                             domain_id: domainId ?? null }),
     }).then(json),
+
+  // ⓘ **前端已無呼叫端**（2026-08-26）：spec 040 移除暫存分層後 autosave 每輪都存，
+  //    「💾 存下這段」不只多餘——它還會把 `tempId` 清成 null，下一次 autosave 就**再開一段**，
+  //    等於按一下複製一份。⇒ 按鈕拿掉。
+  //    ⚠️ 後端端點**保留**：它是人閘門的一部分、有契約測試在守，而刪 API 的代價比留著大。
   save: (history: Message[], temp_id: number | null): Promise<{ saved: boolean; msg: string }> =>
     fetch("/api/chat/save", {
       method: "POST",
