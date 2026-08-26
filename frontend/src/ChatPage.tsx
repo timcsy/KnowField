@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useCurrentDomain } from "@/lib/domain"
 import { coveredSet, coverageSummary, type Range } from "@/lib/coverage"
 import { Copy, GitBranch, Pencil, RefreshCw } from "lucide-react"
+import { Rehearse } from "@/components/Rehearse"
 
 type Chapter = { title: string; start: number; end: number }
 
@@ -501,6 +502,8 @@ export default function ChatPage() {
               丟一個想法、一個「為什麼 X 要這樣」，或接著上一句往下問。
               <br />它有話直說，不順著你講好聽話。
             </p>
+            {/* spec 068：一天三條複習。放這裡是因為**你正要開始想事情，脈絡剛好**。 */}
+            <Rehearse />
           </div>
         )}
         {hasChapters && chapters ? (

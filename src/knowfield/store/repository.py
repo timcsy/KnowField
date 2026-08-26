@@ -321,6 +321,34 @@ class Repository:
                 digest_date="", source_class="root"))
         return out
 
+    # ── 複習（spec 068）：一天三條 ────────────────────────────────────
+    def rehearse(self, n: int = 3) -> list[dict]:
+        """挑幾條以前冊封的理解推到眼前。**同一天內回同樣那幾條**。
+
+        ⚠️ 挑選依據**只有時間**（最久沒出現過的優先，沒出現過的最優先）。
+        絕不用採用次數／被引用數——那是馬太陷阱：被引用最多的會一直被推出來，
+        而**你最需要重新遇到的正好是你快忘了的那些**。
+        """
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        today = now[:10]
+        rows = self.conn.execute(
+            f"SELECT id, claim, kind FROM why_nodes WHERE {self._OWN} AND {self._LIVE}"
+            f" AND status='anointed' AND COALESCE(last_rehearsed_at,'') LIKE %s"
+            f" ORDER BY id LIMIT {int(n)}", (f"{today}%",)).fetchall()
+        if not rows:                     # 今天還沒推過 ⇒ 挑最久沒出現的，並蓋上今天
+            rows = self.conn.execute(
+                f"SELECT id, claim, kind FROM why_nodes WHERE {self._OWN} AND {self._LIVE}"
+                f" AND status='anointed'"
+                f" ORDER BY COALESCE(last_rehearsed_at,'') ASC, id ASC LIMIT {int(n)}").fetchall()
+            for r in rows:
+                self.conn.execute(
+                    f"UPDATE why_nodes SET last_rehearsed_at=%s WHERE {self._OWN} AND id=%s",
+                    (now, r["id"]))
+            self.conn.commit()
+        return [{"id": r["id"], "claim": r["claim"] or "",
+                 "kind": (r["kind"] if "kind" in r.keys() else "") or ""} for r in rows]
+
     # ── persona（spec 067）：隱私的**硬**隔離 ─────────────────────────
     #
     # 過濾不在這裡——它在 `_own()`，跟 owner **共用同一個述詞**。

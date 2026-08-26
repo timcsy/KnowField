@@ -1165,6 +1165,16 @@ def create_app() -> FastAPI:
             r.delete_cookie("kf_persona", path="/")
         return r
 
+    @app.get("/api/rehearse")
+    async def api_rehearse():
+        """spec 068：一天三條複習。⚠️ 排序**只有時間**——熱門度是馬太陷阱。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            out = repo.rehearse(3)
+        finally:
+            repo.close()
+        return _JSON({"items": out})
+
     @app.get("/api/search")
     async def api_search(request: Request):
         """spec 066：全域搜尋。⚠️ 結果**不摻**「你可能也想看」——那是逛的工作（階段 64）。"""

@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     created_at TEXT,
     conversation_id INTEGER,
     origin TEXT DEFAULT '',
+    last_rehearsed_at TEXT DEFAULT '',   -- spec 068：上次被推到你眼前是什麼時候
     owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
     persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
@@ -231,6 +232,10 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("articles", "persona_id", "INTEGER"),
     ("conversations", "persona_id", "INTEGER"),
     ("digest_entries", "persona_id", "INTEGER"),
+    # spec 068：上次被推到你眼前是什麼時候。⚠️ 挑選只靠**時間**——
+    # 任何「熱門度」進到這裡就是馬太陷阱：被引用最多的一直被推出來，
+    # 而你最需要重新遇到的正好是**你快忘了的那些**。
+    ("why_nodes", "last_rehearsed_at", "TEXT DEFAULT ''"),
 ]
 
 

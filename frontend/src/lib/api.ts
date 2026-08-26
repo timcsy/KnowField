@@ -166,6 +166,9 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 068：一天三條複習。⚠️ 排序在後端，且**只有時間**——別在前端重新排。
+  rehearse: (): Promise<{ items: { id: number; claim: string; kind: string }[] }> =>
+    fetch("/api/rehearse").then(json),
   // spec 067：persona ＝ 隱私的**硬**隔離。過濾在後端的 `_own()`，前端只負責切換與顯示。
   personas: (): Promise<{ personas: Persona[]; current: number | null }> =>
     fetch("/api/personas").then(json),
