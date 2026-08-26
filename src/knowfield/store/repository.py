@@ -269,7 +269,10 @@ class Repository:
         base = (
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
-            f" FROM digest_entries de JOIN digests d ON de.digest_id=d.id WHERE de.owner_id={self.owner}"
+            f" FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
+            # ⚠️ spec 064：**遺骸不進語料**。這一行原本不在，於是封存過的來源
+            #    仍在影響每一個回答——而清單頁是對的，所以完全看不出來。
+            f" WHERE de.owner_id={self.owner} AND {self._live('de')}"
         )
         if today:
             # 最近一份真實每日匯整（種子容器不算「今天」，spec 006 R2）
@@ -381,7 +384,7 @@ class Repository:
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            f" WHERE de.owner_id={self.owner} AND d.date=%s AND COALESCE(de.archived_at,'')=''"    # spec 055：遺骸不進語料
+            f" WHERE de.owner_id={self.owner} AND d.date=%s AND {self._live('de')}"    # spec 055/064：遺骸不進語料
             " ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
         return [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
@@ -806,6 +809,13 @@ class Repository:
     # 只在清單頁過濾、沒擋住 `list_attractors`／`list_seeds` 的話，
     # 封存過的知識**仍在影響每一個回答**，而且沒有任何跡象。
     _LIVE = "COALESCE(archived_at,'')='' AND COALESCE(erased_at,'')=''"
+
+    @classmethod
+    def _live(cls, alias: str = "") -> str:
+        """`_LIVE` 的別名版。⚠️ **一份寫法**——兩套會漂，而漂掉的那一套不會報錯。"""
+        p = f"{alias}." if alias else ""
+        return f"COALESCE({p}archived_at,'')='' AND COALESCE({p}erased_at,'')=''"
+
     _ERASED = "COALESCE(erased_at,'')<>''"
     # 抹除時要清空的內容欄（**位址欄不動**：`digest_entries.url` 是位址不是內容，
     # 抹掉它疤就找不到了——而疤存在的意義就是「這裡曾經有東西」問得出來）。
