@@ -768,6 +768,20 @@ def create_app() -> FastAPI:
                       "provenance": {str(k): v for k, v in prov.items()},
                       "source_provenance": {str(k): v for k, v in sprov.items()}})
 
+    # spec 071：把 `knowie-xbase` 算出來的跨 base 群收進**收件匣**（＝候選理解）。
+    # ⚠️ 匯入是批次的，**收下不是**——一條一條走既有的 `/api/whynode/anoint`（FR-004）。
+    #    匯入只是「東西送到你門口」，不等於你收了它。
+    @app.post("/api/xbase/import")
+    async def api_xbase_import(request: Request):
+        b = await request.json()
+        groups = b.get("groups") or []
+        if not isinstance(groups, list):
+            return _JSON({"error": "groups 要是一個陣列"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        r = repo.import_borrowed(groups)
+        repo.close()
+        return _JSON({"added": len(r["added"]), "skipped": r["skipped"]})
+
     # ══ /api：其餘頁（re-platform 里程碑二）——共用既有 repo/service ══
     @app.post("/api/whynode/anoint")
     async def api_whynode_anoint(request: Request):

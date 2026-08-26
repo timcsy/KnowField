@@ -9,6 +9,7 @@
   ],
   "updatedAt": "2026-08-14T15:43:16.447Z",
   "skillDirs": [
-    ".agents/skills"
+    ".agents/skills",
+    ".claude/skills"
   ]
 }

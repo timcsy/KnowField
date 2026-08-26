@@ -107,6 +107,12 @@ export type WhyNode = {
   // ｜'self'＝人自己寫（出處必然是**事後**挑的）｜'self:judgment'＝人寫且宣告無外部依據
   origin: string
 }
+// spec 071：`origin` 以 `from:` 開頭 ＝ 這條是**借來的**判準（值是它跨過的 base，逗號分隔）。
+// ⚠️ 在這個場真的撞到之前，它不算你自己撞出來的——所以收下之後這個標記也留著。
+export const BORROWED = "from:"
+export const borrowedBases = (origin: string): string[] =>
+  origin?.startsWith(BORROWED) ? origin.slice(BORROWED.length).split(",").filter(Boolean) : []
+
 export type RootsData = {
   anointed: WhyNode[]
   candidates: WhyNode[]
@@ -171,6 +177,10 @@ export const pages = {
   whynodeAnoint: (id: number, claim?: string, kind?: string, domain_id?: number | null) =>
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
+  // spec 071：把 `knowie-xbase` 算出來的跨 base 群送進**收件匣**。
+  // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
+  xbaseImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
+    post("/api/xbase/import", { groups }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
   // spec 070：搜尋給不了的那三塊。⚠️ has_geometry=false 時要**說算不出來**，不是顯示空的
   // ——三塊一起沉默地失效，比少一塊更糟：你會以為這一區真的沒有鄰居。

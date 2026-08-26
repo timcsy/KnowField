@@ -651,6 +651,66 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # ══ spec 071：跨 base 判準的收件匣 ══
+    # ⚠️ **沒有新表。** 借來的判準就是一條 `status='candidate'` 的理解——
+    #    既有的 `anoint_why_node` 就是那道人閘門，既有的理解頁就是複審的地方。
+    #    形狀早就寫過（draft/room與組織的AI:132）：「共享空間必須是**收件匣，不是資料庫**」。
+    BORROWED = "from:"          # origin 前綴＝這條是借來的
+
+    def import_borrowed(self, groups: list, now: str = "") -> dict:
+        """把跨 base 的群落成候選。回 `{"added": [id...], "skipped": n}`。
+
+        一群 ＝ `{"claim": 代表句, "members": [{"base": .., "text": 原文}, ...]}`。
+        ⚠️ **成員原文存進 `ladder`**——那不是挪用：ladder 本來就是「我憑什麼相信它」，
+        而借來的判準憑的正是「**幾個獨立的 base 各自撞出同一條**」。
+        ⚠️ **不合成**：claim 直接用代表句，人在冊封時可以改寫（`anoint_why_node` 本來就吃 claim）。
+        """
+        import json as _json
+        from datetime import datetime, timezone
+
+        from ..chat.capture import norm_claim
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # ⚠️ 去重要看**所有**理解，不只活的——略過（＝封存）過的不能再冒出來（FR-005）。
+        #    這裡刻意不帶 `_LIVE`。
+        # ⚠️ 而身分**不能只看 claim**：人在冊封時會把它改寫成自己的話（設計鼓勵這件事），
+        #    改寫完就跟原本那群對不上，下次匯入整群復活。實跑才撞到——單元測試冊封時
+        #    沒改寫，所以綠得毫無意義。⇒ 身分看**成員原文**（ladder），冊封不會動它。
+        seen_claim, seen_rung = set(), set()
+        for r in self.conn.execute(
+                f"SELECT claim, ladder FROM why_nodes WHERE {self._OWN}").fetchall():
+            if r["claim"]:
+                seen_claim.add(norm_claim(r["claim"]))
+            try:
+                seen_rung.update(_json.loads(r["ladder"] or "[]"))
+            except ValueError:
+                pass
+        added, skipped = [], 0
+        for g in groups or []:
+            claim = str((g or {}).get("claim") or "").strip()
+            members = [m for m in ((g or {}).get("members") or [])
+                       if str((m or {}).get("base") or "").strip()
+                       and str((m or {}).get("text") or "").strip()]
+            rungs = [f"{str(m['base']).strip()}｜{str(m['text']).strip()}" for m in members]
+            key = norm_claim(claim)
+            if (not claim or not members or key in seen_claim
+                    or any(r in seen_rung for r in rungs)):
+                skipped += 1
+                continue
+            seen_claim.add(key)                  # 同一批裡重複的也只收一次
+            seen_rung.update(rungs)
+            bases = sorted({str(m["base"]).strip() for m in members})
+            added.append(self.add_why_node(
+                claim=claim, evidence_urls=[], touchstones=[], fog_flag=False,
+                source_entry_id=None, created_at=now, ladder=rungs,
+                origin=self.BORROWED + ",".join(bases)))
+        return {"added": added, "skipped": skipped}
+
+    @classmethod
+    def borrowed_bases(cls, origin: str) -> list:
+        """`origin` → 它跨了哪幾個 base（非借來的回空）。"""
+        o = origin or ""
+        return [b for b in o[len(cls.BORROWED):].split(",") if b] if o.startswith(cls.BORROWED) else []
+
     def delete_why_node(self, wid: int, now: str = "") -> bool:
         """**封存**一條理解（spec 055）——不再硬刪。
 
