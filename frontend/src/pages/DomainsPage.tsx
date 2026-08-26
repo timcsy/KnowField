@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SuggestOrganize } from "@/components/SuggestOrganize"
 import { cn } from "@/lib/utils"
+import { DomainContextPanel } from "@/components/DomainContext"
 
 // 整理台（spec 050，階段 45）＝領域樹 ＋ 待整理清冊。
 // ⚠️ **領域＝節點、主題 Topic＝從根到節點的路徑**——路徑由後端從 parent_id 導出，這裡只顯示。
@@ -520,6 +521,11 @@ export default function DomainsPage() {
             <Button size="sm" variant="secondary" className="ml-auto h-7"
                     onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}>＋ 在這裡開新互動</Button>
           </div>
+
+          {/* spec 070：⚠️ 這一塊**不折疊、不放頁尾**——它是這一頁存在的理由。
+              清單（下面那個）是搜尋結果的形狀，搜尋做得比它好；
+              「你沒在找的東西」才是搜尋給不了的。 */}
+          <DomainContextPanel did={sel} onGo={(d) => go(d)} />
 
           {/* 欄位標題（可排序） */}
           <div className="grid shrink-0 grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 border-b px-2 py-1">

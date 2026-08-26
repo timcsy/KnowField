@@ -126,6 +126,12 @@ export type SuggestedFolder = {
   lonely?: boolean
 }
 export type Persona = { id: number; name: string; color: string }
+export type DomainContext = {
+  crossings: { domain_id: number | null; name: string; count: number }[]
+  fringe: { kind: string; ref: number | string; label: string; dist: number }[]
+  nearby: { domain_id: number | null; name: string; dist: number }[]
+  has_geometry: boolean
+}
 export type SearchHit = { kind: string; ref: number | string; label: string }
 export type SearchGroup = { kind: string; count: number; items: SearchHit[] }
 export type SourceGroup = {
@@ -166,6 +172,10 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 070：搜尋給不了的那三塊。⚠️ has_geometry=false 時要**說算不出來**，不是顯示空的
+  // ——三塊一起沉默地失效，比少一塊更糟：你會以為這一區真的沒有鄰居。
+  domainContext: (did: number | null): Promise<DomainContext> =>
+    fetch(`/api/domains/${did ?? 0}/context`).then(json),
   // spec 068：一天三條複習。⚠️ 排序在後端，且**只有時間**——別在前端重新排。
   rehearse: (): Promise<{ items: { id: number; claim: string; kind: string }[] }> =>
     fetch("/api/rehearse").then(json),

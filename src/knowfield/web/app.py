@@ -1172,6 +1172,21 @@ def create_app() -> FastAPI:
             r.delete_cookie("kf_persona", path="/")
         return r
 
+    @app.get("/api/domains/{did}/context")
+    async def api_domain_context(did: str):
+        """spec 070：搜尋給不了的那三塊——⛓ 通往哪裡 · 🪂 快掉出去的 · 🧭 相鄰的區。
+
+        ⚠️ 只用**已落庫**的向量，不呼叫 API：逛一頁不該花錢，也不該等。
+        """
+        from ..organize.neighbours import domain_context
+        d = None if did in ("0", "root", "null") else int(did)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            out = domain_context(repo, d, app.state.district_embedder_factory())
+        finally:
+            repo.close()
+        return _JSON(out)
+
     @app.get("/api/rehearse")
     async def api_rehearse():
         """spec 068：一天三條複習。⚠️ 排序**只有時間**——熱門度是馬太陷阱。"""
