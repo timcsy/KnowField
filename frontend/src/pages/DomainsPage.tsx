@@ -56,6 +56,10 @@ export default function DomainsPage() {
   // ⚠️ 長按觸發之後瀏覽器**還會送一個 click**，不擋掉的話它會立刻把剛選的取消。
   //    沿用側欄既有的一次性旗標作法（`ConversationSidebar` 的 `longPressed`）。
   const longPressed = useRef(false)
+  // ⚠️ **瀏覽器在觸控長按時會自己送 `contextmenu`**（Android Chrome / iOS Safari 都會）。
+  //    我只想到自己那條 450ms 的路徑，沒想到原生還有一條 ⇒ 批次模式進去了、選單同時跳出來。
+  //    `contextmenu` 事件本身不帶 `pointerType`，所以要自己記住上一次是什麼裝置。
+  const lastPointer = useRef<string>("mouse")
   // 手機沒有 hover 也沒有右鍵（spec 058）⇒ 明確的「選取模式」＋ 樹抽屜
   const [selecting, setSelecting] = useState(false)
   const [tree, setTree] = useState(false)
@@ -333,15 +337,19 @@ export default function DomainsPage() {
            if (isTap(pressAt.current, { x: e.clientX, y: e.clientY })) go(d.id)
          }}
          onPointerDown={(e) => {
+           lastPointer.current = e.pointerType
            pressAt.current = { x: e.clientX, y: e.clientY }
            longPressed.current = false
-           // 資料夾不進批次（批次操作的對象是知識，不是領域）⇒ 長按仍出選單
-           pressHold(e, () => { longPressed.current = true
-                                setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) })
+           // ⓘ 資料夾**不進批次**（批次的對象是知識，不是領域），
+           //    而手機也**不出長按選單**（使用者要求）⇒ 它的動作走列尾那顆 ⋯
          }}
-         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
-         title="點一下進去；右鍵有更多"
-         className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
+         onContextMenu={(e) => {
+           e.preventDefault()                       // 觸控也要擋，否則跳出系統的複製／選取泡泡
+           if (lastPointer.current !== "mouse") return
+           setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d })
+         }}
+         title="點一下進去；⋯ 有更多"
+         className={cn("group relative grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
                        dropOn === d.id && "outline outline-2 outline-primary")}>
       <span />
       <span className="min-w-0 truncate font-medium">📁 {d.name}</span>
@@ -349,6 +357,12 @@ export default function DomainsPage() {
       <span className="hidden text-xs text-muted-foreground md:block">
         {inDomain(d.id).length ? `${inDomain(d.id).length} 件` : "空的"}
       </span>
+      {/* ⚠️ 手機沒有右鍵、也不再有長按選單 ⇒ 這顆必須**常駐**，否則資料夾的
+          改名／搬動／封存在手機上到不了（同一族的第三次） */}
+      <button onClick={(e) => { e.stopPropagation()
+                                setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
+              aria-label="更多"
+              className="absolute right-2 rounded px-2 py-0.5 text-muted-foreground hover:bg-background hover:text-foreground md:opacity-0 md:group-hover:opacity-100">⋯</button>
     </div>
   )
 
@@ -357,6 +371,7 @@ export default function DomainsPage() {
     const on = picked.has(k)
     return (
       <div key={k} onPointerDown={(e) => {
+             lastPointer.current = e.pointerType
              pressAt.current = { x: e.clientX, y: e.clientY }
              longPressed.current = false
              beginDrag(e, i)
@@ -374,7 +389,11 @@ export default function DomainsPage() {
              else open(i)
            }}
            onDoubleClick={() => open(i)}
-           onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "item", i }) }}
+           onContextMenu={(e) => {
+             e.preventDefault()
+             if (lastPointer.current !== "mouse") return
+             setMenu({ x: e.clientX, y: e.clientY, kind: "item", i })
+           }}
            className={cn("group grid cursor-pointer select-none grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
                          on && "bg-muted")}>
         {/* ⚠️ 勾選框不常駐：沒選任何東西時它只在 hover 出現——常駐＝整理模式的家具 */}

@@ -127,7 +127,9 @@ embedding／摘要藏在可插拔介面（`Embedder`／`Summarizer`）後：預�
 - [X] **長按＝進批次模式**（使用者要求；Android／Drive／Gmail 慣例，非 iOS Files 的出選單）
       ⚠️ 長按後瀏覽器**還會補送一個 click**，不擋掉會立刻取消剛選的
       ——沿用側欄既有的 `longPressed` 一次性旗標
-      ⓘ 資料夾長按仍出選單：**批次的對象是知識，不是領域**
+      ⓘ 資料夾長按**不出選單**（使用者要求）⇒ 列尾補常駐的 `⋯`
+- [X] ⚠️ **瀏覽器自己會在觸控長按時送 `contextmenu`**——我只想到自己那條 450ms 的路徑。
+      而 `contextmenu` 事件**不帶 `pointerType`** ⇒ 要自己記住上一次 `pointerdown` 的裝置
 - [ ] **out of scope**：手機拖放（沿用階段 53 的裁決）、慣性捲動細調、桌機拖曳門檻
 
 
