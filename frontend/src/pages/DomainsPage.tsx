@@ -53,6 +53,9 @@ export default function DomainsPage() {
   const anchor = useRef<string | null>(null)   // shift 連選的起點
   // ⚠️ 觸控上捲動與點選開頭一模一樣 ⇒ 記下按下的位置，放開時才判斷得出來
   const pressAt = useRef<{ x: number; y: number } | null>(null)
+  // ⚠️ 長按觸發之後瀏覽器**還會送一個 click**，不擋掉的話它會立刻把剛選的取消。
+  //    沿用側欄既有的一次性旗標作法（`ConversationSidebar` 的 `longPressed`）。
+  const longPressed = useRef(false)
   // 手機沒有 hover 也沒有右鍵（spec 058）⇒ 明確的「選取模式」＋ 樹抽屜
   const [selecting, setSelecting] = useState(false)
   const [tree, setTree] = useState(false)
@@ -313,10 +316,10 @@ export default function DomainsPage() {
   const rows = shown(inDomain(sel))
   const path = selected ? selected.path : []
 
-  /** 長按＝觸控上的右鍵。⚠️ 與拖曳互斥：移動超過門檻就取消（見 lib/longpress）。 */
-  function pressMenu(e: React.PointerEvent, make: (x: number, y: number) => NonNullable<typeof menu>) {
+  /** 觸控長按。⚠️ 與捲動互斥：移動超過門檻就取消（見 `lib/longpress`）。 */
+  function pressHold(e: React.PointerEvent, fire: () => void) {
     if (e.pointerType === "mouse") return
-    const h = armLongPress(e.clientX, e.clientY, () => setMenu(make(e.clientX, e.clientY)))
+    const h = armLongPress(e.clientX, e.clientY, fire)
     const mv = (ev: PointerEvent) => h.movedFar(ev.clientX, ev.clientY)
     const up = () => { h.cancel(); window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up) }
     window.addEventListener("pointermove", mv)
@@ -325,9 +328,17 @@ export default function DomainsPage() {
 
   const folderRow = (d: Domain) => (
     <div key={`d${d.id}`} {...dropProps(d.id)}
-         onClick={(e) => { if (isTap(pressAt.current, { x: e.clientX, y: e.clientY })) go(d.id) }}
-         onPointerDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }
-                                 pressMenu(e, (x, y) => ({ x, y, kind: "domain", d })) }}
+         onClick={(e) => {
+           if (longPressed.current) { longPressed.current = false; return }
+           if (isTap(pressAt.current, { x: e.clientX, y: e.clientY })) go(d.id)
+         }}
+         onPointerDown={(e) => {
+           pressAt.current = { x: e.clientX, y: e.clientY }
+           longPressed.current = false
+           // 資料夾不進批次（批次操作的對象是知識，不是領域）⇒ 長按仍出選單
+           pressHold(e, () => { longPressed.current = true
+                                setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) })
+         }}
          onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
          title="點一下進去；右鍵有更多"
          className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
@@ -345,9 +356,16 @@ export default function DomainsPage() {
     const k = keyOf(i)
     const on = picked.has(k)
     return (
-      <div key={k} onPointerDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }
-                                          beginDrag(e, i); pressMenu(e, (x, y) => ({ x, y, kind: "item", i })) }}
+      <div key={k} onPointerDown={(e) => {
+             pressAt.current = { x: e.clientX, y: e.clientY }
+             longPressed.current = false
+             beginDrag(e, i)
+             // 觸控長按＝**進批次模式並選取這一件**（Android／Drive／Gmail 慣例）。
+             // ⓘ 不出選單：選單裡那四項在批次模式的底部列全都有，而長按→選單→選取是兩下。
+             pressHold(e, () => { longPressed.current = true; setSelecting(true); toggle(i) })
+           }}
            onClick={(e) => {
+             if (longPressed.current) { longPressed.current = false; return }  // 剛長按選了→別再 toggle 掉
              // ⚠️ 滑動不是點選——捲清單時瀏覽器不保證會抑制 click
              if (!isTap(pressAt.current, { x: e.clientX, y: e.clientY })) return
              if (e.metaKey || e.ctrlKey) toggle(i)
