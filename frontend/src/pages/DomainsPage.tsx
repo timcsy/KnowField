@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { pages, type KnowledgeItem, type KnowledgeKind, type KnowledgeRef } from "@/lib/api"
 import { keyOf, pickedRefs as pickRefs, inDomain as inDom, KIND_ORDER } from "@/lib/knowledge"
 import { useCurrentDomain, withDomain } from "@/lib/domain"
+import { armLongPress } from "@/lib/longpress"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -49,6 +50,9 @@ export default function DomainsPage() {
   const [menu, setMenu] = useState<{ x: number; y: number; kind: "domain"; d: Domain }
                                   | { x: number; y: number; kind: "item"; i: KnowledgeItem } | null>(null)
   const anchor = useRef<string | null>(null)   // shift 連選的起點
+  // 手機沒有 hover 也沒有右鍵（spec 058）⇒ 明確的「選取模式」＋ 樹抽屜
+  const [selecting, setSelecting] = useState(false)
+  const [tree, setTree] = useState(false)
   // 搬東西時若有糾纏，先問。⚠️ 糾纏不是我們建的，是**既有連結被樹拆散**。
   const [ask, setAsk] = useState<{ items: KnowledgeRef[]; to: number | null
                                    tangles: { label: string }[] } | null>(null)
@@ -135,6 +139,28 @@ export default function DomainsPage() {
     load()
   }
 
+  // 鍵盤導覽（桌機習慣）。⚠️ 只在沒有輸入框聚焦時才吃鍵，否則打字會被吃掉。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      if (e.key === "Escape") { setPicked(new Set()); setMenu(null); setSelecting(false); return }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return
+      const list = shown(inDomain(sel))
+      if (!list.length) return
+      e.preventDefault()
+      const cur = anchor.current ? list.findIndex((x) => keyOf(x) === anchor.current) : -1
+      if (e.key === "Enter") { if (cur >= 0) open(list[cur]); return }
+      const nxt = e.key === "ArrowDown"
+        ? Math.min(cur + 1, list.length - 1)
+        : Math.max(cur - 1, 0)
+      anchor.current = keyOf(list[nxt])
+      setPicked(new Set([anchor.current]))
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  })
+
   const kids = (p: number | null) => (domains || []).filter((d) => d.parent_id === p)
   const inDomain = (id: number | null) => inDom(items, id)
   const unfiled = useMemo(() => inDomain(null), [items])
@@ -218,6 +244,20 @@ export default function DomainsPage() {
 
   // ⚠️ 這兩個是**函式**不是元件：定義在元件內部的 JSX 元件每次 render 都是新型別，
   // React 會把整棵子樹卸載重掛——拖曳時一秒幾十次 render，105 列就這樣卡死頁面。
+  /** 抽屜裡的樹：只導覽。⚠️ 管理動作走長按選單，不在這裡塞四個小圖示（手指按不到）。 */
+  const renderMobileNode = (d: Domain, depth: number) => (
+    <div key={`m${d.id}`}>
+      <button onClick={() => { go(d.id); setTree(false) }}
+              style={{ paddingLeft: 8 + depth * 16 }}
+              className={cn("flex w-full items-center gap-2 rounded py-1.5 pr-2 text-left text-sm hover:bg-muted",
+                            sel === d.id && "bg-muted font-medium")}>
+        <span className="min-w-0 flex-1 truncate">📁 {d.name}</span>
+        <span className="text-xs text-muted-foreground">{inDomain(d.id).length || ""}</span>
+      </button>
+      {kids(d.id).map((k) => renderMobileNode(k, depth + 1))}
+    </div>
+  )
+
   const renderNode = (d: Domain, depth: number) => (
     <div key={d.id}>
       <div className={cn("group flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
@@ -265,17 +305,28 @@ export default function DomainsPage() {
   const rows = shown(inDomain(sel))
   const path = selected ? selected.path : []
 
+  /** 長按＝觸控上的右鍵。⚠️ 與拖曳互斥：移動超過門檻就取消（見 lib/longpress）。 */
+  function pressMenu(e: React.PointerEvent, make: (x: number, y: number) => NonNullable<typeof menu>) {
+    if (e.pointerType === "mouse") return
+    const h = armLongPress(e.clientX, e.clientY, () => setMenu(make(e.clientX, e.clientY)))
+    const mv = (ev: PointerEvent) => h.movedFar(ev.clientX, ev.clientY)
+    const up = () => { h.cancel(); window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up) }
+    window.addEventListener("pointermove", mv)
+    window.addEventListener("pointerup", up)
+  }
+
   const folderRow = (d: Domain) => (
     <div key={`d${d.id}`} {...dropProps(d.id)}
          onClick={() => go(d.id)}
+         onPointerDown={(e) => pressMenu(e, (x, y) => ({ x, y, kind: "domain", d }))}
          onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "domain", d }) }}
          title="點一下進去；右鍵有更多"
-         className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
+         className={cn("group grid cursor-pointer grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
                        dropOn === d.id && "outline outline-2 outline-primary")}>
       <span />
       <span className="min-w-0 truncate font-medium">📁 {d.name}</span>
-      <span className="text-xs text-muted-foreground">資料夾</span>
-      <span className="text-xs text-muted-foreground">
+      <span className="hidden text-xs text-muted-foreground md:block">資料夾</span>
+      <span className="hidden text-xs text-muted-foreground md:block">
         {inDomain(d.id).length ? `${inDomain(d.id).length} 件` : "空的"}
       </span>
     </div>
@@ -285,22 +336,25 @@ export default function DomainsPage() {
     const k = keyOf(i)
     const on = picked.has(k)
     return (
-      <div key={k} onPointerDown={(e) => beginDrag(e, i)}
+      <div key={k} onPointerDown={(e) => { beginDrag(e, i); pressMenu(e, (x, y) => ({ x, y, kind: "item", i })) }}
            onClick={(e) => {
              if (e.metaKey || e.ctrlKey) toggle(i)
              else if (e.shiftKey) rangeTo(i, rows)
-             else if (picked.size) toggle(i)     // 已在選取模式 → 點一下＝加選
+             else if (picked.size || selecting) toggle(i)   // 選取模式 → 點一下＝加選
              else open(i)
            }}
+           onDoubleClick={() => open(i)}
            onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: "item", i }) }}
-           className={cn("group grid cursor-pointer select-none grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
+           className={cn("group grid cursor-pointer select-none grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted",
                          on && "bg-muted")}>
         {/* ⚠️ 勾選框不常駐：沒選任何東西時它只在 hover 出現——常駐＝整理模式的家具 */}
         <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggle(i)}
-               className={cn("h-3.5 w-3.5", !on && !picked.size && "opacity-0 group-hover:opacity-100")} />
+               className={cn("h-4 w-4",
+                             // ⚠️ 觸控沒有 hover ⇒ 只靠 group-hover 的話手機上選不到任何東西
+                             !on && !picked.size && !selecting && "opacity-0 group-hover:opacity-100")} />
         <span className="min-w-0 truncate">{KIND_LABEL[i.kind].slice(0, 2)} {i.label}</span>
-        <span className="text-xs text-muted-foreground">{KIND_LABEL[i.kind].slice(2).trim()}</span>
-        <span className="text-xs text-muted-foreground">{(i.at || "").slice(0, 10)}</span>
+        <span className="hidden text-xs text-muted-foreground md:block">{KIND_LABEL[i.kind].slice(2).trim()}</span>
+        <span className="hidden text-xs text-muted-foreground md:block">{(i.at || "").slice(0, 10)}</span>
       </div>
     )
   }
@@ -315,11 +369,18 @@ export default function DomainsPage() {
   return (
     <div className="flex h-full min-h-0 flex-col" onClick={() => menu && setMenu(null)}>
       {/* ── 工具列：上一層 · 麵包屑 · 新資料夾 · 搜尋 ───────────────── */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+        {/* ⚠️ 手機沒有左欄 ⇒ 樹要有一個入口，否則整棵樹在手機上不存在 */}
+        <button onClick={() => setTree(true)} title="領域樹"
+                className="rounded px-2 py-1 text-sm hover:bg-muted md:hidden">📁</button>
         <button onClick={() => go(path.length > 1 ? path[path.length - 2].id : null)}
                 disabled={sel === null} title="上一層"
                 className="rounded px-2 py-1 text-sm hover:bg-muted disabled:opacity-30">⬆</button>
-        <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-sm">
+        {/* 窄螢幕只留「目前在哪」；寬螢幕才展開整條麵包屑 */}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium md:hidden">
+          {path.length ? path[path.length - 1].name : `🗂 ${ROOT_NAME}`}
+        </span>
+        <div className="hidden min-w-0 flex-wrap items-center gap-0.5 text-sm md:flex">
           <button onClick={() => go(null)}
                   className={cn("rounded px-1.5 py-0.5 hover:bg-muted", sel === null && "font-semibold")}>
             🗂 {ROOT_NAME}
@@ -333,7 +394,7 @@ export default function DomainsPage() {
             </span>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto hidden items-center gap-2 md:flex">
           <Input value={name} onChange={(e) => setName(e.target.value)}
                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) create() }}
                  placeholder="新資料夾名稱…" className="h-8 w-40 text-sm" />
@@ -341,6 +402,21 @@ export default function DomainsPage() {
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="在這個領域裡找…"
                  className="h-8 w-44 text-sm" />
         </div>
+        {/* 手機：對齊 iOS Files／Drive 的「選取／完成」 */}
+        <button onClick={() => { setSelecting((v) => !v); if (selecting) setPicked(new Set()) }}
+                className="shrink-0 rounded px-2 py-1 text-sm text-primary md:hidden">
+          {selecting ? "完成" : "選取"}
+        </button>
+      </div>
+
+      {/* 手機：搜尋與新資料夾另起一行，不擠在工具列 */}
+      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5 md:hidden">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="在這個領域裡找…"
+               className="h-8 flex-1 text-sm" />
+        <Input value={name} onChange={(e) => setName(e.target.value)}
+               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) create() }}
+               placeholder="新資料夾…" className="h-8 w-28 text-sm" />
+        <button onClick={create} className="shrink-0 rounded px-2 py-1 text-sm hover:bg-muted">＋</button>
       </div>
 
       {msg && <div className="shrink-0 bg-muted px-3 py-1.5 text-sm">{msg}</div>}
@@ -390,18 +466,30 @@ export default function DomainsPage() {
           </div>
 
           {/* 欄位標題（可排序） */}
-          <div className="grid shrink-0 grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 border-b px-2 py-1">
+          <div className="grid shrink-0 grid-cols-[1.5rem_minmax(0,1fr)] md:grid-cols-[1.5rem_minmax(0,1fr)_5rem_7rem] items-center gap-2 border-b px-2 py-1">
             <span />
             <SortHead by="name">名稱</SortHead>
-            <SortHead by="kind">種類</SortHead>
-            <SortHead by="at">更新</SortHead>
+            <SortHead by="kind" cls="hidden md:block">種類</SortHead>
+            <SortHead by="at" cls="hidden md:block">更新</SortHead>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {folders.length === 0 && rows.length === 0 && (
-              <p className="p-4 text-sm text-muted-foreground">
-                {needle ? "找不到符合的。" : "這個領域是空的。"}
-              </p>
+              <div className="p-6 text-center text-sm text-muted-foreground">
+                {needle ? (
+                  <p>找不到「{needle}」。<button onClick={() => setQ("")} className="underline hover:text-foreground">清除搜尋</button></p>
+                ) : (
+                  <div className="space-y-1">
+                    <p>這個領域是空的。</p>
+                    <p className="text-xs">
+                      到<button onClick={() => go(null)} className="underline hover:text-foreground">🗂 {ROOT_NAME}</button>
+                      把知識拖進來，或
+                      <button onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}
+                              className="underline hover:text-foreground">在這裡開一段新對話</button>。
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
             {folders.map(folderRow)}
             {rows.map(itemRow)}
@@ -428,6 +516,26 @@ export default function DomainsPage() {
           )}
         </section>
       </div>
+
+      {/* 手機：領域樹抽屜。⚠️ 沒有它，整棵樹在手機上不存在 */}
+      {tree && (
+        <div className="fixed inset-0 z-40 flex md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setTree(false)} />
+          <aside className="relative z-10 w-72 max-w-[80%] overflow-y-auto bg-background p-2 shadow-xl">
+            <div className="flex items-center justify-between px-2 pb-2">
+              <span className="text-sm font-semibold">📁 領域</span>
+              <button onClick={() => setTree(false)} className="px-1 text-muted-foreground">✕</button>
+            </div>
+            <button onClick={() => { go(null); setTree(false) }}
+                    className={cn("flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted",
+                                  sel === null && "bg-muted font-medium")}>
+              <span className="min-w-0 flex-1 truncate">🗂 {ROOT_NAME}</span>
+              <span className="text-xs text-muted-foreground">{items.length}</span>
+            </button>
+            {(domains || []).filter((d) => d.parent_id === null).map((d) => renderMobileNode(d, 1))}
+          </aside>
+        </div>
+      )}
 
       {/* 右鍵選單 */}
       {menu && (
