@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { pages, type ConvRow, type KnowledgeKind } from "@/lib/api"
-import { DomainEntry } from "@/components/DomainEntry"
+import { DomainNav } from "@/components/DomainNav"
 import { ROOT_NAME, useCurrentDomain, withDomain } from "@/lib/domain"
 import { liveRecent, readRecent, touchRecent, type RecentDomain } from "@/lib/recent"
 import { ConvMenu } from "@/components/ConvMenu"
@@ -87,11 +87,21 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
         <Link to="/" onClick={onNavigate} className="py-1 text-lg font-bold">🧠 KnowField</Link>
         {onNavigate && <button onClick={onNavigate} aria-label="關閉" className="px-1 text-muted-foreground">✕</button>}
       </div>
+      {/* ⚠️ 導航列在「＋新對話」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
+      <DomainNav onNavigate={onNavigate} />
+
       <Button size="sm" onClick={goNew}>＋ 新對話{did !== null && "（在這裡）"}</Button>
 
-      {/* ── 五個入口（spec 053）：領域 · 來源 · 對話 · 理解 · 應用 ────────── */}
+      {/* ── 五個入口（spec 053）：領域 · 來源 · 對話 · 理解 · 應用 ──────────
+          ⚠️ spec 054：「領域」**連到管理頁**，不在側欄就地展開
+          ——導覽（每天）與管理（偶爾）是兩件事，塞進同一個入口是我上一刀的錯。 */}
       <nav className="flex flex-col gap-0.5">
-        <DomainEntry onNavigate={onNavigate} onChanged={load} />
+        <Link to={withDomain("/domains", did)} onClick={onNavigate}
+          className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+            pathname.startsWith("/domains") && "bg-sidebar-accent font-medium")}>
+          <span className="min-w-0 flex-1 truncate">🗂 領域</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{view?.children.length || ""}</span>
+        </Link>
         {KINDS.map((k) => {
           const n = (view?.items || []).filter((i) => i.kind === k.kind).length
           return (
@@ -166,10 +176,6 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
           </button>
         </div>
       )}
-      <Link to={withDomain("/domains", did)} onClick={onNavigate}
-            className="rounded-lg px-3 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
-        ⚙ 整理台
-      </Link>
 
       {/* 登入身分＋登出（只在門鎖啟用時顯示） */}
       {me.auth_enabled && (

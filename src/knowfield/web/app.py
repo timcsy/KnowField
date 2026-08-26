@@ -1094,6 +1094,26 @@ def create_app() -> FastAPI:
             repo.close()
         return _JSON({"ok": True})
 
+    @app.get("/api/domains/{did}/delete-preview")
+    async def api_domain_delete_preview(did: int):
+        """刪這個領域會動到什麼。**不改任何東西。**"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            return _JSON({"ok": True, **repo.delete_domain_preview(did)})
+        finally:
+            repo.close()
+
+    @app.post("/api/domains/{did}/delete")
+    async def api_domain_delete(did: int):
+        """刪一個領域。⚠️ **刪的是位置，不是知識**——內容與直屬子領域上移到父領域。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            moved = repo.delete_domain(did)
+        finally:
+            repo.close()
+        _log.info("刪領域", extra={"extra": {"did": did, **moved}})
+        return _JSON({"ok": True, **moved})
+
     @app.post("/api/domains/{did}/move")
     async def api_domain_move(did: int, request: Request):
         b = await request.json()

@@ -739,6 +739,36 @@ class Repository:
             stack.extend(children.get(n, []))
         return out
 
+    def delete_domain_preview(self, did: int) -> dict:
+        """刪這個領域**會動到什麼**：直屬內容幾件、直屬子領域幾個、往哪裡搬。
+
+        ⚠️ 只算**直屬**的：子孫底下的東西不會動，把整棵子樹的數字報出來只會嚇人
+        （同 spec 049 FR-004「只算直接連結」的同一條理由）。
+        """
+        row = self.conn.execute(
+            "SELECT parent_id FROM domains WHERE id=%s", (did,)).fetchone()
+        return {"items": sum(1 for r in self._inventory_rows() if r["domain_id"] == did),
+                "children": sum(1 for d in self.list_domains() if d["parent_id"] == did),
+                "to": row["parent_id"] if row else None}
+
+    def delete_domain(self, did: int) -> dict:
+        """刪一個領域。**刪的是位置，不是知識。**
+
+        ⚠️ 檔案系統刪資料夾會把裡面的檔案一起帶走——**這裡不能照抄**：
+        裡面是使用者的知識，刪掉是不可逆的，而且事後**沒有任何辦法發現本來有什麼**
+        （沒有回收桶、沒有 tombstone，連「少了幾件」都問不出來）。
+        ⇒ 內容與**直屬**子領域一律**上移到父領域**，一件都不少。
+        """
+        moved = self.delete_domain_preview(did)
+        to = moved["to"]
+        for kind, (table, key) in self._KIND_TABLE.items():
+            self.conn.execute(f"UPDATE {table} SET domain_id=%s WHERE domain_id=%s", (to, did))
+        # 只上移**直屬**子領域；孫輩仍掛在它們自己的父親底下（不拉平）
+        self.conn.execute("UPDATE domains SET parent_id=%s WHERE parent_id=%s", (to, did))
+        self.conn.execute("DELETE FROM domains WHERE id=%s", (did,))
+        self.conn.commit()
+        return moved
+
     def move_domain(self, did: int, new_parent: int | None) -> None:
         """搬動領域。⚠️ **擋成環**——把節點搬到自己的子孫底下，路徑計算不會報錯，
         只會變成無意義的結果（FR-004）。"""

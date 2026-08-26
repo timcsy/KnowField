@@ -195,6 +195,13 @@ export const pages = {
   renameDomain: (id: number, name: string) => post(`/api/domains/${id}/rename`, { name }),
   moveDomain: (id: number, parent_id: number | null): Promise<{ ok: boolean; err?: string }> =>
     post(`/api/domains/${id}/move`, { parent_id }),
+  // ⚠️ 刪領域刪的是**位置**，不是知識——內容與直屬子領域上移到父領域（spec 054）。
+  //    先 preview 說出影響範圍，再 delete。
+  deleteDomainPreview: (id: number): Promise<{
+      ok: boolean; items: number; children: number; to: number | null }> =>
+    fetch(`/api/domains/${id}/delete-preview`).then(json),
+  deleteDomain: (id: number): Promise<{ ok: boolean; items: number; children: number; to: number | null }> =>
+    post(`/api/domains/${id}/delete`, {}),
   // 糾纏 Tangle（spec 049）＝樹裝不下的那條連結。
   // ⚠️ 預覽**不改任何東西**；搬動才寫。連帶只走一層（後端釘死）。
   // ⚠️ spec 050：**只有批次一條路**——單件操作＝送一個元素的清單。

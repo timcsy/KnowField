@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { pages, type KnowledgeItem, type KnowledgeKind, type KnowledgeRef } from "@/lib/api"
 import { keyOf, pickedRefs as pickRefs, inDomain as inDom, KIND_ORDER } from "@/lib/knowledge"
+import { useCurrentDomain } from "@/lib/domain"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,10 @@ export default function DomainsPage() {
   const nav = useNavigate()
   const [domains, setDomains] = useState<Domain[] | null>(null)
   const [items, setItems] = useState<KnowledgeItem[]>([])
-  const [sel, setSel] = useState<number | null>(null)
+  // ⚠️ 從側欄點「領域」進來時，**接上你站的地方**——不然管理頁每次都從根開始，
+  //    你得再找一次自己剛剛在哪。
+  const { did, go } = useCurrentDomain()
+  const [sel, setSel] = useState<number | null>(did)
   const [name, setName] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -49,6 +53,34 @@ export default function DomainsPage() {
     if (!r.ok) { setMsg(r.err || "建不起來"); return }
     setName(""); setMsg(null); load()
   }
+  async function rename(d: Domain) {
+    const name = prompt("改名為：", d.name)
+    if (name === null || !name.trim() || name.trim() === d.name) return
+    const r = await pages.renameDomain(d.id, name.trim())
+    setMsg(r.ok ? null : (r.err || "改不了名"))
+    load()
+  }
+
+  // ⚠️ 刪的是**位置**，不是知識。先說出影響範圍再問（FR-005）。
+  async function removeDomain(d: Domain) {
+    const p = await pages.deleteDomainPreview(d.id)
+    const toName = p.to === null
+      ? "知識庫（根領域）"
+      : ((domains || []).find((x) => x.id === p.to)?.name ?? "上一層")
+    const what = [p.items && `${p.items} 件知識`, p.children && `${p.children} 個子領域`]
+      .filter(Boolean).join("、")
+    const line = what
+      ? `刪掉「${d.name}」？\n\n它底下的 ${what} 會**搬到「${toName}」**，一件都不會被刪掉。`
+      : `刪掉「${d.name}」？（它是空的）`
+    if (!confirm(line)) return
+    await pages.deleteDomain(d.id)
+    // ⚠️ 站在被刪的領域上就要移走——不能站在一個不存在的地方（FR-006）
+    if (did === d.id) go(p.to, { replace: true })
+    if (sel === d.id) setSel(p.to)
+    setMsg(what ? `刪掉了「${d.name}」——${what} 已搬到「${toName}」` : `刪掉了「${d.name}」`)
+    load()
+  }
+
   async function moveDomain(id: number, parent: number | null) {
     const r = await pages.moveDomain(id, parent)
     setMsg(r.ok ? null : (r.err || "搬不動"))   // 成環會被後端擋下並回原因（不靜默照做）
@@ -142,18 +174,28 @@ export default function DomainsPage() {
 
   const renderNode = (d: Domain, depth: number) => (
     <div key={d.id}>
-      <div className={cn("flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
+      <div className={cn("group flex items-center gap-2 rounded px-2 py-1 hover:bg-muted",
                          sel === d.id && "bg-muted",
                          dropOn === d.id && "outline outline-2 outline-primary")}
            style={{ paddingLeft: 8 + depth * 16 }} {...dropProps(d.id)}>
-        <button onClick={() => setSel(sel === d.id ? null : d.id)} className="text-left text-sm">
+        <button onClick={() => setSel(sel === d.id ? null : d.id)} className="min-w-0 flex-1 truncate text-left text-sm">
           📁 {d.name}
+          <span className="ml-2 text-xs text-muted-foreground">{inDomain(d.id).length || ""}</span>
         </button>
-        <span className="text-xs text-muted-foreground">{inDomain(d.id).length}</span>
-        {d.parent_id !== null && (
-          <button onClick={() => moveDomain(d.id, null)}
-                  className="ml-auto text-xs text-muted-foreground hover:text-foreground">移到最上層</button>
-        )}
+        {/* ⚠️ 用圖示不用文字：`opacity-0` 只是**視覺隱藏，仍然佔寬度**
+            ——四個文字按鈕會把 280px 面板裡深層節點的名字擠到零寬（truncate 讓它靜靜消失）。 */}
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+          <button onClick={() => go(d.id)} title="站到這裡"
+                  className="rounded px-1 py-0.5 hover:bg-background hover:text-foreground">📍</button>
+          <button onClick={() => rename(d)} title="改名"
+                  className="rounded px-1 py-0.5 hover:bg-background hover:text-foreground">✏️</button>
+          {d.parent_id !== null && (
+            <button onClick={() => moveDomain(d.id, null)} title="移到最上層"
+                    className="rounded px-1 py-0.5 hover:bg-background hover:text-foreground">⤴</button>
+          )}
+          <button onClick={() => removeDomain(d)} title="刪除（裡面的知識會搬到上一層，不會被刪）"
+                  className="rounded px-1 py-0.5 hover:bg-background hover:text-destructive">🗑</button>
+        </div>
       </div>
       {kids(d.id).map((k) => renderNode(k, depth + 1))}
     </div>
@@ -171,7 +213,9 @@ export default function DomainsPage() {
       <div>
         <h1 className="text-2xl font-bold">🗂 領域</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          知識庫的樹。東西一開始都在<b>根領域</b>；勾選右邊的知識，拖到左邊的領域上放開——或按「搬到…」。
+          管理知識庫的樹——新增、改名、搬動、刪除；勾選右邊的知識，拖到左邊的領域上放開。
+          <br />
+          ⚠️ <b>刪除領域不會刪掉知識</b>：裡面的東西會搬到上一層。
         </p>
       </div>
 
