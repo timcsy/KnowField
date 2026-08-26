@@ -13,18 +13,42 @@ import math
 from collections import Counter, defaultdict
 
 _NAME = (
-    "下面是一群知識的共同錨（一條理解）與幾個成員。給這一群一個**資料夾名字**。\n"
-    "規則：\n"
-    "- 2–8 個字、名詞、看得懂。\n"
-    "- **要用成員文字裡真的出現過的詞**，不要自己造抽象詞。\n"
-    "- **不要用一個可以套在任何一群上的字**（「AI」「模型」「系統」「方法」「技術」）。\n"
-    "  判準：這個名字**排除掉了什麼**？答不出來就換一個更具體的。\n"
-    "只輸出那個名字，不要別的字。"
+    "你要幫一個知識庫的資料夾取名字。下面是這個庫**所有**分區，每一區列了它的成員。\n"
+    "給每一區一個名字。\n"
+    "\n"
+    "好名字的判準——**兩個方向都要滿足**：\n"
+    "- **不能太泛**：如果這個名字套在**別的區**上也說得通，它就沒有用\n"
+    "  （「其他」「雜項」這類沒有內容的詞就是這種）。\n"
+    "- **不能太窄**：如果**超過三分之一的成員**你會問「這為什麼在這裡」，\n"
+    "  那你是在描述其中某一件，不是這一區。\n"
+    "\n"
+    "其他規則：\n"
+    "- 2–10 個字，名詞或名詞短語，看得懂。\n"
+    "- 用**成員文字裡真的出現過的詞**去組，不要自己造抽象詞。\n"
+    "- 繁體中文；除非那個概念本來就沒有中文說法（Transformer、Flow Matching 這類）。\n"
+    "- 各區的名字**必須彼此不同，而且一眼分得出差別**。\n"
+    "- 領域術語（「深度學習」「同調論」這種）**可以用**——只要它確實是這一區在講的東西。\n"
+    "- 這些成員本來就有點雜，**不必找到完美的名字**：找那個能涵蓋**最多成員**的詞就好。\n"
+    "  「未命名」是最後手段，只有在成員之間**真的沒有共同點**時才用。\n"
+    "\n"
+    "每行一個，格式：\n"
+    "`<區id>｜<名字>｜<它跟哪幾區最容易被搞混，而這個名字怎麼把它們分開>`\n"
+    "第三欄是**寫給人看的**，一句話就好；用「未命名」時，第三欄要說**為什麼取不出來**。\n"
+    "只輸出這些行，不要別的字。"
 )
-#: ⚠️ 泛詞黑名單。LLM 最省力的答案永遠是「共有的最泛的詞」，而那種名字沒有修剪力
-#: ——這是分群命名的經典退化，光在 prompt 裡講不夠，要擋。
-_TOO_GENERIC = {"AI", "ai", "模型", "系統", "方法", "技術", "知識", "資料", "學習",
-                "研究", "筆記", "其他", "雜項", "LLM", "llm"}
+
+#: ⚠️ **不擋名字。**
+#:
+#: 我加過兩層過濾：一張泛詞黑名單，以及「這個詞在過半數的區都出現 ⇒ 擋掉」的相對判準。
+#: 使用者兩次否決：「深度學習沒什麼不好呀」「我覺得不用特別擋名字」。他是對的——
+#:
+#: ① 我量錯了東西：**「這個詞在別區的成員文字裡出現過」≠「這個名字套在別區上也說得通」**。
+#:    領域術語是整個庫的背景詞彙，到處都會出現，但只有一區**是在講它**。
+#: ② 更根本的：名字好不好是**語意判斷**，而**介面本來就讓你改名**。
+#:    後端替你否決，等於把你的裁決搶過來——而且它用的還是一個代理指標。
+#:
+#: ⇒ 程式只管**格式**（空的、過長、重名）。名字好不好交給那句
+#:   「它跟哪幾區容易混、這個名字怎麼分開」——**由人判**。
 
 
 def _norm(v):
@@ -225,7 +249,11 @@ def districts(repo, embedder, k: int | None = None, chat=None) -> list[dict]:
         whys = [n for n in near if n[0] == "why_node"]
         anchor = whys[0] if whys else near[0]
         out.append({
-            "name": _short_name(label[anchor], [label[n] for n in near[:4]], chat),
+            # ⚠️ 退路**標籤先說「未命名」**，後面才給錨當提示。
+            #    截斷的句子（「Single Source of Tru」）**冒充**名字；
+            #    `未命名（20 件）· 錨：…` 誠實說了它沒名字，只是幫你認出是哪一區。
+            "name": f"未命名（{len(mem)} 件）· 錨：{label[anchor][:12]}",
+            "_samples": [label[n] for n in _spread(near)],
             "parent": "", "anchor": {"kind": anchor[0], "ref": anchor[1]},
             # ⚠️ 理由要**可判斷**：列錨與代表成員，你能說「不對，這些跟那條沒關係」。
             #    分數（0.87）不是理由——它不可反駁。
@@ -235,6 +263,9 @@ def districts(repo, embedder, k: int | None = None, chat=None) -> list[dict]:
             "items": [{"kind": n[0], "ref": n[1], "label": label[n]} for n in mem],
             "count": len(mem), "suggest_apply": True,
         })
+    _name_all(out, chat)                     # ⚠️ 一次全部命名——兄弟要互相區分
+    for g in out:
+        g.pop("_samples", None)
     return out
 
 
@@ -243,19 +274,59 @@ class _Dead:
         raise RuntimeError("沒有 LLM")
 
 
-def _short_name(anchor_label: str, samples: list[str], chat) -> str:
-    """區名。⚠️ 錨是那條理解（穩定、可查證），但**顯示名要短**——
-    實驗印出的區名是一整句主張，完全不能當資料夾名。"""
-    if chat is not None:
-        try:
-            body = f"錨：{anchor_label[:200]}\n成員：" + "、".join(s[:40] for s in samples)
-            got = (chat.reply([{"role": "system", "content": _NAME},
-                               {"role": "user", "content": body}]) or "").strip()
-            got = got.splitlines()[0].strip().strip("「」\"'")
-            # ⚠️ 泛詞擋掉，退回錨——一個沒有修剪力的名字比一句長主張更糟：
-            #    長主張至少告訴你這一區在講什麼。
-            if 1 < len(got) <= 20 and got not in _TOO_GENERIC:
-                return got
-        except Exception:  # noqa: BLE001 - 命名失敗不該擋住劃界
-            pass
-    return anchor_label[:16]
+def _spread(near: list, n: int = 12) -> list:
+    """從**由近到遠排好**的成員裡均勻取樣。
+
+    ⚠️ 不能只取最靠近中心的——那會讓名字描述**錨附近那幾件**，而不是這一區。
+    取樣要涵蓋**廣度**，名字才擔得起整區。
+    """
+    if len(near) <= n:
+        return list(near)
+    step = (len(near) - 1) / (n - 1)
+    return [near[round(i * step)] for i in range(n)]
+
+
+def _name_all(groups: list[dict], chat) -> None:
+    """一次幫**所有區**命名，就地寫回 `name`。
+
+    ⚠️ 一區一次呼叫的話，LLM **看不到別的區**，也就不知道要排除掉什麼
+    ——而「這個名字排除掉了哪些區」正是判斷它有沒有修剪力的方式。
+    ⇒ 同一層的兄弟要**一起**命名。（但跨層不要一起：那會湊出一個可疑地整齊的分類學。）
+    """
+    if chat is None or not groups:
+        return
+    body = "\n\n".join(
+        f"[{i}]\n" + "\n".join(f"- {t[:60]}" for t in g["_samples"])
+        for i, g in enumerate(groups))
+    try:
+        raw = chat.reply([{"role": "system", "content": _NAME},
+                          {"role": "user", "content": body}]) or ""
+    except Exception:  # noqa: BLE001 - 命名失敗不該擋住劃界
+        return
+    got: dict = {}
+    for line in raw.splitlines():
+        if "｜" not in line and "|" not in line:
+            continue
+        parts = [x.strip() for x in line.replace("|", "｜").split("｜")]
+        idx = "".join(ch for ch in parts[0] if ch.isdigit())
+        nm = parts[1].strip("「」\"'") if len(parts) > 1 else ""
+        why = parts[2] if len(parts) > 2 else ""
+        if idx.isdigit() and 1 < len(nm) <= 20:      # 只驗格式，不評價名字
+            got[int(idx)] = (nm, why)
+    seen: set = set()
+    for i, g in enumerate(groups):
+        nm, why = got.get(i, ("", ""))
+        # ⚠️ 模型說「未命名」時**用我們的退路**（帶件數與錨），不要用那個裸字：
+        #    裸的「未命名」既認不出是哪一區，又會跟另一個「未命名」撞名。
+        if nm in ("未命名", "無", "N/A", "none", "None"):
+            nm = ""
+        # ⚠️ 名字必須彼此不同——兩個同名的資料夾等於沒有分區
+        if nm and nm not in seen:
+            g["name"] = nm
+            seen.add(nm)
+            # ⚠️ 把「它跟哪幾區容易搞混、這個名字怎麼分開」放進理由：
+            #    ① 逼模型真的做那個自我檢查（要寫出來才做得到）
+            #    ② 你看得到，所以你能反駁——判準①要的正是這個
+        # 理由**不管有沒有取到名字都留著**——取不出來的原因跟名字一樣值得看
+        if why:
+            g["reasons"].append((f"取這個名字：" if nm else "取不出名字：") + why[:70])

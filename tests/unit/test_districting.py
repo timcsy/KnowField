@@ -85,7 +85,9 @@ class TestShape(Base):
     def test_display_name_is_short(self):
         """⚠️ 實驗印出的區名是一整句主張，完全不能當資料夾名。"""
         for d in districts(self.r, _Emb(), k=3):
-            self.assertLessEqual(len(d["name"]), 24, f"區名太長：{d['name']}")
+            # 有名字時要短；沒名字時退路可以長一點（它明說了自己是「未命名」）
+            if not d["name"].startswith("未命名"):
+                self.assertLessEqual(len(d["name"]), 24, f"區名太長：{d['name']}")
 
 
 class TestFallback(unittest.TestCase):
@@ -161,3 +163,105 @@ class TestNamesHavePruningPower(Base):
                 return "AI"
         for d in districts(self.r, _Emb(), k=3, chat=Lazy()):
             self.assertNotEqual(d["name"], "AI", "泛詞被當成區名了")
+
+
+class TestNamingSeesAllRegions(Base):
+    """⚠️ 一區一次呼叫的話，LLM 看不到別的區，也就不知道要**排除掉什麼**。
+
+    而「這個名字排除掉了哪些區」正是判斷它有沒有修剪力的方式。
+    ⇒ 同一層的兄弟要**一起**命名。
+    """
+
+    def test_one_call_that_sees_every_region(self):
+        seen = {}
+
+        class Spy:
+            def reply(self, messages):
+                seen["n"] = seen.get("n", 0) + 1
+                seen["body"] = messages[-1]["content"]
+                return "0｜甲區\n1｜乙區\n2｜丙區"
+
+        ds = districts(self.r, _Emb(), k=3, chat=Spy())
+        self.assertEqual(seen["n"], 1, f"呼叫了 {seen['n']} 次——兄弟沒有一起命名")
+        for i in range(len(ds)):
+            self.assertIn(f"[{i}]", seen["body"], "有一區沒被送進去")
+
+    def test_samples_cover_breadth_not_just_the_centre(self):
+        """⚠️ 只取最靠近中心的，名字會描述**錨附近那幾件**，不是這一區。"""
+        seen = {}
+
+        class Spy:
+            def reply(self, messages):
+                seen["body"] = messages[-1]["content"]
+                return ""
+
+        districts(self.r, _Emb(), k=1, chat=Spy())
+        # 12 件全部都該出現（k=1 ⇒ 一區裝下全部）
+        for word in ("貓", "船", "樹"):
+            self.assertIn(word, seen["body"], f"取樣沒涵蓋到「{word}」——只看得到中心附近")
+
+    def test_duplicate_names_are_rejected(self):
+        class Same:
+            def reply(self, messages):
+                return "0｜同一個\n1｜同一個\n2｜同一個"
+
+        names = [d["name"] for d in districts(self.r, _Emb(), k=3, chat=Same())]
+        self.assertEqual(len(set(names)), len(names), f"名字重複了：{names}")
+
+    def test_fallback_is_honest_not_a_truncated_sentence(self):
+        """⚠️ 「Single Source of Tru」看起來像名字，但它不是。
+
+        一個看起來像名字的錯東西，比一個誠實的空白更糟。
+        """
+        for d in districts(self.r, _Emb(), k=3, chat=None):
+            self.assertTrue(d["name"].startswith("未命名"), f"退路長這樣：{d['name']}")
+
+
+class TestNamesAreNotJudgedByCode(Base):
+    """⚠️ 我加過兩層過濾（泛詞黑名單 ＋「過半數的區都有這個詞」的相對判準）。
+
+    使用者兩次否決：「深度學習沒什麼不好呀」「我覺得不用特別擋名字」。他是對的——
+    ① 我量錯了東西：「這個詞在別區出現過」≠「這個名字套在別區上也說得通」；
+    ② 名字好不好是**語意判斷**，而**介面本來就讓你改名**——
+       後端替你否決等於把裁決搶過去。
+    ⇒ 程式只管格式（空的、過長、重名）。
+    """
+
+    def test_any_word_the_model_picks_is_kept(self):
+        class Term:
+            def reply(self, messages):
+                # 「理解」出現在每一區的成員文字裡；「AI」曾經被黑名單擋掉
+                return "0｜AI\n1｜深度學習\n2｜船的理解"
+
+        names = [d["name"] for d in districts(self.r, _Emb(), k=3, chat=Term())]
+        self.assertEqual(sorted(names), ["AI", "深度學習", "船的理解"],
+                         "後端還在替使用者否決名字")
+
+    def test_format_is_still_checked(self):
+        """格式不是評價：空的、過長、重名仍然擋。"""
+        class Bad:
+            def reply(self, messages):
+                return "0｜\n1｜" + "長" * 40 + "\n2｜好名字"
+
+        names = [d["name"] for d in districts(self.r, _Emb(), k=3, chat=Bad())]
+        self.assertIn("好名字", names)
+        self.assertEqual(sum(1 for n in names if n.startswith("未命名")), 2)
+
+
+class TestUnnamedFallsBackNotCollides(Base):
+    """⚠️ 模型對兩區都回「未命名」時，去重會把第二個擋掉——
+    於是一區顯示裸的「未命名」、另一區顯示退路。兩邊都不好：
+    裸字認不出是哪一區，而**取不出名字的原因**才是那時候真正有用的資訊。
+    """
+
+    def test_model_saying_unnamed_uses_our_fallback(self):
+        class Vague:
+            def reply(self, messages):
+                return "\n".join(f"{i}｜未命名｜這一區混了太多東西" for i in range(3))
+
+        ds = districts(self.r, _Emb(), k=3, chat=Vague())
+        for d in ds:
+            self.assertTrue(d["name"].startswith("未命名（"), f"用了裸字：{d['name']}")
+            self.assertTrue(any("取不出名字" in x for x in d["reasons"]),
+                            "取不出來的原因不見了")
+        self.assertEqual(len({d["name"] for d in ds}), 3, "退路撞名了")
