@@ -157,7 +157,7 @@ def cheap_title(messages: list) -> str:
         if isinstance(m, dict) and m.get("role") == "user" and (m.get("content") or "").strip():
             first = m["content"].strip()
             break
-    return first[:20] if first else "（暫存對話）"
+    return first[:20] if first else "（暫存互動）"
 
 
 def _cget(o, key, default=None):

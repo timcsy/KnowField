@@ -162,7 +162,7 @@ class TestCheapTitle(unittest.TestCase):
         self.assertLessEqual(len(t), 20)
 
     def test_empty(self):                                   # T003
-        self.assertEqual(cheap_title([]), "（暫存對話）")
+        self.assertEqual(cheap_title([]), "（暫存互動）")
 
     def test_missing_content(self):                         # T003 不崩
         self.assertIsInstance(cheap_title([{"role": "user"}]), str)

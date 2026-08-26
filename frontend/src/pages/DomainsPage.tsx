@@ -23,7 +23,7 @@ type Domain = { id: number; name: string; parent_id: number | null; path: { id: 
 const ROOT_NAME = "知識庫"
 
 const KIND_LABEL: Record<KnowledgeKind, string> = {
-  source: "📚 來源", conversation: "💬 對話", why_node: "💡 理解", article: "🧩 應用",
+  source: "📚 來源", conversation: "💬 互動", why_node: "💡 理解", article: "🧩 應用",
 }
 
 export default function DomainsPage() {
@@ -517,7 +517,7 @@ export default function DomainsPage() {
               </button>
             ))}
             <Button size="sm" variant="secondary" className="ml-auto h-7"
-                    onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}>＋ 在這裡開新對話</Button>
+                    onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}>＋ 在這裡開新互動</Button>
           </div>
 
           {/* 欄位標題（可排序） */}
@@ -540,7 +540,7 @@ export default function DomainsPage() {
                       到<button onClick={() => go(null)} className="underline hover:text-foreground">🗂 {ROOT_NAME}</button>
                       把知識拖進來，或
                       <button onClick={() => nav(withDomain("/?new=" + Date.now(), sel))}
-                              className="underline hover:text-foreground">在這裡開一段新對話</button>。
+                              className="underline hover:text-foreground">在這裡開一段新互動</button>。
                     </p>
                   </div>
                 )}

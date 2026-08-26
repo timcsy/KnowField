@@ -310,7 +310,7 @@ class FieldChat:
             t = (t or "").strip().splitlines()[0].strip().strip('"「」') if t else ""
         except Exception:  # noqa: BLE001 - 標題失敗不該讓「存對話」崩
             t = ""
-        return t or (first.strip()[:20] if first.strip() else "（未命名對話）")
+        return t or (first.strip()[:20] if first.strip() else "（未命名互動）")
 
     def search_query(self, history: list[dict], user_msg: str) -> str:
         """把使用者這輪的問題轉成好的 web 搜尋 query（消歧義）。失敗/空→退回原句。"""

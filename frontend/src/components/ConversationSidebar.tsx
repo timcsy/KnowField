@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 // ——「全部的理解」＝站到根領域再看這一格。
 const KINDS: { kind: KnowledgeKind; label: string; to: string }[] = [
   { kind: "source", label: "📚 來源", to: "/sources" },
-  { kind: "conversation", label: "💬 對話", to: "/conversations" },
+  { kind: "conversation", label: "💬 互動", to: "/conversations" },
   { kind: "why_node", label: "💡 理解", to: "/roots" },
   { kind: "article", label: "🧩 應用", to: "/articles" },
 ]
@@ -75,7 +75,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
 
   async function dedupe() {
     const p = await pages.dedupePreview()
-    if (p.n_extra === 0) { setMsg("沒有重複的對話。"); return }
+    if (p.n_extra === 0) { setMsg("沒有重複的互動。"); return }
     if (!confirm(`發現 ${p.n_extra} 份重複（${p.n_groups} 組）。併掉多餘、重指 ${p.n_roots} 條理解的由來？`)) return
     const r = await pages.dedupeApply()
     setMsg(`✅ 併掉 ${r.removed} 份、重指 ${r.repointed} 條由來。`); load()
@@ -90,7 +90,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
       {/* ⚠️ 導航列在「＋新對話」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
       <DomainNav onNavigate={onNavigate} />
 
-      <Button size="sm" onClick={goNew}>＋ 新對話{did !== null && "（在這裡）"}</Button>
+      <Button size="sm" onClick={goNew}>＋ 新互動{did !== null && "（在這裡）"}</Button>
 
       {/* ── 五個入口（spec 053）：領域 · 來源 · 對話 · 理解 · 應用 ──────────
           ⚠️ spec 054：「領域」**連到管理頁**，不在側欄就地展開
@@ -152,14 +152,14 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
 
         <section className="border-t pt-2">
           <div className="mb-0.5 flex items-center justify-between px-2">
-            <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近的對話</h3>
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">🕘 最近的互動</h3>
             {convs.length > 0 && (
               <button onClick={dedupe} className="text-[11px] text-muted-foreground hover:underline">🧹 清理重複</button>
             )}
           </div>
           {msg && <div className="mx-2 rounded-md bg-muted px-2 py-1 text-xs">{msg}</div>}
           {convs.length === 0 && (
-            <p className="px-2 text-xs text-muted-foreground">還沒有對話。聊一段會自動存到這裡。</p>
+            <p className="px-2 text-xs text-muted-foreground">還沒有互動。聊一段會自動存到這裡。</p>
           )}
           {convs.slice(0, 8).map((c) => (
             <Row key={c.id} c={c} active={activeId === c.id} onPick={goResume} onChange={load} />
@@ -222,7 +222,7 @@ function Row({ c, active, onPick, onChange }: {
               onContextMenu={(e) => { e.preventDefault(); setMenu(true) }}
               title={`${c.title || "未命名"}｜${c.created_at.slice(0, 10)}·${c.count} 則${c.yield_count > 0 ? `·聊出了 ${c.yield_count} 條理解` : ""}（點＝接著聊、長按＝選單）`}
               className="min-w-0 flex-1 truncate text-left text-sm">
-        {c.title || "（未命名對話）"}
+        {c.title || "（未命名互動）"}
       </button>
       <button ref={kebabRef} onClick={(e) => { e.stopPropagation(); setMenu((v) => !v) }}
               aria-label="更多" title="更多"

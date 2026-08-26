@@ -572,7 +572,7 @@ def create_app() -> FastAPI:
                     cid = repo.save_conversation(_convo_title(messages), messages, wid)
                     repo.place_new("conversation", cid, current=domain_id)
                 if status == "created":
-                    msg += "，並存下這段對話當它的由來"
+                    msg += "，並存下這段互動當它的由來"
         # spec 051：出生就歸位。⚠️ **一定要在這裡**——上面的 save_convo 分支才剛把對話連上去，
         # 早一步呼叫的話 `_neighbours` 是空的，理解會安靜地落在根領域，
         # 而那看起來跟「本來就沒出處」一模一樣。
@@ -662,7 +662,7 @@ def create_app() -> FastAPI:
         b = await request.json()
         messages = b.get("history") or []
         if not messages:
-            return _JSON({"saved": False, "msg": "這段對話還是空的，沒有東西可存。"})
+            return _JSON({"saved": False, "msg": "這段互動還是空的，沒有東西可存。"})
         repo = app.state.repo_factory(app.state.config)
         tid = _temp_id(str(b.get("temp_id") or ""))
         if tid:                         # 有暫存→升永久同一筆＋生落點標題（不新增）
@@ -670,7 +670,7 @@ def create_app() -> FastAPI:
         else:
             repo.save_conversation(_convo_title(messages), messages, None)
         repo.close()
-        return _JSON({"saved": True, "msg": "已存下這段對話（可到『對話存檔』檢視）"})
+        return _JSON({"saved": True, "msg": "已存下這段互動（可到『互動存檔』檢視）"})
 
     @app.post("/api/chat/export")
     async def api_chat_export(request: Request):
@@ -741,11 +741,11 @@ def create_app() -> FastAPI:
             if cid:
                 conv = repo.get_conversation(cid)
                 if conv is None:
-                    return _JSON({"error": "找不到那段對話（可能已封存）。"})
+                    return _JSON({"error": "找不到那段互動（可能已封存）。"})
                 ref_ids = {r["id"] for r in repo.conversation_referrers(cid)}
                 if not ref_ids:
                     # FR-006：死路變成下一步——不是空白、也不是錯誤碼。
-                    return _JSON({"error": "這段對話還沒精選出理解——先精選，再用它生應用。"})
+                    return _JSON({"error": "這段互動還沒精選出理解——先精選，再用它生應用。"})
                 # ⚠️ 釘住的是**節點物件本身**（同一份 nodes 裡的），不是另外查一份：
                 # 另查會拿到不同物件，去重就對不上、同一條被寫進去兩次。
                 pinned = [w for w in nodes if getattr(w, "id", None) in ref_ids]
@@ -1502,7 +1502,7 @@ def create_app() -> FastAPI:
         conv = repo.get_conversation(cid)
         repo.close()
         if conv is None:
-            return PlainTextResponse("找不到這段對話。", status_code=404)
+            return PlainTextResponse("找不到這段互動。", status_code=404)
         msgs = conv.messages
         if from_ and to:                     # 章節切片（spec 027 US3）：只匯出該章範圍
             msgs = msgs[max(0, from_ - 1):to]

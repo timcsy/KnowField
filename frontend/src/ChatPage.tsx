@@ -80,10 +80,10 @@ export default function ChatPage() {
     const cid = tempId.current
     if (!cid) return
     setMore(false)
-    if (!confirm("封存這段對話？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。")) return
+    if (!confirm("封存這段互動？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。")) return
     const r = await pages.deleteConv(cid)
     if (!r.deleted && r.blocked_by?.length) {
-      alert("這段對話是下列理解的『由來』，封存不了。\n請先封存它們：\n\n"
+      alert("這段互動是下列理解的『由來』，封存不了。\n請先封存它們：\n\n"
         + r.blocked_by.map((x) => "• " + x).join("\n"))
       return
     }
@@ -247,7 +247,7 @@ export default function ChatPage() {
   function genArticleFromConv() {
     const cid = tempId.current
     if (!cid) { toast("先聊幾句（這段還沒被存下來）"); return }
-    nav(`/roots?conv=${cid}&ctitle=${encodeURIComponent(convTitle || "這段對話")}`)
+    nav(`/roots?conv=${cid}&ctitle=${encodeURIComponent(convTitle || "這段互動")}`)
   }
 
   async function send() {
@@ -260,7 +260,7 @@ export default function ChatPage() {
   // 編輯/重生的護欄：由來→擋（先處理理解，護溯源）；會丟後面訊息→確認可取消。
   function guardMutate(discardCount: number): boolean {
     if (referrers.current.length > 0) {
-      alert("這段對話是下列理解的『由來』，編輯/重新生成會改動它、斷開溯源。\n"
+      alert("這段互動是下列理解的『由來』，編輯/重新生成會改動它、斷開溯源。\n"
         + "請先到「💡 理解」把它們退回/處理，再改這段：\n\n"
         + referrers.current.map((s) => "• " + s).join("\n"))
       return false
@@ -317,7 +317,7 @@ export default function ChatPage() {
       body: JSON.stringify({ history: messages, as }),
     })
     const text = await r.text()
-    if (!text.trim()) { toast(as === "urls" ? "這段沒有被引用的來源網址" : "對話還是空的"); return }
+    if (!text.trim()) { toast(as === "urls" ? "這段沒有被引用的來源網址" : "這段互動還是空的"); return }
     try { await navigator.clipboard.writeText(text); toast("已複製，可貼進 NotebookLM") }
     catch { toast("這個瀏覽器不允許自動複製") }
   }
@@ -332,7 +332,7 @@ export default function ChatPage() {
     tempId.current = null; baseCount.current = 0
     setChapters(null); setFocusFrom(0); setConvTitle("")
     setCandidates(null); setStreaming(null); setStage(null)
-    toast("已從這裡開分支——接著聊會存成新對話，原對話不動")
+    toast("已從這裡開分支——接著聊會存成新互動，原互動不動")
   }
   async function copyMsg(text: string) {
     try { await navigator.clipboard.writeText(text); toast("已複製這則") }
@@ -399,7 +399,7 @@ export default function ChatPage() {
           {i === messages.length - 1 && !busy && (
             <button onClick={regenerateLast} title="重新生成這則回覆" className="hover:text-foreground"><RefreshCw className="size-3.5" /></button>
           )}
-          <button onClick={() => branchFrom(i + 1)} title="從這裡開分支（原對話不動、另開一串接著聊）" className="hover:text-primary"><GitBranch className="size-3.5" /></button>
+          <button onClick={() => branchFrom(i + 1)} title="從這裡開分支（原互動不動、另開一串接著聊）" className="hover:text-primary"><GitBranch className="size-3.5" /></button>
         </div>
       </div>
     )
@@ -422,7 +422,7 @@ export default function ChatPage() {
       {hasChapters && chapters && (
         <aside className="absolute left-1 top-14 hidden w-48 xl:block">
           <div className="space-y-0.5">
-            <div className="mb-1 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">本對話章節</div>
+            <div className="mb-1 px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">本互動章節</div>
             {chapters.map((ch, ci) => (
               <button key={ci} onClick={() => jumpToChapter(ci)} title={ch.title}
                       className={cn("block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted",
@@ -551,7 +551,7 @@ export default function ChatPage() {
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 <input type="checkbox" checked={saveConvo}
                        onChange={(e) => setSaveConvo(e.target.checked)} />
-                連同這段對話存成「由來」
+                連同這段互動存成「由來」
               </label>
             )}
             {freshCands.length === 0 && (

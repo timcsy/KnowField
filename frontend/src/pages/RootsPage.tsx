@@ -35,7 +35,7 @@ export default function RootsPage() {
     const cid = Number(sp.get("conv") || 0)
     if (!cid) return
     const t = sp.get("ctitle") || ""
-    setConv({ id: cid, title: t || `對話 #${cid}` })
+    setConv({ id: cid, title: t || `互動 #${cid}` })
     setTopic((v) => v || t)          // 主題預設沿用對話標題（它是「落點/全貌」那一句，不是問句）
     sp.delete("conv"); sp.delete("ctitle"); setSp(sp, { replace: true })
   }, [sp, setSp])
@@ -150,7 +150,7 @@ export default function RootsPage() {
                     </>
                   ) : convo ? (
                     <Link to={`/?resume=${convo}${w.src_from ? `&from=${w.src_from}&to=${w.src_to}` : ""}`}
-                          title="這條的出處：點開展開它來自的那段對話" className="hover:text-foreground hover:underline">💬 由來</Link>
+                          title="這條的出處：點開展開它來自的那段互動" className="hover:text-foreground hover:underline">💬 由來</Link>
                   ) : null}
                   {evidence.length > 0 && (
                     <button onClick={() => setOpenSrc(openSrc === w.id ? null : w.id)}

@@ -130,7 +130,7 @@ export default function SourcePage() {
         <div className="mt-2">
           <Link to={`/?source=${encodeURIComponent(u)}&stitle=${encodeURIComponent(src.title || "來源")}`}
                 className="text-sm text-primary hover:underline">💬 帶著這份聊</Link>
-          <span className="ml-2 text-xs text-muted-foreground">開一段新對話，這份就是開場。</span>
+          <span className="ml-2 text-xs text-muted-foreground">開一段新互動，這份就是開場。</span>
         </div>
         {msg && <div className="mt-2 rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
       </div>

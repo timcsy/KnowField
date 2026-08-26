@@ -29,20 +29,20 @@ export default function ConversationsPage() {
       {banner}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">💬 對話</h1>
+          <h1 className="text-2xl font-bold">💬 互動</h1>
           <p className="mt-1 text-sm text-muted-foreground">你聊過的每一段——點一則打開，接著聊或回頭看。</p>
         </div>
-        <Button onClick={() => nav("/?new=" + Date.now())}>＋ 新對話</Button>
+        <Button onClick={() => nav("/?new=" + Date.now())}>＋ 新互動</Button>
       </div>
 
       {empty && (
         <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          還沒有對話。<button onClick={() => nav("/?new=" + Date.now())} className="text-primary hover:underline">開一段新對話</button>，聊一句就會自動存到這裡。
+          還沒有互動。<button onClick={() => nav("/?new=" + Date.now())} className="text-primary hover:underline">開一段新互動</button>，聊一句就會自動存到這裡。
         </div>
       )}
 
       {convs.length > 0 && (
-        <Section title="對話">
+        <Section title="互動">
           {convs.map((c) => <Card key={c.id} c={c} onResume={() => nav(`/?resume=${c.id}`)} onChange={load} />)}
         </Section>
       )}
@@ -71,7 +71,7 @@ function Card({ c, onResume, onChange }: {
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition hover:border-primary/40 hover:bg-muted/40">
       <button onClick={onResume} className="min-w-0 flex-1 text-left" title="接著聊">
-        <div className="truncate font-medium">{c.title || "（未命名對話）"}</div>
+        <div className="truncate font-medium">{c.title || "（未命名互動）"}</div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
           <span>{c.created_at.slice(0, 10)}</span>
           <span>{c.count} 則</span>

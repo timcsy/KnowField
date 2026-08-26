@@ -45,10 +45,10 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
 
   async function del() {
     setOpen(false)
-    if (!confirm(`封存對話「${c.title || "未命名"}」？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。`)) return
+    if (!confirm(`封存互動「${c.title || "未命名"}」？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。`)) return
     const r = await pages.deleteConv(c.id)
     if (!r.deleted && r.blocked_by?.length) {
-      alert("這段對話是下列理解的『由來』，封存不了。\n請先到「💡 理解」把它們封存，再封存這段對話：\n\n"
+      alert("這段互動是下列理解的『由來』，封存不了。\n請先到「💡 理解」把它們封存，再封存這段互動：\n\n"
         + r.blocked_by.map((s) => "• " + s).join("\n"))
       return
     }
