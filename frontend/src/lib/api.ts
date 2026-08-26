@@ -125,6 +125,8 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
+export type SearchHit = { kind: string; ref: number | string; label: string }
+export type SearchGroup = { kind: string; count: number; items: SearchHit[] }
 export type SourceGroup = {
   url: string
   title: string
@@ -163,6 +165,9 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 066：全域搜尋。⚠️ 它跨不了 owner／persona——那是**硬邊界**，由後端擋。
+  search: (q: string): Promise<{ q: string; groups: SearchGroup[] }> =>
+    fetch(`/api/search?q=${encodeURIComponent(q)}`).then(json),
   // spec 065：建議怎麼整理。⚠️ **只回建議，不動任何東西**；套用是逐夾（下一支）。
   suggestDomains: (): Promise<{ folders: SuggestedFolder[] }> =>
     fetch("/api/domains/suggest").then(json),

@@ -316,6 +316,41 @@ class Repository:
                 digest_date="", source_class="root"))
         return out
 
+    # ── 全域搜尋（spec 066）──────────────────────────────────────────
+    #
+    # ⚠️ 搜尋是**最容易漏掉硬邊界**的地方——它天生的動作就是「把全部撈出來」。
+    # 所以這裡的每一句都必須帶 `_OWN` ＋ `_LIVE`，一句都不能少：
+    # 漏掉 owner ＝ 顯示別人的知識；漏掉 live ＝ 遺骸回到活的場（spec 064 才修過同一族）。
+    _SEARCH = [
+        # (kind, 表, 識別欄, 標題欄, 要比對的欄位…)
+        ("why_node", "why_nodes", "id", "claim", ("claim", "ladder")),
+        ("conversation", "conversations", "id", "title", ("title", "messages")),
+        ("article", "articles", "id", "title", ("topic", "title", "markdown")),
+        ("source", "digest_entries", "url", "title", ("title", "article_body", "note")),
+    ]
+
+    def search(self, q: str, per_kind: int = 8) -> list[dict]:
+        """跨四種知識的字面搜尋。回 [{kind, ref, label}]，**不排序跨種**（分組交給呼叫端）。
+
+        ⚠️ 比對**標題與內容**，不只標題——只比標題等於只找得到你已經記得名字的東西。
+        """
+        term = (q or "").strip().lower()
+        if not term:                      # 空字串不查庫（也不該回「全部」）
+            return []
+        like = f"%{term}%"
+        out: list[dict] = []
+        for kind, table, idcol, titlecol, cols in self._SEARCH:
+            where = " OR ".join(f"LOWER(COALESCE({c},'')) LIKE %s" for c in cols)
+            rows = self.conn.execute(
+                f"SELECT DISTINCT {idcol} AS ref, MIN({titlecol}) AS label FROM {table}"
+                f" WHERE {self._OWN} AND {self._LIVE} AND ({where})"
+                f" GROUP BY {idcol} LIMIT {int(per_kind)}",
+                tuple([like] * len(cols))).fetchall()
+            for r in rows:
+                out.append({"kind": kind, "ref": r["ref"],
+                            "label": (r["label"] or str(r["ref"]))[:120]})
+        return out
+
     # --- 種子 ingest（spec 006） ---
     def get_or_create_seeds_digest(self) -> int:
         """種子容器：哨兵 date 的 digests 列（無則建），種子皆插為它的 entries。"""

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Outlet, useLocation } from "react-router-dom"
 import { installMathCopy } from "@/components/Markdown"
 import { ConversationSidebar } from "@/components/ConversationSidebar"
+import { CommandPalette } from "@/components/CommandPalette"
 
 export default function Layout() {
   const { pathname } = useLocation()
@@ -13,6 +14,8 @@ export default function Layout() {
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground md:flex-row">
+      {/* spec 066：全域搜尋。掛在 Layout ＝ 每一頁都按得到（它是全域的，不是某頁的功能）。 */}
+      <CommandPalette />
       {/* 桌面：單一側欄（導覽＋新對話＋歷史） */}
       <aside className="hidden w-64 shrink-0 bg-sidebar md:block">
         <ConversationSidebar />

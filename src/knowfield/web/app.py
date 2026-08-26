@@ -1111,6 +1111,23 @@ def create_app() -> FastAPI:
     # 領域＝節點、**主題 Topic ＝從根到節點的路徑**。⚠️ 路徑由 parent_id 導出、不另存字串。
     # ⚠️ 這一刀**完全不碰 grounding**：撒網仍看全場。樹是**導航**，不是檢索權重
     #（原則 5：權重由人冊封，不由位置給）。有測試釘住脈絡逐字不變。
+    @app.get("/api/search")
+    async def api_search(request: Request):
+        """spec 066：全域搜尋。⚠️ 結果**不摻**「你可能也想看」——那是逛的工作（階段 64）。"""
+        q = str(request.query_params.get("q") or "")
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            hits = repo.search(q)
+        finally:
+            repo.close()
+        order = {"why_node": 0, "conversation": 1, "source": 2, "article": 3}
+        groups: dict[str, list] = {}
+        for h in hits:
+            groups.setdefault(h["kind"], []).append(h)
+        out = [{"kind": k, "count": len(v), "items": v}
+               for k, v in sorted(groups.items(), key=lambda kv: order.get(kv[0], 9))]
+        return _JSON({"q": q.strip(), "groups": out})
+
     @app.get("/api/domains/suggest")
     async def api_domains_suggest():
         """spec 065：建議怎麼整理。
