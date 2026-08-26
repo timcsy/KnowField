@@ -236,6 +236,13 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     # 任何「熱門度」進到這裡就是馬太陷阱：被引用最多的一直被推出來，
     # 而你最需要重新遇到的正好是**你快忘了的那些**。
     ("why_nodes", "last_rehearsed_at", "TEXT DEFAULT ''"),
+    # spec 069：這個地址是**算出來的**還是**人放的**。
+    # ⚠️ 分不出來的話，你會把機器的猜測當成自己的判斷——而那正是
+    # 「猜出來的歸屬會看起來跟真的一樣」在講的事。
+    ("why_nodes", "assigned_by", "TEXT DEFAULT ''"),
+    ("conversations", "assigned_by", "TEXT DEFAULT ''"),
+    ("articles", "assigned_by", "TEXT DEFAULT ''"),
+    ("digest_entries", "assigned_by", "TEXT DEFAULT ''"),
 ]
 
 

@@ -345,6 +345,13 @@ def create_app() -> FastAPI:
         return _chat_backend()
     app.state.suggest_backend_factory = _default_suggest_backend
 
+    def _default_district_embedder():
+        """spec 069：劃界用的 embedder。⚠️ 一定要跟語料**同一個模型**——
+        混維度的話會算出一個看起來正常的垃圾距離。"""
+        from ..backends.factory import make_embedder
+        return make_embedder(app.state.config)
+    app.state.district_embedder_factory = _default_district_embedder
+
     def _default_segment(messages):
         from ..chat.field_chat import FieldChat
         return FieldChat(_chat_backend()).segment(messages)
@@ -1199,10 +1206,12 @@ def create_app() -> FastAPI:
         ⚠️ **只回建議，不動任何東西**——套用是逐夾、另一個端點。
         原則 5：提議是 AI 的事，冊封／歸位是人的事。
         """
-        from ..organize.suggest import suggest_folders
+        from ..organize.district import districts
         repo = app.state.repo_factory(app.state.config)
         try:
-            folders = suggest_folders(repo, app.state.suggest_backend_factory())
+            chat = app.state.suggest_backend_factory()
+            # spec 069：⚠️ 只劃**還沒有地址**的東西——沒有全量重劃那條路。
+            folders = districts(repo, app.state.district_embedder_factory(), chat=chat)
         finally:
             repo.close()
         return _JSON({"folders": folders})
@@ -1226,7 +1235,8 @@ def create_app() -> FastAPI:
             parent = b.get("parent_id")
             did = repo.create_domain(name, int(parent) if parent else None)
             # spec 049：搬動會拆散糾纏——**報出來**，但不自動連帶搬
-            tangles = repo.batch_move(items, did, bring_along=False)
+            # spec 069：劃界接受的是**機器算的**地址 ⇒ 記下來，人的 override 才分得出
+            tangles = repo.batch_move(items, did, bring_along=False, by="machine")
         finally:
             repo.close()
         return _JSON({"domain_id": did, "moved": len(items), "tangles": tangles})

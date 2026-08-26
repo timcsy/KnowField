@@ -1135,10 +1135,17 @@ class Repository:
             f"SELECT domain_id FROM {t} WHERE {self._OWN} AND {k}=%s", (ref,)).fetchone()
         return r["domain_id"] if r else None
 
-    def set_knowledge_domain(self, kind: str, ref, domain_id: int | None) -> None:
+    def set_knowledge_domain(self, kind: str, ref, domain_id: int | None,
+                             by: str = "human") -> None:
+        """把一件知識放到某個領域。`by`＝`human`（你放的）｜`machine`（劃界算的）。
+
+        ⚠️ spec 069：**人的 override 要看得出來**——分不出來的話，
+        你會把機器的猜測當成自己的判斷。預設是 `human`，因為呼叫這支的多半是人的動作。
+        """
         t, k = self._KIND_TABLE[kind]
         # 來源時 `k='url'` ⇒ 這一句會套到該 url 的**所有塊**，那正是要的（FR-008）。
-        self.conn.execute(f"UPDATE {t} SET domain_id=%s WHERE {self._OWN} AND {k}=%s", (domain_id, ref))
+        self.conn.execute(f"UPDATE {t} SET domain_id=%s, assigned_by=%s"
+                          f" WHERE {self._OWN} AND {k}=%s", (domain_id, by, ref))
         self.conn.commit()
 
     def _neighbours(self, kind: str, ref) -> list[tuple[str, object]]:
@@ -1210,14 +1217,14 @@ class Repository:
         return out
 
     def batch_move(self, items, new_domain: int | None,
-                   bring_along: bool = False) -> list[dict]:
+                   bring_along: bool = False, by: str = "human") -> list[dict]:
         """整批搬。`bring_along` ＝ 把被拆散的直接鄰居也搬過去（⚠️ 只一層，FR-006）。"""
         tangles = self.batch_tangles(items, new_domain)
         for kind, ref in items:
-            self.set_knowledge_domain(kind, ref, new_domain)
+            self.set_knowledge_domain(kind, ref, new_domain, by=by)
         if bring_along:
             for t in tangles:      # ⚠️ 只搬這一層，不對它們再遞迴
-                self.set_knowledge_domain(t["kind"], t["ref"], new_domain)
+                self.set_knowledge_domain(t["kind"], t["ref"], new_domain, by=by)
         return tangles
 
     # --- 譯文快取（spec 039）：**逐翻譯單位**，不是逐文件 ---

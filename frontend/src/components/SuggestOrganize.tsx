@@ -40,7 +40,7 @@ export function SuggestOrganize({ onApplied }: { onApplied: () => void }) {
   if (!folders) {
     return (
       <Button variant="outline" size="sm" onClick={load} disabled={busy}>
-        {busy ? "看看怎麼整理…" : "✨ 建議怎麼整理"}
+        {busy ? "劃界中…" : "✨ 建議怎麼整理"}
       </Button>
     )
   }
@@ -53,8 +53,11 @@ export function SuggestOrganize({ onApplied }: { onApplied: () => void }) {
                 className="text-xs text-muted-foreground hover:text-foreground">收起</button>
       </div>
       <p className="text-xs text-muted-foreground">
-        分群<b className="text-foreground">只根據既有的連結</b>（由來／來源），所以每一條理由你都查得到。
-        <b className="text-foreground">一次接受一夾</b>——沒有「全部套用」。
+        {/* spec 069：⚠️ 措辭很要緊。實驗量到換個種子分區就大幅重排（ARI ≈ 0.18）
+            ⇒ 不能說「這是你的行政區」，那會讓一個相當任意的結構看起來像客觀結果。 */}
+        這是<b className="text-foreground">一個劃法</b>，不是唯一的劃法——改到你認可為止。
+        每一區都給了錨與代表成員，所以你說得出哪裡不對。
+        <b className="text-foreground">一次接受一區</b>——沒有「全部套用」。
       </p>
 
       {err && <p className="text-xs text-destructive">{err}</p>}
@@ -81,7 +84,7 @@ export function SuggestOrganize({ onApplied }: { onApplied: () => void }) {
             <p className="text-xs text-primary">✅ {done[i]}</p>
           ) : f.suggest_apply ? (
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => apply(f, i)}>建立這一夾</Button>
+              <Button size="sm" onClick={() => apply(f, i)}>建立這一區</Button>
               <button onClick={() => setFolders((fs) => (fs || []).filter((_, k) => k !== i))}
                       className="text-xs text-muted-foreground hover:text-foreground">略過</button>
             </div>
