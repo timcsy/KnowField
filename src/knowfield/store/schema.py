@@ -100,7 +100,8 @@ CREATE TABLE IF NOT EXISTS why_nodes (
     status TEXT DEFAULT 'candidate',
     source_entry_id INTEGER,
     created_at TEXT,
-    conversation_id INTEGER
+    conversation_id INTEGER,
+    origin TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -193,6 +194,11 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("articles", "erased_at", "TEXT DEFAULT ''"),
     ("conversations", "erased_at", "TEXT DEFAULT ''"),
     ("digest_entries", "erased_at", "TEXT DEFAULT ''"),
+    # spec 062：這條理解是誰寫的。''＝AI 蒸餾的候選（既有）｜'self'＝人自己寫且有出處
+    # ｜'self:judgment'＝人自己寫、明確宣告**無外部依據**。
+    # ⚠️ 第三種要**存**不要推導：「欄位都空著」和「明確宣告沒有依據」在資料上長得一樣，
+    #    而後者是一個**判斷**——資訊存在的時候不要把它丟掉。
+    ("why_nodes", "origin", "TEXT DEFAULT ''"),
 ]
 
 

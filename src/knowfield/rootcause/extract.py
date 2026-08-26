@@ -41,6 +41,7 @@ class WhyNode:
     src_to: int = 0
     source_quote: str = ""                            # 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
     source_page: int = 0                              # PDF 來源出處頁碼（1-indexed，0=未知）→由來 #page=N
+    origin: str = ""                                  # spec 062：''＝AI 蒸餾｜'self'＝人自己寫（出處是**事後**挑的）｜'self:judgment'＝宣告無外部依據
 
 
 @dataclass

@@ -103,6 +103,9 @@ export type WhyNode = {
   src_to: number
   source_quote: string  // 來源 verbatim 錨點（Text Fragment 由來定位到原文段落）
   source_page: number   // PDF 來源出處頁碼（0=非 PDF/未知）→由來翻到那頁
+  // spec 062：''＝AI 蒸餾的候選（出處是**當下**那段互動）
+  // ｜'self'＝人自己寫（出處必然是**事後**挑的）｜'self:judgment'＝人寫且宣告無外部依據
+  origin: string
 }
 export type RootsData = {
   anointed: WhyNode[]
@@ -148,6 +151,14 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 062：**人自己寫**一條理解。⚠️ 出處必填是後端擋的（400），
+  // 前端只負責讓那四種出處**看得到、選得到**——不要在這裡重寫一次規則。
+  writeUnderstanding: (p: {
+    claim: string; kind?: string; ladder?: string
+    conversation_id?: number; source_url?: string; evidence_urls?: string
+    origin?: string; domain_id?: number | null
+  }): Promise<{ status?: string; claim?: string; msg?: string; origin?: string; error?: string }> =>
+    post("/api/understanding/write", p),
   source: (u: string, raw = false): Promise<{
     found: boolean; url: string; title: string; markdown: string; note: string; ingested_at: string
     original_url: string; pdf_path: string   // 原文=真相：原站連結／存下的 PDF（防失效＋頁級預覽）

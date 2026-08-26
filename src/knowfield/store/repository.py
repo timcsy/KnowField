@@ -474,18 +474,21 @@ class Repository:
                      fog_flag: bool, source_entry_id: int, created_at: str,
                      ladder: list | None = None, kind: str = "",
                      src_from: int = 0, src_to: int = 0, source_quote: str = "",
-                     source_page: int = 0) -> int:
+                     source_page: int = 0, conversation_id: int | None = None,
+                     origin: str = "") -> int:
         """新增候選 why-node（狀態=candidate），回 id。kind＝層次；src_from/to＝出處則數（階段29）；
         source_quote＝來源 verbatim 錨點（Text Fragment 由來定位）；source_page＝PDF 出處頁碼。"""
         import json as _json
         wid = self._insert_id(
             "INSERT INTO why_nodes (claim, evidence_urls, touchstones, ladder, fog_flag,"
-            " kind, src_from, src_to, source_quote, source_page, status, source_entry_id, created_at)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate',%s,%s)",
+            " kind, src_from, src_to, source_quote, source_page, status, source_entry_id,"
+            " conversation_id, origin, created_at)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'candidate',%s,%s,%s,%s)",
             (claim, _json.dumps(evidence_urls, ensure_ascii=False),
              _json.dumps(touchstones, ensure_ascii=False),
              _json.dumps(ladder or [], ensure_ascii=False), 1 if fog_flag else 0,
-             kind, src_from, src_to, source_quote, source_page, source_entry_id, created_at))
+             kind, src_from, src_to, source_quote, source_page, source_entry_id,
+             conversation_id, origin, created_at))
         self.conn.commit()
         return wid
 
@@ -513,7 +516,8 @@ class Repository:
                 src_from=(r["src_from"] if "src_from" in r.keys() else 0) or 0,
                 src_to=(r["src_to"] if "src_to" in r.keys() else 0) or 0,
                 source_quote=(r["source_quote"] if "source_quote" in r.keys() else "") or "",
-                source_page=(r["source_page"] if "source_page" in r.keys() else 0) or 0))
+                source_page=(r["source_page"] if "source_page" in r.keys() else 0) or 0,
+                origin=(r["origin"] if "origin" in r.keys() else "") or ""))
         return out
 
     def anoint_why_node(self, wid: int, claim: str | None = None,

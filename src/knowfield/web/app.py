@@ -536,7 +536,8 @@ def create_app() -> FastAPI:
 
 
     def _do_anoint(claim, ladder, evidence_urls, save_convo, history, temp_id, kind="",
-                   src_from=0, src_to=0, domain_id=None):
+                   src_from=0, src_to=0, domain_id=None,
+                   source_entry_id=0, conversation_id=None, origin=""):
         """人閘門冊封（原則 5）：唯有人按此才寫 bedrock。冪等去重＋選用連對話由來（spec 023/028）。
         回 (status, claim, msg)。/chat/anoint 與 /api/chat/anoint 共用（行為一份、天然一致）。"""
         from ..chat.capture import norm_claim
@@ -554,8 +555,9 @@ def create_app() -> FastAPI:
             status = "exists"
             msg = f"這條你已經收過了：「{claim[:40]}」（沒有重複新增）"
         else:
-            wid = repo.add_why_node(claim, urls, [], False, 0, _now_iso(), ladder=steps, kind=kind,
-                                    src_from=src_from, src_to=src_to)
+            wid = repo.add_why_node(claim, urls, [], False, source_entry_id, _now_iso(),
+                                    ladder=steps, kind=kind, src_from=src_from, src_to=src_to,
+                                    conversation_id=conversation_id, origin=origin)
             repo.anoint_why_node(wid)
             status = "created"
             msg = f"已存進你的知識庫：「{claim[:40]}」（可到『理解』頁檢視或封存）"
@@ -634,6 +636,50 @@ def create_app() -> FastAPI:
             domain_id=_domain_of(body))
         return _JSON({"status": status, "claim": claim, "msg": msg})
 
+    @app.post("/api/understanding/write")
+    async def api_understanding_write(request: Request):
+        """spec 062：**人自己寫**一條理解——已經知道的事不必先跟 AI 聊一輪。
+
+        ⚠️ **出處必填，而且是擋住不是警告**。理由是原則性的：AI 蒸餾的候選會經過
+        gradient oracle（原則 5 要求它對自己 adversarial，防 folie à deux），
+        人自己寫**跳過了那道檢查** ⇒ 出處是它的替代品。
+        """
+        b = await request.json()
+        claim = str(b.get("claim") or "").strip()
+        if not claim:
+            return _JSON({"error": "理解不能是空的——寫一句你想留下來的主張。"}, status_code=400)
+
+        cid = b.get("conversation_id")
+        cid = int(cid) if cid else None
+        # ⚠️ 來源的身分是 **url** 不是 id（spec 050 的裁決，`_KIND_TABLE` 同一份）
+        #    ——前端拿得到的是 url，id 由這裡解析，別逼介面去猜一個它看不到的東西。
+        sid = int(b.get("source_entry_id") or 0)
+        if not sid and str(b.get("source_url") or "").strip():
+            repo0 = app.state.repo_factory(app.state.config)
+            row = repo0.conn.execute(
+                "SELECT MIN(id) AS id FROM digest_entries WHERE url=%s",
+                (str(b["source_url"]).strip(),)).fetchone()
+            repo0.close()
+            sid = int(row["id"]) if row and row["id"] else 0
+        urls = str(b.get("evidence_urls") or "").strip()
+        declared = str(b.get("origin") or "") == "self:judgment"
+        has_source = bool(cid or sid or urls)
+
+        # ⚠️ 四種出處擇一。第四種**不是逃生門**，是信任鏈的第三種終點
+        #    ——它要**被宣告**，不能靠「什麼都沒填」推導出來。
+        if not has_source and not declared:
+            return _JSON({"error": "要標出處：選一段互動、一份來源、給一個網址，"
+                                   "或明確勾選「這是我自己的判斷，沒有外部依據」。"},
+                         status_code=400)
+        # 宣告了自己的判斷卻又給了出處 ⇒ 以出處為準（有依據就不是純判斷）
+        origin = "self" if has_source else "self:judgment"
+
+        status, claim, msg = _do_anoint(
+            claim, b.get("ladder", ""), urls, "", "[]", "", b.get("kind", ""),
+            domain_id=_domain_of(b),
+            source_entry_id=sid, conversation_id=cid, origin=origin)
+        return _JSON({"status": status, "claim": claim, "msg": msg, "origin": origin})
+
     @app.post("/api/chat/autosave")
     async def api_chat_autosave(request: Request):
         body = await request.json()
@@ -693,6 +739,7 @@ def create_app() -> FastAPI:
                     "ladder": w.ladder, "touchstones": w.touchstones, "fog_flag": w.fog_flag,
                     "kind": getattr(w, "kind", ""),
                     "src_from": getattr(w, "src_from", 0), "src_to": getattr(w, "src_to", 0),
+                    "origin": getattr(w, "origin", ""),
                     "source_quote": getattr(w, "source_quote", ""),
                     "source_page": getattr(w, "source_page", 0)}
         return _JSON({"anointed": [_wn(w) for w in anointed],

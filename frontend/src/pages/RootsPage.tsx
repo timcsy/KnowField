@@ -6,6 +6,7 @@ import { KindBadge } from "@/components/KindBadge"
 import { Markdown } from "@/components/Markdown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { WriteUnderstanding } from "@/components/WriteUnderstanding"
 
 // 原文＝唯一真相：由來連結帶 Text Fragment（#:~:text=）→ 瀏覽器原生捲到並高亮原文那段。
 // best-effort：匹配失敗（抽取清理過/SPA 渲染）→ 只開頁面、不跳段（無害）。
@@ -78,11 +79,14 @@ export default function RootsPage() {
   return (
     <div className="space-y-5 pb-8">
       {banner}
-      <div>
-        <h1 className="text-2xl font-bold">💡 你的理解</h1>
-        <p className="text-xs text-muted-foreground">
-          你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成理解」時精選。）
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">💡 你的理解</h1>
+          <p className="text-xs text-muted-foreground">
+            你精選收進的——聊天時最優先參考。（在「跟知識聊」按「🧵 整理成重點」，或「來源」按「🧠 整理成理解」時精選。）
+          </p>
+        </div>
+        <WriteUnderstanding onDone={load} />
       </div>
 
       {/* 知識的輸出（階段 30）：從理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
@@ -137,6 +141,13 @@ export default function RootsPage() {
               <div key={w.id} className="group rounded-xl bg-card px-5 py-4 shadow-sm">
                 <p className="max-w-[42rem] text-[15px] leading-loose"><KindBadge kind={w.kind} /> 💡 {w.claim}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {/* spec 062：自己寫的要看得出來，而且看得出出處是**事後**標的
+                      ——AI 蒸餾的出處是當下那段互動，自己寫的必然是後來挑的。 */}
+                  {w.origin === "self:judgment" ? (
+                    <span title="沒有外部依據——信任鏈到你為止">🧠 個人判斷</span>
+                  ) : w.origin === "self" && (
+                    <span title="你自己寫的；出處是事後標注的">✍️ 自己寫（出處事後標注）</span>
+                  )}
                   {src ? (
                     <>
                       {w.source_page > 0 ? (
