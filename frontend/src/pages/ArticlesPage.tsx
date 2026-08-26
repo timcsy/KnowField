@@ -16,7 +16,7 @@ export default function ArticlesPage() {
   useEffect(() => { load() }, [])
 
   async function del(id: number) {
-    if (!confirm("刪除這份應用？（不可復原）")) return
+    if (!confirm("封存這份應用？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。")) return
     await pages.deleteArticle(id); load()
   }
 
@@ -56,7 +56,7 @@ export default function ArticlesPage() {
               </div>
               <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
                 <Link to={`/articles/${a.id}`} className="hover:text-foreground">檢視</Link>
-                <button onClick={() => del(a.id)} className="hover:text-destructive">刪除</button>
+                <button onClick={() => del(a.id)} className="hover:text-destructive">📦 封存</button>
               </div>
             </div>
           ))}

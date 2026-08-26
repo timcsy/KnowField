@@ -45,10 +45,10 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
 
   async function del() {
     setOpen(false)
-    if (!confirm(`刪除對話「${c.title || "未命名"}」？`)) return
+    if (!confirm(`封存對話「${c.title || "未命名"}」？\n\n它會離開活的知識庫，但不會消失——可以在「領域」頁復原。`)) return
     const r = await pages.deleteConv(c.id)
     if (!r.deleted && r.blocked_by?.length) {
-      alert("這段對話是下列理解的『由來』，刪不掉。\n請先到「💡 理解」把它們退回/刪掉，再刪這段對話：\n\n"
+      alert("這段對話是下列理解的『由來』，封存不了。\n請先到「💡 理解」把它們封存，再封存這段對話：\n\n"
         + r.blocked_by.map((s) => "• " + s).join("\n"))
       return
     }
@@ -63,7 +63,7 @@ export function ConvMenu({ c, open, setOpen, anchorRef, onResume, onRename, onCh
       {/* spec 047：不再分「檢視」與「接著聊」——一段對話只有一個去處（使用者裁決 2026-08-25）。 */}
       <button onClick={() => { setOpen(false); onResume() }} className={item}>打開</button>
       <button onClick={() => { setOpen(false); onRename() }} className={item}>改名</button>
-      <button onClick={del} className={item + " text-destructive"}>刪除</button>
+      <button onClick={del} className={item + " text-destructive"}>📦 封存</button>
     </div>,
     document.body,
   )

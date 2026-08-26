@@ -37,13 +37,17 @@ export default function DomainsPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<KnowledgeKind | "all">("all")
   const [q, setQ] = useState("")
+  // 遺骸：封存過的東西。⚠️ 「刪除又要不能不見」的那個**見**就在這裡
+  //    ——沒有這一格，封存跟刪除在使用者眼裡沒有差別。
+  const [attic, setAttic] = useState<Awaited<ReturnType<typeof pages.archived>> | null>(null)
+  const [showAttic, setShowAttic] = useState(false)
   const [dropOn, setDropOn] = useState<number | null | "none">("none")
   // 搬東西時若有糾纏，先問。⚠️ 糾纏不是我們建的，是**既有連結被樹拆散**。
   const [ask, setAsk] = useState<{ items: KnowledgeRef[]; to: number | null
                                    tangles: { label: string }[] } | null>(null)
 
-  const load = () => Promise.all([pages.domains(), pages.inventory()])
-    .then(([d, inv]) => { setDomains(d.domains); setItems(inv.items) })
+  const load = () => Promise.all([pages.domains(), pages.inventory(), pages.archived()])
+    .then(([d, inv, a]) => { setDomains(d.domains); setItems(inv.items); setAttic(a) })
     .catch(() => setDomains([]))
   useEffect(() => { load() }, [])
 
@@ -61,23 +65,21 @@ export default function DomainsPage() {
     load()
   }
 
-  // ⚠️ 刪的是**位置**，不是知識。先說出影響範圍再問（FR-005）。
-  async function removeDomain(d: Domain) {
-    const p = await pages.deleteDomainPreview(d.id)
-    const toName = p.to === null
-      ? "知識庫（根領域）"
-      : ((domains || []).find((x) => x.id === p.to)?.name ?? "上一層")
+  // 封存＝**離開活的場，留下遺骸**（spec 055）。先說出會帶走什麼再問（FR-007）。
+  // ⚠️ 它會**連帶封存整棵子樹**——不上移，之後可以一起復原。
+  async function archiveDomain(d: Domain) {
+    const p = await pages.archiveDomainPreview(d.id)
     const what = [p.items && `${p.items} 件知識`, p.children && `${p.children} 個子領域`]
       .filter(Boolean).join("、")
     const line = what
-      ? `刪掉「${d.name}」？\n\n它底下的 ${what} 會**搬到「${toName}」**，一件都不會被刪掉。`
-      : `刪掉「${d.name}」？（它是空的）`
+      ? `封存「${d.name}」？\n\n它底下的 ${what} 會一起封存——離開活的知識庫，但不會消失，之後可以一起復原。`
+      : `封存「${d.name}」？（它是空的）`
     if (!confirm(line)) return
-    await pages.deleteDomain(d.id)
-    // ⚠️ 站在被刪的領域上就要移走——不能站在一個不存在的地方（FR-006）
+    await pages.archiveDomain(d.id)
+    // ⚠️ 站在被封存的領域上就要移走——不能站在一個不在活樹上的地方（FR-008）
     if (did === d.id) go(p.to, { replace: true })
     if (sel === d.id) setSel(p.to)
-    setMsg(what ? `刪掉了「${d.name}」——${what} 已搬到「${toName}」` : `刪掉了「${d.name}」`)
+    setMsg(what ? `封存了「${d.name}」——連同 ${what}` : `封存了「${d.name}」`)
     load()
   }
 
@@ -94,6 +96,15 @@ export default function DomainsPage() {
     if (r.tangles.length === 0) { await doMove(refs, to, false); return }   // 沒糾纏就直接搬
     setAsk({ items: refs, to, tangles: r.tangles })
   }
+  async function archivePicked() {
+    const refs = pickedRefs()
+    if (!refs.length) return
+    if (!confirm(`封存這 ${refs.length} 件？\n\n它們會離開活的知識庫，但不會消失——之後可以復原。`)) return
+    await pages.archiveKnowledge(refs)
+    setPicked(new Set()); setMsg(`封存了 ${refs.length} 件`)
+    load()
+  }
+
   async function doMove(refs: KnowledgeRef[], to: number | null, bring: boolean) {
     const r = await pages.moveKnowledge(refs, to, bring)
     setAsk(null); setPicked(new Set())
@@ -193,8 +204,8 @@ export default function DomainsPage() {
             <button onClick={() => moveDomain(d.id, null)} title="移到最上層"
                     className="rounded px-1 py-0.5 hover:bg-background hover:text-foreground">⤴</button>
           )}
-          <button onClick={() => removeDomain(d)} title="刪除（裡面的知識會搬到上一層，不會被刪）"
-                  className="rounded px-1 py-0.5 hover:bg-background hover:text-destructive">🗑</button>
+          <button onClick={() => archiveDomain(d)} title="封存（連同底下的知識一起離開活的知識庫；不會消失，可復原）"
+                  className="rounded px-1 py-0.5 hover:bg-background hover:text-destructive">📦</button>
         </div>
       </div>
       {kids(d.id).map((k) => renderNode(k, depth + 1))}
@@ -213,9 +224,9 @@ export default function DomainsPage() {
       <div>
         <h1 className="text-2xl font-bold">🗂 領域</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          管理知識庫的樹——新增、改名、搬動、刪除；勾選右邊的知識，拖到左邊的領域上放開。
+          管理知識庫的樹——新增、改名、搬動、封存；勾選右邊的知識，拖到左邊的領域上放開。
           <br />
-          ⚠️ <b>刪除領域不會刪掉知識</b>：裡面的東西會搬到上一層。
+          ⚠️ <b>封存不是刪除</b>：它連同底下的知識一起離開活的知識庫，<b>不會消失</b>，之後可以一起復原。
         </p>
       </div>
 
@@ -342,6 +353,8 @@ export default function DomainsPage() {
               <span className="text-sm">已選 <b>{picked.size}</b> 件</span>
               <button onClick={() => setPicked(new Set())}
                       className="text-xs text-muted-foreground hover:underline">清除</button>
+              <button onClick={archivePicked}
+                      className="text-xs text-muted-foreground hover:underline hover:text-destructive">📦 封存</button>
               <select value="" className="ml-auto rounded border bg-background px-2 py-1 text-sm"
                       onChange={(e) => { if (e.target.value !== "")
                         startMove(pickedRefs(), e.target.value === "0" ? null : Number(e.target.value)) }}>
@@ -355,6 +368,44 @@ export default function DomainsPage() {
           )}
         </div>
       </div>
+
+      {/* 遺骸——封存過的東西。⚠️ 沒有這一格，「封存」在使用者眼裡就等於「刪除」 */}
+      {((attic?.items.length ?? 0) + (attic?.domains.length ?? 0)) > 0 && (
+        <section className="space-y-1 rounded-xl border border-dashed p-3">
+          <button onClick={() => setShowAttic((v) => !v)}
+                  className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+            <span>📦 已封存</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {attic!.domains.length} 個領域、{attic!.items.length} 件知識
+            </span>
+            <span className="ml-auto text-xs text-muted-foreground">{showAttic ? "▴" : "▾"}</span>
+          </button>
+          {showAttic && (
+            <div className="space-y-0.5 pt-1">
+              <p className="pb-1 text-xs text-muted-foreground">
+                離開了活的知識庫，但沒有消失——也不再進入聊天與檢索。
+              </p>
+              {attic!.domains.map((d) => (
+                <div key={`d${d.id}`} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
+                  <span className="min-w-0 flex-1 truncate">📁 {d.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{d.archived_at.slice(0, 10)}</span>
+                  <button onClick={async () => { await pages.restoreDomain(d.id); setMsg(`復原了「${d.name}」`); load() }}
+                          className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-foreground">復原</button>
+                </div>
+              ))}
+              {attic!.items.map((i) => (
+                <div key={keyOf(i)} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
+                  <span className="shrink-0 text-xs text-muted-foreground">{KIND_LABEL[i.kind].slice(0, 2)}</span>
+                  <span className="min-w-0 flex-1 truncate">{i.label}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{i.archived_at.slice(0, 10)}</span>
+                  <button onClick={async () => { await pages.restoreKnowledge([{ kind: i.kind, ref: i.ref }]); setMsg("復原了"); load() }}
+                          className="shrink-0 text-xs text-muted-foreground hover:underline hover:text-foreground">復原</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {sel === null && unfiled.length > 0 && (
         <p className="text-xs text-muted-foreground">

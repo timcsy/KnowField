@@ -474,7 +474,7 @@ def create_app() -> FastAPI:
             finally:
                 _r.close()
             if not _a:
-                yield _sse({"type": "error", "message": "找不到那份應用（可能已刪除）。"})
+                yield _sse({"type": "error", "message": "找不到那份應用（可能已封存）。"})
                 return
             _article = {"id": _a.get("id", article_id),
                         "title": _a.get("title") or "",
@@ -558,7 +558,7 @@ def create_app() -> FastAPI:
                                     src_from=src_from, src_to=src_to)
             repo.anoint_why_node(wid)
             status = "created"
-            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『理解』頁檢視或刪除）"
+            msg = f"已存進你的知識庫：「{claim[:40]}」（可到『理解』頁檢視或封存）"
         if save_convo == "1":                   # 連同這段對話存成由來（既有或新建都連）
             messages = _parse_history(history)
             if messages:
@@ -741,7 +741,7 @@ def create_app() -> FastAPI:
             if cid:
                 conv = repo.get_conversation(cid)
                 if conv is None:
-                    return _JSON({"error": "找不到那段對話（可能已刪除）。"})
+                    return _JSON({"error": "找不到那段對話（可能已封存）。"})
                 ref_ids = {r["id"] for r in repo.conversation_referrers(cid)}
                 if not ref_ids:
                     # FR-006：死路變成下一步——不是空白、也不是錯誤碼。
@@ -1094,25 +1094,88 @@ def create_app() -> FastAPI:
             repo.close()
         return _JSON({"ok": True})
 
-    @app.get("/api/domains/{did}/delete-preview")
-    async def api_domain_delete_preview(did: int):
-        """刪這個領域會動到什麼。**不改任何東西。**"""
+    @app.get("/api/domains/{did}/archive-preview")
+    async def api_domain_archive_preview(did: int):
+        """封存這個領域會動到什麼。**不改任何東西。**"""
         repo = app.state.repo_factory(app.state.config)
         try:
-            return _JSON({"ok": True, **repo.delete_domain_preview(did)})
+            return _JSON({"ok": True, **repo.archive_domain_preview(did)})
         finally:
             repo.close()
 
-    @app.post("/api/domains/{did}/delete")
-    async def api_domain_delete(did: int):
-        """刪一個領域。⚠️ **刪的是位置，不是知識**——內容與直屬子領域上移到父領域。"""
+    @app.post("/api/domains/{did}/archive")
+    async def api_domain_archive(did: int):
+        """**封存**一個領域：容器結束，內容回到場裡，而且留下遺骸（spec 055）。"""
         repo = app.state.repo_factory(app.state.config)
         try:
-            moved = repo.delete_domain(did)
+            moved = repo.archive_domain(did, _now_iso())
         finally:
             repo.close()
-        _log.info("刪領域", extra={"extra": {"did": did, **moved}})
+        _log.info("封存領域", extra={"extra": {"did": did, **moved}})
         return _JSON({"ok": True, **moved})
+
+    @app.get("/api/domains/archived")
+    async def api_domains_archived():
+        """遺骸：封存過的領域（答得出「這裡本來叫什麼、什麼時候封的」）。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            return _JSON({"ok": True, "domains": repo.archived_domains()})
+        finally:
+            repo.close()
+
+    @app.post("/api/domains/{did}/restore")
+    async def api_domain_restore(did: int):
+        """復原。⚠️ **不把知識搬回來**——它們在新位置活過了（FR-006）。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            repo.restore_domain(did)
+        finally:
+            repo.close()
+        _log.info("復原領域", extra={"extra": {"did": did}})
+        return _JSON({"ok": True})
+
+    @app.post("/api/knowledge/archive")
+    async def api_archive_knowledge(request: Request):
+        """**封存**一批知識（spec 055）：離開活的場，留下遺骸。"""
+        b = await request.json()
+        try:
+            items = _parse_items(b.get("items"))
+        except (ValueError, TypeError) as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            now = _now_iso()
+            for kind, ref in items:
+                repo.archive_knowledge(kind, ref, now)
+        finally:
+            repo.close()
+        _log.info("封存知識", extra={"extra": {"n": len(items)}})
+        return _JSON({"ok": True, "archived": len(items)})
+
+    @app.post("/api/knowledge/restore")
+    async def api_restore_knowledge(request: Request):
+        b = await request.json()
+        try:
+            items = _parse_items(b.get("items"))
+        except (ValueError, TypeError) as e:
+            return _JSON({"ok": False, "err": str(e)}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            for kind, ref in items:
+                repo.restore_knowledge(kind, ref)
+        finally:
+            repo.close()
+        return _JSON({"ok": True, "restored": len(items)})
+
+    @app.get("/api/archived")
+    async def api_archived():
+        """遺骸清單：封存過的知識與領域（「刪除又要不能不見」的那個『見』）。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            return _JSON({"ok": True, "items": repo.archived_items(),
+                          "domains": repo.archived_domains()})
+        finally:
+            repo.close()
 
     @app.post("/api/domains/{did}/move")
     async def api_domain_move(did: int, request: Request):

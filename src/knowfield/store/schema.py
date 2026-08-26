@@ -171,6 +171,21 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     ("why_nodes", "domain_id", "INTEGER"),                  # spec 049：歸屬的領域
     # spec 050：來源也歸屬。⚠️ 一個「來源」＝一個 url ＝**多個塊**，所以整組塊一起設。
     ("digest_entries", "domain_id", "INTEGER"),
+    # spec 055：**封存＝離開活的場，留下遺骸**（超新星／黑洞／細胞凋亡：結束不等於湮滅）。
+    # 它是**一個通用動作**——領域與四種知識都適用。
+    # ⚠️ `archived_root`＝是被哪個領域的封存**連帶**帶走的（NULL＝自己被封的）。
+    #    復原時靠它把「同一批」找回來——沒有它，復原就只能靠時間戳猜。
+    ("domains", "archived_at", "TEXT DEFAULT ''"),
+    ("domains", "archived_from", "INTEGER"),   # 封存當下的父領域（給復原用）
+    ("domains", "archived_root", "INTEGER"),
+    ("why_nodes", "archived_at", "TEXT DEFAULT ''"),
+    ("why_nodes", "archived_root", "INTEGER"),
+    ("articles", "archived_at", "TEXT DEFAULT ''"),
+    ("articles", "archived_root", "INTEGER"),
+    ("conversations", "archived_at", "TEXT DEFAULT ''"),
+    ("conversations", "archived_root", "INTEGER"),
+    ("digest_entries", "archived_at", "TEXT DEFAULT ''"),
+    ("digest_entries", "archived_root", "INTEGER"),
 ]
 
 

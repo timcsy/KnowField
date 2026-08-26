@@ -60,7 +60,8 @@ class TestDeleteConversation(unittest.TestCase):
         cid = repo.save_conversation("刪我", [{"role": "user", "content": "hi"}], None)
         self.assertEqual(repo.conversation_referrers(cid), [])
         self.assertTrue(repo.delete_conversation(cid))
-        self.assertIsNone(repo.get_conversation(cid))
+        # spec 055：這是**封存**——離開活清單，但遺骸還在（「刪除又要不能不見」）
+        self.assertNotIn(cid, [c.id for c in repo.list_conversations()])
         repo.close()
 
     def test_referenced_blocks_delete(self):                # 被核心理解引用（由來）→擋刪，回 blocked_by（護溯源）

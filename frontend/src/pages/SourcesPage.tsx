@@ -78,7 +78,7 @@ export default function SourcesPage() {
     load()
   }
   async function remove(url: string) {
-    if (!confirm("刪除整份來源？（所有塊、不可復原）")) return
+    if (!confirm("封存整份來源？\n\n它會離開活的知識庫、不再進入檢索——但不會消失，可以在「領域」頁復原。")) return
     await pages.removeSource(url)
     load()
   }
@@ -191,7 +191,7 @@ export default function SourcesPage() {
                 <button onClick={() => reclassify(s)} className="hover:text-foreground">
                   {s.source_class === "explainer" ? "改一般" : "標解說文"}
                 </button>
-                <button onClick={() => remove(s.url)} className="hover:text-destructive">刪除</button>
+                <button onClick={() => remove(s.url)} className="hover:text-destructive">📦 封存</button>
               </div>
             </div>
           ))}

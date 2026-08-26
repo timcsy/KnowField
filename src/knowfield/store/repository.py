@@ -280,8 +280,8 @@ class Repository:
         import json as _json
         out: list[CorpusEntry] = []
         for r in self.conn.execute(
-                "SELECT id, claim, evidence_urls, ladder FROM why_nodes"
-                " WHERE status='anointed'"
+                f"SELECT id, claim, evidence_urls, ladder FROM why_nodes"
+                f" WHERE status='anointed' AND {self._LIVE}"    # spec 055：遺骸不餵給聊天／RAG
         ).fetchall():
             urls = _json.loads(r["evidence_urls"] or "[]")
             claim = r["claim"] or ""
@@ -362,7 +362,8 @@ class Repository:
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            " WHERE d.date=%s ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
+            " WHERE d.date=%s AND COALESCE(de.archived_at,'')=''"    # spec 055：遺骸不進語料
+            " ORDER BY de.id DESC", (SEEDS_DATE,)).fetchall()
         return [
             CorpusEntry(entry_id=r["eid"], title=r["title"], url=r["url"],
                         headline=r["headline"] or "", body=r["body"] or "",
@@ -395,7 +396,8 @@ class Repository:
             " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
             " MIN(de.note) AS note, MIN(de.ingested_at) AS ingested_at"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
-            " WHERE d.date=%s GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
+            f" WHERE d.date=%s AND COALESCE(de.archived_at,'')=''"
+            " GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
         return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
                  "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"],
                  "note": r["note"] or "", "ingested_at": r["ingested_at"] or ""}
@@ -437,15 +439,22 @@ class Repository:
             " WHERE d.date=%s AND de.url=%s LIMIT 1", (SEEDS_DATE, url)).fetchone()
         return (r["title"] if r else "") or url
 
-    def delete_source(self, url: str) -> int:
-        """刪一來源的所有塊＋embedding（限種子容器）。回刪除塊數。"""
+    def delete_source(self, url: str, now: str = "") -> int:
+        """**封存**一來源的所有塊（spec 055）——不再硬刪。回封存的塊數。
+
+        ⚠️ embedding 照樣清掉：留著的話它仍會被檢索命中，而那正是
+        「封存只擋住畫面、沒擋住檢索」的沉默失敗。
+        """
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         sid = self._seeds_digest_id()
         if sid is None:
             return 0
         ids = [r["id"] for r in self.conn.execute(
             "SELECT id FROM digest_entries WHERE digest_id=%s AND url=%s", (sid, url)).fetchall()]
         for eid in ids:
-            self.conn.execute("DELETE FROM digest_entries WHERE id=%s", (eid,))
+            self.conn.execute(
+                "UPDATE digest_entries SET archived_at=%s WHERE id=%s", (now, eid))
             self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (eid,))
         self.conn.commit()
         return len(ids)
@@ -485,10 +494,10 @@ class Repository:
         import json as _json
 
         from ..rootcause.extract import WhyNode
-        sql = "SELECT * FROM why_nodes"
+        sql = f"SELECT * FROM why_nodes WHERE {self._LIVE}"    # spec 055：遺骸不進活清單
         args: tuple = ()
         if status:
-            sql += " WHERE status=%s"
+            sql += " AND status=%s"
             args = (status,)
         sql += " ORDER BY id DESC"
         out = []
@@ -523,9 +532,16 @@ class Repository:
         self.conn.commit()
         return cur.rowcount > 0
 
-    def delete_why_node(self, wid: int) -> bool:
-        """刪 why-node，連其負 id 嵌入一起清（無孤兒）。"""
-        cur = self.conn.execute("DELETE FROM why_nodes WHERE id=%s", (wid,))
+    def delete_why_node(self, wid: int, now: str = "") -> bool:
+        """**封存**一條理解（spec 055）——不再硬刪。
+
+        ⚠️ 嵌入照樣清掉：留著的話它仍會被檢索命中，而那正是
+        「封存只擋住畫面、沒擋住檢索」的沉默失敗。復原時 `ensure_embeddings` 會重建。
+        """
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = self.conn.execute(
+            f"UPDATE why_nodes SET archived_at=%s WHERE id=%s AND {self._LIVE}", (now, wid))
         self.conn.execute("DELETE FROM entry_embeddings WHERE entry_id=%s", (-wid,))
         self.conn.commit()
         return cur.rowcount > 0
@@ -562,14 +578,19 @@ class Repository:
     def list_articles(self) -> list[dict]:
         """列已存文章（不含全文，新在上）。"""
         return [dict(r) for r in self.conn.execute(
-            "SELECT id, topic, title, length, level, created_at FROM articles ORDER BY id DESC")]
+            f"SELECT id, topic, title, length, level, created_at FROM articles"
+            f" WHERE {self._LIVE} ORDER BY id DESC")]
 
     def get_article(self, aid: int) -> dict | None:
         r = self.conn.execute("SELECT * FROM articles WHERE id=%s", (aid,)).fetchone()
         return dict(r) if r else None
 
-    def delete_article(self, aid: int) -> bool:
-        cur = self.conn.execute("DELETE FROM articles WHERE id=%s", (aid,))
+    def delete_article(self, aid: int, now: str = "") -> bool:
+        """**封存**一份應用（spec 055）——不再硬刪。"""
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = self.conn.execute(
+            f"UPDATE articles SET archived_at=%s WHERE id=%s AND {self._LIVE}", (now, aid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -586,8 +607,10 @@ class Repository:
         return cid
 
     def list_domains(self) -> list[dict]:
+        """**活的**領域樹。⚠️ 已封存的不在裡面——遺骸不是位置（spec 055 FR-003）。"""
         return [dict(r) for r in self.conn.execute(
-            "SELECT id, name, parent_id, created_at FROM domains ORDER BY id")]
+            f"SELECT id, name, parent_id, created_at FROM domains"
+            f" WHERE {self._LIVE} ORDER BY id")]
 
     def rename_domain(self, did: int, name: str) -> None:
         self.conn.execute("UPDATE domains SET name=%s WHERE id=%s", (name.strip(), did))
@@ -690,21 +713,23 @@ class Repository:
         """四種知識的扁平清冊（整理台與領域視野共用一份定義）。"""
         out = []
         for r in self.conn.execute(
-                "SELECT id, title, domain_id FROM conversations ORDER BY id DESC"):
+                f"SELECT id, title, domain_id FROM conversations"
+                f" WHERE {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "conversation", "ref": r["id"],
                         "label": r["title"] or "未命名", "domain_id": r["domain_id"]})
         for r in self.conn.execute(
-                "SELECT id, claim, domain_id FROM why_nodes"
-                " WHERE status='anointed' ORDER BY id DESC"):
+                f"SELECT id, claim, domain_id FROM why_nodes"
+                f" WHERE status='anointed' AND {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "why_node", "ref": r["id"],
                         "label": (r["claim"] or "")[:80], "domain_id": r["domain_id"]})
         for r in self.conn.execute(
-                "SELECT id, topic, title, domain_id FROM articles ORDER BY id DESC"):
+                f"SELECT id, topic, title, domain_id FROM articles"
+                f" WHERE {self._LIVE} ORDER BY id DESC"):
             out.append({"kind": "article", "ref": r["id"],
                         "label": r["title"] or r["topic"] or "未命名", "domain_id": r["domain_id"]})
         for r in self.conn.execute(
-                "SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id"
-                " FROM digest_entries GROUP BY url ORDER BY MAX(id) DESC"):
+                f"SELECT url, MIN(title) AS title, MIN(domain_id) AS domain_id"
+                f" FROM digest_entries WHERE {self._LIVE} GROUP BY url ORDER BY MAX(id) DESC"):
             out.append({"kind": "source", "ref": r["url"],
                         "label": r["title"] or r["url"], "domain_id": r["domain_id"]})
         return out
@@ -739,35 +764,103 @@ class Repository:
             stack.extend(children.get(n, []))
         return out
 
-    def delete_domain_preview(self, did: int) -> dict:
-        """刪這個領域**會動到什麼**：直屬內容幾件、直屬子領域幾個、往哪裡搬。
+    # ══ 封存（spec 055）：**離開活的場，留下遺骸** ══════════════════════
+    # 使用者的比喻：超新星爆炸 · 黑洞 · 細胞凋亡——共同點是**結束不等於湮滅**。
+    # 它是**一個通用動作**，領域與四種知識都適用。
+    #
+    # ⚠️ 唯一會沉默失敗的地方：**封存必須擋住檢索，不只擋住畫面**。
+    # 只在清單頁過濾、沒擋住 `list_attractors`／`list_seeds` 的話，
+    # 封存過的知識**仍在影響每一個回答**，而且沒有任何跡象。
+    _LIVE = "COALESCE(archived_at,'')=''"
 
-        ⚠️ 只算**直屬**的：子孫底下的東西不會動，把整棵子樹的數字報出來只會嚇人
-        （同 spec 049 FR-004「只算直接連結」的同一條理由）。
+    def archive_knowledge(self, kind: str, ref, now: str, root: int | None = None) -> None:
+        """封存一則知識。`root`＝被哪個領域的封存連帶帶走的（None＝自己被封的）。"""
+        t, k = self._KIND_TABLE[kind]
+        self.conn.execute(
+            f"UPDATE {t} SET archived_at=%s, archived_root=%s WHERE {k}=%s", (now, root, ref))
+        self.conn.commit()
+
+    def restore_knowledge(self, kind: str, ref) -> None:
+        t, k = self._KIND_TABLE[kind]
+        self.conn.execute(
+            f"UPDATE {t} SET archived_at='', archived_root=NULL WHERE {k}=%s", (ref,))
+        self.conn.commit()
+
+    def archived_items(self) -> list[dict]:
+        """遺骸：封存過的知識（是什麼、什麼時候封的、被誰連帶帶走的）。"""
+        out = []
+        for kind, (t, k) in self._KIND_TABLE.items():
+            label = {"conversation": "title", "why_node": "claim",
+                     "article": "title", "source": "title"}[kind]
+            grp = " GROUP BY url" if kind == "source" else ""
+            sel = (f"SELECT {k} AS ref, MIN({label}) AS label, MIN(archived_at) AS archived_at,"
+                   f" MIN(archived_root) AS archived_root FROM {t}"
+                   f" WHERE COALESCE(archived_at,'')<>''{grp}") if kind == "source" else (
+                   f"SELECT {k} AS ref, {label} AS label, archived_at, archived_root FROM {t}"
+                   f" WHERE COALESCE(archived_at,'')<>''")
+            for r in self.conn.execute(sel):
+                out.append({"kind": kind, "ref": r["ref"], "label": (r["label"] or "")[:80],
+                            "archived_at": r["archived_at"],
+                            "archived_root": r["archived_root"]})
+        return sorted(out, key=lambda x: x["archived_at"], reverse=True)
+
+    def archive_domain_preview(self, did: int) -> dict:
+        """封存這個領域**會帶走什麼**：整棵子樹的知識件數與子領域數。
+
+        ⚠️ 這裡跟糾纏的「只算直接連結」相反，而理由是同一條：**報告要對得上實際行為**。
+        既然整棵子樹會被帶走，報少了才是嚇人——使用者會以為只封一層。
         """
-        row = self.conn.execute(
-            "SELECT parent_id FROM domains WHERE id=%s", (did,)).fetchone()
-        return {"items": sum(1 for r in self._inventory_rows() if r["domain_id"] == did),
-                "children": sum(1 for d in self.list_domains() if d["parent_id"] == did),
-                "to": row["parent_id"] if row else None}
+        sub = self.domain_descendants(did)
+        return {"items": sum(1 for r in self._inventory_rows() if r["domain_id"] in sub),
+                "children": len(sub) - 1,
+                "to": self._parent_of(did)}
 
-    def delete_domain(self, did: int) -> dict:
-        """刪一個領域。**刪的是位置，不是知識。**
+    def _parent_of(self, did: int) -> int | None:
+        r = self.conn.execute("SELECT parent_id FROM domains WHERE id=%s", (did,)).fetchone()
+        return r["parent_id"] if r else None
 
-        ⚠️ 檔案系統刪資料夾會把裡面的檔案一起帶走——**這裡不能照抄**：
-        裡面是使用者的知識，刪掉是不可逆的，而且事後**沒有任何辦法發現本來有什麼**
-        （沒有回收桶、沒有 tombstone，連「少了幾件」都問不出來）。
-        ⇒ 內容與**直屬**子領域一律**上移到父領域**，一件都不少。
+    def archive_domain(self, did: int, now: str) -> dict:
+        """封存一個領域：**整棵子樹一起成為遺骸**（使用者裁決 2026-08-26）。
+
+        ⚠️ 知識**不上移到父領域**——它們跟著容器一起離開活的場，之後可以一起回來。
+        （階段 49 原本是上移；使用者把它改成連帶封存，因為「不見」的不該只有容器。）
         """
-        moved = self.delete_domain_preview(did)
-        to = moved["to"]
-        for kind, (table, key) in self._KIND_TABLE.items():
-            self.conn.execute(f"UPDATE {table} SET domain_id=%s WHERE domain_id=%s", (to, did))
-        # 只上移**直屬**子領域；孫輩仍掛在它們自己的父親底下（不拉平）
-        self.conn.execute("UPDATE domains SET parent_id=%s WHERE parent_id=%s", (to, did))
-        self.conn.execute("DELETE FROM domains WHERE id=%s", (did,))
+        moved = self.archive_domain_preview(did)
+        sub = self.domain_descendants(did)
+        marks = ",".join(["%s"] * len(sub))
+        for kind, (t, k) in self._KIND_TABLE.items():
+            self.conn.execute(
+                f"UPDATE {t} SET archived_at=%s, archived_root=%s"
+                f" WHERE domain_id IN ({marks}) AND {self._LIVE}", (now, did, *sub))
+        self.conn.execute(
+            f"UPDATE domains SET archived_at=%s, archived_root=%s"
+            f" WHERE id IN ({marks}) AND {self._LIVE}", (now, did, *sub))
+        self.conn.execute(
+            "UPDATE domains SET archived_from=parent_id WHERE id=%s", (did,))
         self.conn.commit()
         return moved
+
+    def archived_domains(self) -> list[dict]:
+        """遺骸：封存過的領域（名字、原本的父領域、封存時間）。"""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, name, archived_at, archived_from, archived_root FROM domains"
+            " WHERE COALESCE(archived_at,'')<>'' ORDER BY archived_at DESC")]
+
+    def restore_domain(self, did: int) -> None:
+        """復原：把**同一批**（`archived_root = did`）一起帶回原位。
+
+        ⚠️ 只復原同一批——自己先被單獨封存過的東西**不該搭順風車回來**，
+        那會把使用者的另一個決定一起撤銷掉。
+        """
+        for kind, (t, k) in self._KIND_TABLE.items():
+            self.conn.execute(
+                f"UPDATE {t} SET archived_at='', archived_root=NULL WHERE archived_root=%s", (did,))
+        self.conn.execute(
+            "UPDATE domains SET archived_at='', archived_root=NULL WHERE archived_root=%s", (did,))
+        self.conn.execute(
+            "UPDATE domains SET parent_id=COALESCE(archived_from, parent_id), archived_from=NULL"
+            " WHERE id=%s", (did,))
+        self.conn.commit()
 
     def move_domain(self, did: int, new_parent: int | None) -> None:
         """搬動領域。⚠️ **擋成環**——把節點搬到自己的子孫底下，路徑計算不會報錯，
@@ -987,7 +1080,8 @@ class Repository:
 
     def list_conversations(self) -> list:
         rows = self.conn.execute(
-            f"SELECT {self._CONV_COLS} FROM conversations ORDER BY id DESC").fetchall()
+            f"SELECT {self._CONV_COLS} FROM conversations"
+            f" WHERE {self._LIVE} ORDER BY id DESC").fetchall()
         return [self._row_to_conversation(r) for r in rows]
 
     def get_conversation(self, cid: int):
@@ -1076,8 +1170,9 @@ class Repository:
         同一件事不要在兩個地方給不同答案。
         """
         rows = self.conn.execute(
-            "SELECT conversation_id AS cid, COUNT(*) AS c FROM why_nodes"
-            " WHERE conversation_id IS NOT NULL GROUP BY conversation_id").fetchall()
+            f"SELECT conversation_id AS cid, COUNT(*) AS c FROM why_nodes"
+            f" WHERE conversation_id IS NOT NULL AND {self._LIVE}"
+            f" GROUP BY conversation_id").fetchall()
         return {int(r["cid"]): int(r["c"]) for r in rows}
 
     def conversation_referrers(self, cid: int) -> list[dict]:
@@ -1089,12 +1184,15 @@ class Repository:
         ⚠️ 舊資料沒有範圍時回 0/0 而不是缺鍵——缺鍵會讓前端拿到 undefined 而靜默算錯。
         """
         return [dict(r) for r in self.conn.execute(
-            "SELECT id, claim, COALESCE(src_from,0) AS src_from, COALESCE(src_to,0) AS src_to"
-            " FROM why_nodes WHERE conversation_id=%s ORDER BY id", (cid,))]
+            f"SELECT id, claim, COALESCE(src_from,0) AS src_from, COALESCE(src_to,0) AS src_to"
+            f" FROM why_nodes WHERE conversation_id=%s AND {self._LIVE} ORDER BY id", (cid,))]
 
-    def delete_conversation(self, cid: int) -> bool:
-        """刪一段對話（呼叫端須先以 conversation_referrers 確認無核心理解引用）。回是否刪到。"""
-        cur = self.conn.execute("DELETE FROM conversations WHERE id=%s", (cid,))
+    def delete_conversation(self, cid: int, now: str = "") -> bool:
+        """**封存**一段對話（spec 055）——不再硬刪。回是否封到。"""
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = self.conn.execute(
+            f"UPDATE conversations SET archived_at=%s WHERE id=%s AND {self._LIVE}", (now, cid))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -1123,7 +1221,9 @@ class Repository:
         for r in self.conn.execute(
             "SELECT w.id AS wid, w.conversation_id AS cid FROM why_nodes w"
             " JOIN conversations c ON c.id=w.conversation_id"
-            " WHERE w.conversation_id IS NOT NULL").fetchall():
+            " WHERE w.conversation_id IS NOT NULL"
+            # spec 055：封存過的**兩側**都不算活的由來
+            " AND COALESCE(w.archived_at,'')='' AND COALESCE(c.archived_at,'')=''").fetchall():
             out[r["wid"]] = r["cid"]
         return out
 

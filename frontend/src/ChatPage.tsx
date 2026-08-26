@@ -444,7 +444,7 @@ export default function ChatPage() {
               {carriedBody === null ? (
                 <p className="text-sm text-muted-foreground">載入中…</p>
               ) : carriedBody === "" ? (
-                <p className="text-sm text-muted-foreground">找不到內容（可能已刪除）。</p>
+                <p className="text-sm text-muted-foreground">找不到內容（可能已封存）。</p>
               ) : (
                 <Markdown text={carriedBody} prefix="chatart" />
               )}

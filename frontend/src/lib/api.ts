@@ -195,13 +195,20 @@ export const pages = {
   renameDomain: (id: number, name: string) => post(`/api/domains/${id}/rename`, { name }),
   moveDomain: (id: number, parent_id: number | null): Promise<{ ok: boolean; err?: string }> =>
     post(`/api/domains/${id}/move`, { parent_id }),
-  // ⚠️ 刪領域刪的是**位置**，不是知識——內容與直屬子領域上移到父領域（spec 054）。
-  //    先 preview 說出影響範圍，再 delete。
-  deleteDomainPreview: (id: number): Promise<{
+  // 封存（spec 055）＝**離開活的場，留下遺骸**（超新星／黑洞／細胞凋亡：結束不等於湮滅）。
+  // ⚠️ 封存領域會**連帶封存整棵子樹**（子領域＋底下的知識），不上移；復原時一起回來。
+  archiveDomainPreview: (id: number): Promise<{
       ok: boolean; items: number; children: number; to: number | null }> =>
-    fetch(`/api/domains/${id}/delete-preview`).then(json),
-  deleteDomain: (id: number): Promise<{ ok: boolean; items: number; children: number; to: number | null }> =>
-    post(`/api/domains/${id}/delete`, {}),
+    fetch(`/api/domains/${id}/archive-preview`).then(json),
+  archiveDomain: (id: number): Promise<{ ok: boolean; items: number; children: number; to: number | null }> =>
+    post(`/api/domains/${id}/archive`, {}),
+  restoreDomain: (id: number) => post(`/api/domains/${id}/restore`, {}),
+  archiveKnowledge: (items: KnowledgeRef[]) => post("/api/knowledge/archive", { items }),
+  restoreKnowledge: (items: KnowledgeRef[]) => post("/api/knowledge/restore", { items }),
+  archived: (): Promise<{ ok: boolean
+      items: (KnowledgeRef & { label: string; archived_at: string })[]
+      domains: { id: number; name: string; archived_at: string }[] }> =>
+    fetch("/api/archived").then(json),
   // 糾纏 Tangle（spec 049）＝樹裝不下的那條連結。
   // ⚠️ 預覽**不改任何東西**；搬動才寫。連帶只走一層（後端釘死）。
   // ⚠️ spec 050：**只有批次一條路**——單件操作＝送一個元素的清單。

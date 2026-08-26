@@ -41,7 +41,8 @@ class TestConversationRepo(unittest.TestCase):
         self.assertEqual(prov.get(wid), cid)                     # {根因: 對話}
         repo.close()
 
-    def test_delete_whynode_does_not_orphan_crash(self):         # T003（刪根因不崩）
+    def test_archive_whynode_does_not_orphan_crash(self):        # T003（封存根因不崩）
+        """spec 055 起 `delete_why_node` 是**封存**——遺骸不該再算活的由來。"""
         repo = _repo()
         wid = repo.add_why_node("根因", [], [], False, 0, "2026-07-29", ladder=["階"])
         repo.anoint_why_node(wid)
@@ -49,7 +50,8 @@ class TestConversationRepo(unittest.TestCase):
         repo.delete_why_node(wid)
         self.assertEqual(len(repo.list_conversations()), 1)      # 對話仍在（獨立）
         self.assertNotIn(wid, repo.why_node_provenance())        # 不再連得到、不崩
-        self.assertIsNotNone(repo.get_conversation(cid))         # 讀得到
+        self.assertNotIn(wid, [w.id for w in repo.list_why_nodes()])   # 離開活清單
+        self.assertIsNotNone(repo.get_conversation(cid))         # 對話讀得到
         repo.close()
 
 

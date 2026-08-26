@@ -64,7 +64,7 @@ export default function RootsPage() {
   }
 
   async function remove(id: number) {
-    if (!confirm("移除這條理解？（聊天將不再優先參考它）")) return
+    if (!confirm("封存這條理解？\n\n它會離開活的知識庫、聊天不再參考它——但不會消失，可以在「領域」頁復原。")) return
     await pages.whynodeRemove(id)
     load()
   }
