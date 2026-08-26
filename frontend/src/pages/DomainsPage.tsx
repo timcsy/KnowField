@@ -7,6 +7,7 @@ import { armLongPress } from "@/lib/longpress"
 import { isTap } from "@/lib/tap"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { SuggestOrganize } from "@/components/SuggestOrganize"
 import { cn } from "@/lib/utils"
 
 // 整理台（spec 050，階段 45）＝領域樹 ＋ 待整理清冊。
@@ -685,9 +686,13 @@ export default function DomainsPage() {
       )}
 
         {sel === null && unfiled.length > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            既有的知識都在根領域——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
-          </p>
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              既有的知識都在根領域——⚠️ <b className="text-foreground">刻意不自動分類</b>：猜出來的歸屬會看起來跟真的一樣。
+            </p>
+            {/* spec 065：所以這裡給的是**建議**，不是分類。逐夾接受，沒有「全部套用」。 */}
+            <SuggestOrganize onApplied={load} />
+          </div>
         )}
       </div>
     </div>

@@ -113,6 +113,18 @@ export type RootsData = {
   provenance: Record<string, number>
   source_provenance: Record<string, string>
 }
+// spec 065：一個建議的資料夾。⚠️ `reasons` 是**逐群可查證的事實**，不是主題標籤
+// ——合併之後每一群的理由都要留著，不能被摘要掉。
+export type SuggestedFolder = {
+  name: string
+  parent: string
+  reasons: string[]
+  edges: [string, number | string | null][]
+  items: { kind: string; ref: number | string; label: string }[]
+  count: number
+  suggest_apply: boolean
+  lonely?: boolean
+}
 export type SourceGroup = {
   url: string
   title: string
@@ -151,6 +163,12 @@ export const pages = {
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // spec 065：建議怎麼整理。⚠️ **只回建議，不動任何東西**；套用是逐夾（下一支）。
+  suggestDomains: (): Promise<{ folders: SuggestedFolder[] }> =>
+    fetch("/api/domains/suggest").then(json),
+  applySuggestion: (name: string, items: { kind: string; ref: number | string }[], parentId?: number | null):
+    Promise<{ domain_id?: number; moved?: number; tangles?: { kind: string; ref: number | string; label?: string }[]; error?: string }> =>
+    post("/api/domains/suggest/apply", { name, items, parent_id: parentId ?? null }),
   // spec 062：**人自己寫**一條理解。⚠️ 出處必填是後端擋的（400），
   // 前端只負責讓那四種出處**看得到、選得到**——不要在這裡重寫一次規則。
   writeUnderstanding: (p: {

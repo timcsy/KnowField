@@ -332,6 +332,11 @@ def create_app() -> FastAPI:
         return FieldChat(_chat_backend()).title(messages)
     app.state.title_factory = _default_title
 
+    def _default_suggest_backend():
+        """spec 065：建議整理用的 LLM。⚠️ 只做**命名與合併**，成員來自結構。"""
+        return _chat_backend()
+    app.state.suggest_backend_factory = _default_suggest_backend
+
     def _default_segment(messages):
         from ..chat.field_chat import FieldChat
         return FieldChat(_chat_backend()).segment(messages)
@@ -1106,6 +1111,45 @@ def create_app() -> FastAPI:
     # 領域＝節點、**主題 Topic ＝從根到節點的路徑**。⚠️ 路徑由 parent_id 導出、不另存字串。
     # ⚠️ 這一刀**完全不碰 grounding**：撒網仍看全場。樹是**導航**，不是檢索權重
     #（原則 5：權重由人冊封，不由位置給）。有測試釘住脈絡逐字不變。
+    @app.get("/api/domains/suggest")
+    async def api_domains_suggest():
+        """spec 065：建議怎麼整理。
+
+        ⚠️ **只回建議，不動任何東西**——套用是逐夾、另一個端點。
+        原則 5：提議是 AI 的事，冊封／歸位是人的事。
+        """
+        from ..organize.suggest import suggest_folders
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            folders = suggest_folders(repo, app.state.suggest_backend_factory())
+        finally:
+            repo.close()
+        return _JSON({"folders": folders})
+
+    @app.post("/api/domains/suggest/apply")
+    async def api_domains_suggest_apply(request: Request):
+        """套用**一個**建議夾：建領域 ＋ 把成員搬進去。
+
+        ⚠️ 一次一夾，**沒有一次套用多夾的路徑**（FR-004）——
+        「提議 ＋ 一個全部套用的按鈕」＝ 自動分類多按一下。
+        """
+        b = await request.json()
+        name = str(b.get("name") or "").strip()
+        if not name:
+            return _JSON({"error": "資料夾要有名字。"}, status_code=400)
+        items = _parse_items(b.get("items"))
+        if not items:
+            return _JSON({"error": "這一夾是空的，沒有東西可以搬。"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            parent = b.get("parent_id")
+            did = repo.create_domain(name, int(parent) if parent else None)
+            # spec 049：搬動會拆散糾纏——**報出來**，但不自動連帶搬
+            tangles = repo.batch_move(items, did, bring_along=False)
+        finally:
+            repo.close()
+        return _JSON({"domain_id": did, "moved": len(items), "tangles": tangles})
+
     @app.get("/api/domains")
     async def api_domains():
         repo = app.state.repo_factory(app.state.config)
