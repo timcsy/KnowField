@@ -131,6 +131,11 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
+// ⚠️ `in_corpus` 一定要顯示出來——說不出哪幾層進了語料，
+// 「答不出來」就會被誤讀成「它不知道」。
+export type BaseCorpus = { layers: Record<string, number>; in_corpus: string[]; n_chunks: number }
+export type BaseAsk = { hits?: { path: string; seq: number; text: string }[]
+                        layers?: Record<string, number>; indexing?: boolean; error?: string }
 export type ExtItem = { id: number; path: string; layer: string; body: string; repo: string; error?: string }
 export type GhRepo = { repo: string; private: boolean; branch: string }
 // spec 072：別人的 base。⚠️ `fetched_at` 與 `tree_truncated` **一定要顯示出來**——
@@ -217,6 +222,10 @@ export const pages = {
   baseTree: (bid: number): Promise<{ items: { id: number; path: string }[] }> =>
     fetch(`/api/bases/${bid}/tree`).then(json),
   extItem: (iid: number): Promise<ExtItem> => fetch(`/api/ext/${iid}`).then(json),
+  // spec 076：站在某個專案裡問它的 knowledge/。⚠️ 這是**換一個場**，
+  // 不是把外部知識放進你的場——切回互動模式就問不到了。
+  baseCorpus: (bid: number): Promise<BaseCorpus> => fetch(`/api/bases/${bid}/corpus`).then(json),
+  baseAsk: (bid: number, q: string): Promise<BaseAsk> => post(`/api/bases/${bid}/ask`, { q }),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>

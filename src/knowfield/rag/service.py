@@ -28,16 +28,25 @@ def embedder_tag(embedder) -> str:
 
 
 def retrieve_corpus(repo, embedder, query, top_k=6, min_score=0.10,
-                    root_weight=2.0, explainer_weight=1.0, today=False):
-    """找相關收進條目（spec 029）：list_corpus_entries→ensure_embeddings→cosine→門檻→加權排序→top_k。
+                    root_weight=2.0, explainer_weight=1.0, today=False,
+                    entries=None, vectors=None):
+    """找相關收進條目（spec 029）：取語料→向量→cosine→門檻→加權排序→top_k。
 
     純檢索、不合成。空語料/無相關→[]。RAG 與聊天共用（DRY）。離線可測（注入 stub embedder）。
+    spec 076：`entries`／`vectors` 都給 ⇒ **換一個場**（站在某個專案裡時，語料是它的
+    `knowledge/`）。⚠️ 兩個要一起給——外部的塊不共用 `entry_embeddings` 那個 id 空間。
     """
-    entries = repo.list_corpus_entries(today=today)
+    # spec 076：`entries` ⇒ **換一個場**（開發模式站在某個專案裡時，語料是那個
+    # 專案的 `knowledge/`）。⚠️ 預設 None ＝ 照舊，兩個既有呼叫點的行為一個字都不變。
+    if entries is None:
+        entries = repo.list_corpus_entries(today=today)
     if not entries:
         return []
-    tag = embedder_tag(embedder)
-    vecs = repo.ensure_embeddings(entries, embedder, tag)
+    # ⚠️ 換場時**向量也要一起注入**：`ensure_embeddings` 寫的是 `entry_embeddings`，
+    #    而那張表的 id 空間已經被 digest_entries（正）與 why_nodes（負）佔了
+    #    ——外部的塊擠進去就是等著碰撞。它們的向量住自己的表，跟著重抓一起作廢。
+    vecs = vectors if vectors is not None else repo.ensure_embeddings(
+        entries, embedder, embedder_tag(embedder))
     qvec = embedder.embed(query)
 
     def _w(sc):

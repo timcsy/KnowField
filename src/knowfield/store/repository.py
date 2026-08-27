@@ -37,7 +37,8 @@ def _iso(value: datetime | None) -> str | None:
 #: ⚠️ join 表（`entry_embeddings`／`article_roots`）刻意不在內：它們**只經父 id 存取**，
 #: 而父 id 一定來自一個已經過濾過的查詢 ⇒ 加 owner 只是重複，不加也不會外洩。
 OWNED_TABLES = ("domains", "why_nodes", "articles", "conversations", "digest_entries",
-                "ext_bases", "ext_items", "ext_paths", "ext_lessons")
+                "ext_bases", "ext_items", "ext_paths", "ext_lessons",
+                "ext_chunks")
 
 #: 既有的單一使用者。⚠️ 補欄的 `DEFAULT 1` 讓「加欄」本身就是 backfill。
 DEFAULT_OWNER = 1
@@ -436,6 +437,103 @@ class Repository:
             f" WHERE {self._own('i')} AND i.id=%s", (iid,)).fetchone()
         return dict(r) if r else {}
 
+    #: spec 076：進得了「站在專案裡聊」那個語料的層。
+    #: ⚠️ 只有這四層——`history`／`episodes` 是**場景**不是判準，`draft` 是未定的，
+    #:    `skills` 是步驟。而**哪幾層進了語料要說出來**，否則「答不出來」會被讀成「它不知道」。
+    CHAT_LAYERS = ("experience", "concepts", "principles", "vision")
+    _CHUNK = 1200          # 字。⚠️ 最大一份 226,460 字，整份塞不進 context
+
+    @classmethod
+    def chunk_markdown(cls, text: str, size: int = 0) -> list[str]:
+        """依標題切，過大的再硬切。
+
+        ⚠️ 先照 `##`／`###` 切，是因為 knowie 的檔案**本來就是一段一個主張**
+        ——照字數盲切會把一條判準腰斬，而腰斬過的塊檢索得到也讀不懂。
+        """
+        size = size or cls._CHUNK
+        blocks, cur = [], []
+        for line in (text or "").splitlines():
+            if line.startswith(("## ", "### ")) and cur:
+                blocks.append("\n".join(cur)); cur = []
+            cur.append(line)
+        if cur:
+            blocks.append("\n".join(cur))
+        out = []
+        for b in blocks:
+            b = b.strip()
+            if not b:
+                continue
+            while len(b) > size:
+                cut = b.rfind("\n", 0, size)
+                cut = cut if cut > size // 2 else size
+                out.append(b[:cut].strip()); b = b[cut:].strip()
+            if b:
+                out.append(b)
+        return out
+
+    def sync_ext_chunks(self, bid: int) -> int:
+        """把一個 base 的四層切成塊。⚠️ **保留既有向量**（照塊文字比對）——
+        不然每次重抓都要把整個 base 重新 embedding 一次。"""
+        keep = {r["text"]: (r["tag"], r["vector_json"]) for r in self.conn.execute(
+            f"SELECT text, tag, vector_json FROM ext_chunks WHERE {self._OWN} AND base_id=%s",
+            (bid,)).fetchall()}
+        self.conn.execute(f"DELETE FROM ext_chunks WHERE {self._OWN} AND base_id=%s", (bid,))
+        n = 0
+        for r in self.conn.execute(
+                "SELECT id, layer, path, body FROM ext_items"
+                f" WHERE {self._OWN} AND base_id=%s ORDER BY path", (bid,)).fetchall():
+            if r["layer"] not in self.CHAT_LAYERS:
+                continue
+            for i, t in enumerate(self.chunk_markdown(r["body"] or "")):
+                tag, vec = keep.get(t, ("", ""))
+                self.conn.execute(
+                    "INSERT INTO ext_chunks (base_id, item_id, layer, path, seq, text,"
+                    f" tag, vector_json, owner_id, persona_id)"
+                    f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,{self.owner},{self._P})",
+                    (bid, r["id"], r["layer"], r["path"], i, t, tag, vec))
+                n += 1
+        self.conn.commit()
+        return n
+
+    def ext_chunks_missing_vectors(self, bid: int, tag: str) -> list[dict]:
+        return [dict(r) for r in self.conn.execute(
+            f"SELECT id, text FROM ext_chunks WHERE {self._OWN} AND base_id=%s"
+            " AND (tag<>%s OR COALESCE(vector_json,'')='')", (bid, tag)).fetchall()]
+
+    def save_ext_chunk_vectors(self, rows: list, tag: str) -> None:
+        import json as _json
+        for cid, vec in rows:
+            self.conn.execute(
+                f"UPDATE ext_chunks SET tag=%s, vector_json=%s WHERE {self._OWN} AND id=%s",
+                (tag, _json.dumps(vec), cid))
+        self.conn.commit()
+
+    def ext_corpus(self, bid: int, tag: str):
+        """回 `(entries, vectors)` 給 `retrieve_corpus` 換場用。
+
+        ⚠️ `entry_id` 用 `ext_chunks.id`，而**不共用** `entry_embeddings`
+        ——那張表的 id 空間已經被佔了。
+        """
+        import json as _json
+
+        from ..rag.types import CorpusEntry
+        entries, vecs = [], {}
+        for r in self.conn.execute(
+                "SELECT id, path, layer, seq, text, vector_json FROM ext_chunks"
+                f" WHERE {self._OWN} AND base_id=%s AND tag=%s"
+                " AND COALESCE(vector_json,'')<>'' ORDER BY id", (bid, tag)).fetchall():
+            entries.append(CorpusEntry(
+                entry_id=r["id"], title=f"{r['path']}#{r['seq']}", url="",
+                headline="", body=r["text"], digest_date="", source_class="ordinary"))
+            vecs[r["id"]] = _json.loads(r["vector_json"])
+        return entries, vecs
+
+    def ext_layers_in_corpus(self, bid: int) -> dict:
+        """⚠️ FR-003：**哪幾層進了語料**要說得出來。"""
+        return {r["layer"]: int(r["n"]) for r in self.conn.execute(
+            f"SELECT layer, COUNT(*) AS n FROM ext_chunks WHERE {self._OWN} AND base_id=%s"
+            " GROUP BY layer", (bid,)).fetchall()}
+
     def delete_ext_base(self, bid: int) -> bool:
         """移除一個外部知識庫——**四張表一起清**。
 
@@ -448,7 +546,7 @@ class Repository:
             f"SELECT id FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,)).fetchone()
         if not r:
             return False
-        for t in ("ext_items", "ext_paths", "ext_lessons"):
+        for t in ("ext_items", "ext_paths", "ext_lessons", "ext_chunks"):
             self.conn.execute(f"DELETE FROM {t} WHERE {self._OWN} AND base_id=%s", (bid,))
         self.conn.execute(f"DELETE FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,))
         self.conn.commit()

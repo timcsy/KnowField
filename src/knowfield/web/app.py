@@ -922,6 +922,93 @@ def create_app() -> FastAPI:
                                  int(b.get("top") or 15), bool(b.get("dry"))))
 
     # spec 074：開發模式的閱讀入口——⚠️ **唯讀**。外部知識不編輯、不進檢索語料。
+    # spec 076：站在某個專案裡問它的 knowledge/。
+    # ⚠️ **這不是把外部知識放進你的場**——是**換一個場**。
+    #    VizGPT 的判準只在你明確站在 VizGPT 裡時是語料，切回互動模式就不是
+    #    （spec 074 那兩層測試照樣綠）。
+    def _ext_corpus_ready(repo, bid):
+        """回 `(entries, vectors, layers)`；順手把還沒算的塊補上向量。"""
+        from ..backends.factory import make_embedder
+        from ..rag.service import embedder_tag
+        emb = make_embedder(app.state.config)
+        tag = embedder_tag(emb)
+        if not repo.ext_layers_in_corpus(bid):
+            repo.sync_ext_chunks(bid)
+        miss = repo.ext_chunks_missing_vectors(bid, tag)
+        for i in range(0, len(miss), 64):
+            ch = miss[i:i + 64]
+            repo.save_ext_chunk_vectors(
+                list(zip([m["id"] for m in ch], emb.embed_many([m["text"] for m in ch]))), tag)
+        entries, vecs = repo.ext_corpus(bid, tag)
+        return entries, vecs, repo.ext_layers_in_corpus(bid), emb
+
+    @app.post("/api/bases/{bid}/index")
+    async def api_base_index(bid: int, background: BackgroundTasks):
+        """把這個 base 的四層切塊並算向量（背景跑——184 萬字，不能塞在一個 request 裡）。"""
+        repo = app.state.repo_factory(app.state.config)
+        ok = any(int(b["id"]) == bid for b in repo.list_ext_bases())
+        repo.close()
+        if not ok:
+            return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+        persona = _CURRENT_PERSONA.get()
+
+        def run():
+            r = Repository(app.state.config.database_url or None, persona=persona)
+            try:
+                r.sync_ext_chunks(bid)
+                _ext_corpus_ready(r, bid)
+            except Exception as e:                 # noqa: BLE001
+                _log.error("切塊失敗", extra={"extra": {"base": bid, "reason": str(e)}})
+            finally:
+                r.close()
+        background.add_task(run)
+        return _JSON({"ok": True})
+
+    @app.get("/api/bases/{bid}/corpus")
+    async def api_base_corpus(bid: int):
+        """⚠️ FR-003：**哪幾層進了語料**要說得出來——
+        否則「答不出來」會被誤讀成「它不知道」。"""
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            layers = repo.ext_layers_in_corpus(bid)
+            return _JSON({"layers": layers, "in_corpus": list(Repository.CHAT_LAYERS),
+                          "n_chunks": sum(layers.values())})
+        finally:
+            repo.close()
+
+    #: ⚠️ **量出來的，不是抄 `rag_min_score`（0.10）**——那個是給「聊天時撒網」用的。
+    #: 實測（knowie 的 125 段）：
+    #:   答得出來的  0.824 / 0.442 / 0.423
+    #:   答不出來的  0.441（技術性但不在這個 base）/ 0.263 / 0.198
+    #: ⚠️ **沒有斷點**：明顯離題的（0.3 以下）切得乾淨，而「技術性但不在這個 base」切不掉
+    #:    ——那是**領域相似**的雜訊，不是主題相關。
+    #: ⇒ 0.35 擋掉明顯離題的；剩下的靠**每一段都標出處**讓人自己判斷。
+    #:    這裡是**檢索**（給你段落）不是**回答**，所以寧可讓你看到而不是替你決定。
+    _ASK_MIN = 0.35
+
+    @app.post("/api/bases/{bid}/ask")
+    async def api_base_ask(bid: int, request: Request):
+        from ..rag.service import retrieve_corpus
+        b = await request.json()
+        q = str(b.get("q") or "").strip()
+        if not q:
+            return _JSON({"error": "問一句話。"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            if not any(int(x["id"]) == bid for x in repo.list_ext_bases()):
+                return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+            entries, vecs, layers, emb = _ext_corpus_ready(repo, bid)
+            if not entries:
+                return _JSON({"hits": [], "layers": layers, "indexing": True})
+            hits = retrieve_corpus(repo, emb, q, top_k=6, min_score=_ASK_MIN,
+                                   entries=entries, vectors=vecs)
+            # ⚠️ 引用一定帶**檔案**：看不出哪一份，就沒辦法回去看原文
+            return _JSON({"layers": layers, "hits": [
+                {"path": h.title.rsplit("#", 1)[0], "seq": int(h.title.rsplit("#", 1)[1]),
+                 "text": h.body} for h in hits]})
+        finally:
+            repo.close()
+
     @app.delete("/api/bases/{bid}")
     async def api_base_delete(bid: int):
         repo = app.state.repo_factory(app.state.config)

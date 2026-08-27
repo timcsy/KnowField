@@ -172,9 +172,12 @@ class TestUiInvariants(unittest.TestCase):
 
         而它**不需要新狀態**——「有沒有選檔」本來就在網址裡。
         """
+        import re
         code = self._read("pages/DevPage.tsx")
-        self.assertIn('iid && "hidden md:flex"', code)      # 選了檔 → 手機藏樹
-        self.assertIn('!iid && "hidden md:block"', code)    # 沒選檔 → 手機藏預覽
+        # ⓘ 原本釘 `"hidden md:block"` 這個**字面**，換成 md:flex 就假紅（今天第三次）。
+        #    釘的是**不變式**：兩塊各有一條「手機上依 iid 隱藏」的規則。
+        self.assertTrue(re.search(r'[^!]iid && "hidden md:\w+"', code), "選了檔要在手機藏樹")
+        self.assertTrue(re.search(r'!iid && "hidden md:\w+"', code), "沒選檔要在手機藏預覽")
         self.assertIn("md:hidden", code)                    # 返回鍵只在手機
         self.assertIn("← 檔案", code)
 

@@ -212,6 +212,23 @@ CREATE TABLE IF NOT EXISTS ext_lessons (
     persona_id INTEGER
 );
 
+-- spec 076：`ext_items` 切出來的塊 ＋ 向量。
+-- ⚠️ 為什麼要切：`ext_items` 共 184 萬字、最大一份 226,460 字——**整份塞不進 context**。
+--    而切了才有「引用看得出是哪一份檔案的哪一段」。
+CREATE TABLE IF NOT EXISTS ext_chunks (
+    id SERIAL PRIMARY KEY,
+    base_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    layer TEXT DEFAULT '',
+    path TEXT NOT NULL,
+    seq INTEGER DEFAULT 0,
+    text TEXT NOT NULL,
+    tag TEXT DEFAULT '',
+    vector_json TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1,
+    persona_id INTEGER
+);
+
 -- ⚠️ 第三種東西：**查證用的事實**，不給人讀、不進收件匣、不當判準。
 --    只回答一件事：「這個路徑還在嗎」。所以只存路徑，**沒有 body 欄**。
 CREATE TABLE IF NOT EXISTS ext_paths (

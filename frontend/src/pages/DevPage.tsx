@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { pages, type ExtBase, type ExtItem } from "@/lib/api"
+import { AskProject } from "@/components/AskProject"
 import { FileTree } from "@/components/FileTree"
 import { Markdown } from "@/components/Markdown"
 import { cn } from "@/lib/utils"
@@ -60,7 +61,10 @@ export default function DevPage() {
       </div>
 
       {/* ── 預覽：吃掉剩下的整片寬度；⚠️ min-w-0，少了它長行會把樹擠爛 ── */}
-      <div className={cn("min-w-0 flex-1 overflow-y-auto", !iid && "hidden md:block")}>
+      <div className={cn("flex min-w-0 flex-1 flex-col overflow-hidden", !iid && "hidden md:flex")}>
+        {/* spec 076：問這個專案的知識庫。⚠️ 換場，不是把它放進你的場 */}
+        {bid > 0 && <AskProject bid={bid} onOpen={() => {}} />}
+        <div className="min-h-0 flex-1 overflow-y-auto">
         {doc ? (
           <>
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur md:px-6">
@@ -81,10 +85,11 @@ export default function DevPage() {
         ) : (
           <div className="hidden h-full items-center justify-center px-6 text-center md:flex">
             <p className="max-w-sm text-sm text-muted-foreground">
-              左邊挑一份來看。{base && `（${base.name || base.repo}）`}
+              左邊挑一份來看，或在上面問這個專案的知識庫。{base && `（${base.name || base.repo}）`}
             </p>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
