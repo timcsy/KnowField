@@ -292,6 +292,10 @@ _ADD_COLUMNS: list[tuple[str, str, str]] = [
     # ⚠️ 第三種要**存**不要推導：「欄位都空著」和「明確宣告沒有依據」在資料上長得一樣，
     #    而後者是一個**判斷**——資訊存在的時候不要把它丟掉。
     ("why_nodes", "origin", "TEXT DEFAULT ''"),
+    # spec 077：這段對話是**站在哪個專案裡**發生的（0／NULL ＝ 你自己的場）。
+    # ⚠️ 兩個場的對話混在同一張表 ⇒ 沒有這一欄就分不出來，而分不出來的後果是
+    #    「我在 VizGPT 裡想通的事」被當成你自己的理解。
+    ("conversations", "ext_base_id", "INTEGER"),
     # spec 063（階段 58）：B-底層——每一列有主人。
     # ⚠️ 預設 1 ＝ 既有的單一使用者 ⇒ 補欄本身就是 backfill，不需要另一支腳本。
     ("domains", "owner_id", "INTEGER DEFAULT 1"),

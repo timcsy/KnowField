@@ -986,6 +986,17 @@ def create_app() -> FastAPI:
     #:    這裡是**檢索**（給你段落）不是**回答**，所以寧可讓你看到而不是替你決定。
     _ASK_MIN = 0.35
 
+    #: spec 077：⚠️ **合成的門檻另外量，不能沿用檢索的**——「檢索寧可寬、回答必須嚴」。
+    #: 實測（knowie 125 段，看六段的分數）：
+    #:   「為什麼 why 沒有 oracle？」 0.825 → 0.534（落差 0.290）  ← 有一份檔案就叫這個
+    #:   「知識庫要怎麼收斂？」（真相關）0.442 → 0.385（落差 0.057）
+    #:   「Transformer 的殘差匯流排」（不相關）0.441 → 0.402（落差 0.039）
+    #: ⚠️ **0.442 vs 0.441——真相關與不相關在這個層級分不開**，落差也救不了。
+    #: ⇒ 唯一安全的規則：**最高那一段夠強才合成**，否則退回給段落。
+    #:    它會拒答一些真的相關的問題——而那是**對的失敗方向**：
+    #:    退回去的就是已經在跑的檢索模式，不是失敗。
+    _ANSWER_MIN_TOP = 0.55
+
     @app.post("/api/bases/{bid}/ask")
     async def api_base_ask(bid: int, request: Request):
         from ..rag.service import retrieve_corpus
@@ -1003,11 +1014,56 @@ def create_app() -> FastAPI:
             hits = retrieve_corpus(repo, emb, q, top_k=6, min_score=_ASK_MIN,
                                    entries=entries, vectors=vecs)
             # ⚠️ 引用一定帶**檔案**：看不出哪一份，就沒辦法回去看原文
-            return _JSON({"layers": layers, "hits": [
-                {"path": h.title.rsplit("#", 1)[0], "seq": int(h.title.rsplit("#", 1)[1]),
-                 "text": h.body} for h in hits]})
+            out = [{"path": h.title.rsplit("#", 1)[0], "seq": int(h.title.rsplit("#", 1)[1]),
+                    "text": h.body} for h in hits]
+            answer, why = "", ""
+            if hits:
+                from ..rag.service import cosine
+                top = cosine(emb.embed(q), vecs[hits[0].entry_id])
+                if top >= _ANSWER_MIN_TOP:
+                    from ..backends.factory import make_answerer
+                    ans = getattr(app.state, "answerer_for_test", None) or make_answerer(
+                        app.state.config)
+                    # ⚠️ 段落帶著**檔名**進合成器——合成最容易磨掉的就是出處
+                    passages = [
+                        type(h)(entry_id=h.entry_id, title=h.title, url="",
+                                headline=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
+                                body=h.body, digest_date="", source_class="ordinary")
+                        for h in hits]
+                    answer = ans.answer(q, passages, "zh-TW")
+                else:
+                    # ⚠️ 說得出**為什麼只有段落**——不然會被當成「它答不出來」
+                    why = f"材料不夠強（最相關 {top:.2f}，要 {_ANSWER_MIN_TOP} 才合成）——先給你段落。"
+            return _JSON({"layers": layers, "hits": out, "answer": answer, "why": why})
         finally:
             repo.close()
+
+    # spec 077：把一段思考整理成一塊 draft，送回**那個專案**。
+    # ⚠️ 只碰 `knowledge/draft/`——見 `github/draftout.py` 的理由。
+    @app.post("/api/bases/{bid}/draft")
+    async def api_base_draft(bid: int, request: Request):
+        from ..github import draftout
+        b = await request.json()
+        title = str(b.get("title") or "").strip()
+        body = str(b.get("body") or "").strip()
+        if not title or not body:
+            return _JSON({"error": "要有標題與內容。"}, status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        try:
+            row = next((x for x in repo.list_ext_bases() if int(x["id"]) == bid), None)
+        finally:
+            repo.close()
+        if not row:
+            return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+        date = _now_iso()
+        path = draftout.draft_path(date, title)
+        content = draftout.render(title, body, b.get("cites") or [], row["repo"], date)
+        url = draftout.prefill_url(row["repo"], row["branch"], path, content)
+        # ⚠️ 太長時**說明原因**，不是靜默改行為（實測：網址上限 8,100、中文 5.3 倍 ⇒ 約 1,000 字）
+        return _JSON({"path": path, "content": content, "url": url,
+                      "too_long": url is None,
+                      "why": "" if url else "這一份太長，塞不進 GitHub 的網址（約 1,000 字上限）"
+                                            "——用複製，貼到那個 repo 的 knowledge/draft/。"})
 
     @app.delete("/api/bases/{bid}")
     async def api_base_delete(bid: int):

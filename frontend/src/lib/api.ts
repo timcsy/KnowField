@@ -134,7 +134,11 @@ export type SuggestedFolder = {
 // ⚠️ `in_corpus` 一定要顯示出來——說不出哪幾層進了語料，
 // 「答不出來」就會被誤讀成「它不知道」。
 export type BaseCorpus = { layers: Record<string, number>; in_corpus: string[]; n_chunks: number }
+export type BaseDraft = { path: string; content: string; url: string | null
+                          too_long: boolean; why: string; error?: string }
 export type BaseAsk = { hits?: { path: string; seq: number; text: string }[]
+                        // ⚠️ `why` ＝ 為什麼只給段落沒合成。沒有它，會被讀成「它答不出來」
+                        answer?: string; why?: string
                         layers?: Record<string, number>; indexing?: boolean; error?: string }
 export type ExtItem = { id: number; path: string; layer: string; body: string; repo: string; error?: string }
 export type GhRepo = { repo: string; private: boolean; branch: string }
@@ -226,6 +230,10 @@ export const pages = {
   // 不是把外部知識放進你的場——切回互動模式就問不到了。
   baseCorpus: (bid: number): Promise<BaseCorpus> => fetch(`/api/bases/${bid}/corpus`).then(json),
   baseAsk: (bid: number, q: string): Promise<BaseAsk> => post(`/api/bases/${bid}/ask`, { q }),
+  // spec 077：把一段思考整理成一塊 draft，送回**那個專案**。
+  // ⚠️ 只碰 knowledge/draft/——短期記憶；怎麼處理它是那個專案的事。
+  baseDraft: (bid: number, title: string, body: string, cites: unknown[]): Promise<BaseDraft> =>
+    post(`/api/bases/${bid}/draft`, { title, body, cites }),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
