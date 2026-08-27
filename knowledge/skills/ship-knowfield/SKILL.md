@@ -100,6 +100,25 @@ echo "pod=${POD#*@}"; echo "ghcr=$GHCR"
 `kubectl rollout status deploy -l app.kubernetes.io/component=app` **選不到它**
 ——那個 label 在 **pod** 上，不在 Deployment 上，而 kubectl 只會說 `No resources found`。
 
+⚠️ **不要自己寫「等到有 pod ready」的迴圈**（2026-08-27，rev 58 就這樣誤報過一次）。
+滾動更新期間**舊 pod 一直是 ready**，⇒ 那個條件永遠先為真，你會讀到上一版的 digest
+而以為出貨了。要等就把**目標 digest 寫進條件裡**：
+
+```bash
+WANT=$(gh api "/user/packages/container/knowfield/versions" \
+  --jq ".[] | select(.metadata.container.tags[]? == \"$SHA\") | .name")
+for i in $(seq 1 40); do
+  kubectl -n knowfield get pod -l app.kubernetes.io/component=app \
+    -o jsonpath='{range .items[*]}{.status.containerStatuses[0].imageID}{" ready="}{.status.containerStatuses[0].ready}{"\n"}{end}' \
+    | grep "$WANT ready=true" && break
+  sleep 6
+done
+```
+
+迴圈跑完什麼都沒印 ＝ **沒出貨**。
+⇒ 判準：**等待條件裡必須出現「我要的那個版本」**——
+「有一個健康的東西在跑」在滾動更新期間永遠為真，它測不到你要問的事。
+
 ### 5.5 有加欄時：確認正式庫真的長出來了（⚠️ migration 是**懶跑**的）
 
 `init_db`（含 `_ensure_columns`）在 **`Repository()` 被建出來時**才跑，不是行程啟動就跑。
