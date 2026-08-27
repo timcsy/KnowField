@@ -1,32 +1,31 @@
-import { useEffect, useState } from "react"
-import { pages, type BaseAsk, type BaseCorpus, type BaseDraft as BaseDraftT } from "@/lib/api"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useEffect, useRef, useState } from "react"
+import { pages, streamChat, type BaseCorpus, type BaseDraft as BaseDraftT, type Message } from "@/lib/api"
+import { AssistantFlow, Composer, Streaming, UserBubble } from "@/components/ChatShape"
 
-// spec 076：站在某個專案裡，問它的 knowledge/。
-// ⚠️ **這是換一個場，不是把外部知識放進你的場**——切回互動模式就問不到了。
-// ⚠️ 而**哪幾層進了語料一定要說**：說不出來的話，「答不出來」會被讀成「它不知道」。
+// spec 078：站在某個專案裡聊它的 `knowledge/`。
+// ⚠️ **跟互動那邊是同一條聊天**（`/api/chat/stream` ＋ `ChatShape`），只是換了場：
+//    那一邊不撒網、不注入你的理解，證言只有這個專案的 knowledge/。
+//    另做一套的話，多輪會先壞（你問「那第二點呢？」它不記得），而形狀也會從第一天開始漂。
 
 const LABEL: Record<string, string> = {
   experience: "經驗", concepts: "概念", principles: "原則", vision: "路線圖",
-  history: "轉移", episodes: "場景", draft: "draft", skills: "skills", other: "其他",
 }
 
-// spec 077：把這一輪整理成一塊 draft，送回那個專案。
-// ⚠️ 送出走 GitHub 的預填新檔頁面——**你**按 commit、**你**當作者。
-//    讓 bot commit 的話，`git log` 就不再分得出哪些是你寫的、哪些是工具生的。
-function Draft({ bid, q, r }: { bid: number; q: string; r: BaseAsk }) {
+/** 把這一輪整理成一塊 draft，送回那個專案。⚠️ 只碰 `knowledge/draft/`。 */
+function Draft({ bid, messages }: { bid: number; messages: Message[] }) {
   const [d, setD] = useState<BaseDraftT | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const lastQ = [...messages].reverse().find((m) => m.role === "user")?.content || ""
   async function make() {
     setBusy(true)
     try {
-      const body = (r.answer ? r.answer + "\n\n" : "")
-        + (r.hits ?? []).map((h) => `> ${h.text.replace(/\s+/g, " ").slice(0, 300)}`).join("\n\n")
-      setD(await pages.baseDraft(bid, q, body, r.hits ?? []))
+      // 你問的那句當小標——draft 是 markdown，標題比粗體更合適
+      const body = messages.map((m) => (m.role === "user" ? `### ${m.content}` : m.content)).join("\n\n")
+      setD(await pages.baseDraft(bid, lastQ.slice(0, 40), body, []))
     } finally { setBusy(false) }
   }
+  if (!messages.length) return null
   if (!d) {
     return (
       <button onClick={make} disabled={busy}
@@ -36,86 +35,93 @@ function Draft({ bid, q, r }: { bid: number; q: string; r: BaseAsk }) {
     )
   }
   return (
-    <div className="space-y-1.5 rounded-lg border p-2.5">
-      <p className="text-xs text-muted-foreground">{d.path}</p>
+    <div className="space-y-1.5 rounded-lg border p-2.5 text-xs">
+      <p className="text-muted-foreground">{d.path}</p>
       {d.url ? (
         <a href={d.url} target="_blank" rel="noopener"
-           className="inline-block rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground">
+           className="inline-block rounded bg-primary px-2.5 py-1 text-primary-foreground">
           在 GitHub 開好新檔 → 你按 commit
         </a>
       ) : (
         // ⚠️ 太長要說**為什麼**退回複製，不是靜默換行為
-        <p className="text-xs text-destructive">{d.why}</p>
+        <p className="text-destructive">{d.why}</p>
       )}
       <button onClick={() => { navigator.clipboard?.writeText(d.content); setCopied(true) }}
-              className="ml-2 text-xs text-muted-foreground hover:text-foreground">
+              className="ml-2 text-muted-foreground hover:text-foreground">
         {copied ? "已複製" : "📋 複製內容"}
       </button>
     </div>
   )
 }
 
-export function AskProject({ bid, onOpen }: { bid: number; onOpen: (iid: number) => void }) {
+export function AskProject({ bid, name }: { bid: number; name: string }) {
   const [c, setC] = useState<BaseCorpus | null>(null)
-  const [q, setQ] = useState("")
-  const [r, setR] = useState<BaseAsk | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [streaming, setStreaming] = useState<string | null>(null)
+  const [stage, setStage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  useEffect(() => { setR(null); setC(null); pages.baseCorpus(bid).then(setC).catch(() => {}) }, [bid])
+  const end = useRef<HTMLDivElement>(null)
 
-  async function ask() {
-    if (!q.trim() || busy) return
-    setBusy(true); setR(null)
-    try { setR(await pages.baseAsk(bid, q.trim())) } finally { setBusy(false) }
+  // 換專案＝換場 ⇒ 對話重來（那是另一個專案的脈絡）
+  useEffect(() => {
+    setMessages([]); setStreaming(null); setC(null)
+    pages.baseCorpus(bid).then(setC).catch(() => {})
+  }, [bid])
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }) }, [messages, streaming])
+
+  async function send() {
+    const msg = input.trim()
+    if (!msg || busy) return
+    const hist = messages
+    setInput(""); setBusy(true); setStage("翻這個專案的知識庫…"); setStreaming("")
+    setMessages([...hist, { role: "user", content: msg }])
+    let full = ""
+    await streamChat(hist, msg, false, {
+      onStage: (t) => setStage(t),
+      onToken: (t) => { full += t; setStage(null); setStreaming(full) },
+      onError: (t) => {
+        setStreaming(null); setStage(null)
+        setMessages([...hist, { role: "user", content: msg },
+                     { role: "assistant", content: "⚠ " + t }])
+      },
+      onDone: (text, sources, extra, truncated) => {
+        setMessages([...hist, { role: "user", content: msg },
+                     { role: "assistant", content: text || full, sources,
+                       found_extra: extra, truncated }])
+        setStreaming(null); setStage(null)
+      },
+    }, 0, "", bid)
+    setBusy(false)
   }
+
   const missing = Object.keys(c?.layers ?? {}).length === 0
-
   return (
-    <section className="space-y-2 border-b px-4 py-3 md:px-6">
-      <div className="flex flex-wrap gap-2">
-        <Input value={q} onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) ask() }}
-          placeholder="在這個專案的知識庫裡找⋯（例：它對測試假綠有什麼判準？）"
-          className="min-w-48 flex-1" />
-        <Button size="sm" disabled={busy || !q.trim()} onClick={ask}>{busy ? "找…" : "問"}</Button>
-      </div>
-
-      {/* ⚠️ 一定先講清楚它讀得到什麼——不然「沒有」會被當成「它不知道」 */}
-      <p className="text-xs text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col px-4 py-3">
+      {/* ⚠️ 先講清楚它讀得到什麼——不然「沒有」會被當成「它不知道」 */}
+      <p className="shrink-0 pb-2 text-xs text-muted-foreground">
         {c === null ? "…" : missing
-          ? "還沒建立索引——問一次就會自動建（大的專案要一兩分鐘）。"
-          : <>讀得到：{c.in_corpus.map((k) => `${LABEL[k] || k}${c.layers[k] ? ` ${c.layers[k]}` : " 0"}`).join("・")}
-              <span className="mx-1">·</span>共 {c.n_chunks} 段。
-              <b className="ml-1">轉移／場景／draft 不在裡面</b>——那些是場景與未定的，不是判準。</>}
+          ? `📁 ${name}：還沒建索引——問一次就會自動建（大的專案要一兩分鐘）。`
+          : <>📁 {name} 的知識庫：{c.in_corpus.map((k) => `${LABEL[k] || k} ${c.layers[k] ?? 0}`).join("・")}
+              <span className="mx-1">·</span>共 {c.n_chunks} 段。轉移／場景／draft 不在裡面。</>}
       </p>
 
-      {/* spec 077：合成的答案（材料夠強才有）。⚠️ 不夠強時**說出為什麼**，
-          否則「只有段落」會被讀成「它答不出來」。 */}
-      {r?.answer && (
-        <div className="rounded-lg border bg-muted/40 p-2.5 text-sm whitespace-pre-wrap">{r.answer}</div>
-      )}
-      {r?.why && <p className="text-xs text-muted-foreground">{r.why}</p>}
-      {r?.hits?.length ? <Draft bid={bid} q={q} r={r} /> : null}
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-2">
+        {messages.length === 0 && streaming === null && (
+          <p className="text-sm text-muted-foreground">
+            問這個專案的知識庫——它只用這個專案自己寫下的東西回答，不撒網、也不參考你的理解。
+          </p>
+        )}
+        {messages.map((m, i) => (m.role === "user"
+          ? <UserBubble key={i} content={m.content} />
+          : <AssistantFlow key={i} m={m} prefix={`p${i}`} />))}
+        <Streaming text={streaming} stage={stage} />
+        {!busy && messages.length > 0 && <Draft bid={bid} messages={messages} />}
+        <div ref={end} />
+      </div>
 
-      {r && (r.hits?.length ? (
-        <ul className="space-y-1.5 border-t pt-2">
-          {/* ⚠️ 這是**相關的段落**，不是答案——所以每一段都標出處，由你判斷。
-              實測沒有一個門檻切得掉「技術性但不在這個 base」的問題。 */}
-          {r.hits.map((h, i) => (
-            <li key={i} className="text-xs">
-              <button onClick={() => onOpen(0)} className="mr-2 rounded bg-muted px-1.5 py-0.5 hover:bg-muted/70">
-                {h.path.replace(/^knowledge\//, "")}#{h.seq}
-              </button>
-              <span className="text-muted-foreground">{h.text.replace(/\s+/g, " ").slice(0, 160)}…</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="border-t pt-2 text-xs text-muted-foreground">
-          {r.indexing ? "正在建索引，等一下再問一次。"
-            : r.error ? r.error
-            : "這個專案的知識庫裡沒有相關的段落。"}
-        </p>
-      ))}
-    </section>
+      <Composer value={input} onChange={setInput} onSend={send} busy={busy}
+                placeholder={`問 ${name} 的知識庫…`} />
+    </div>
   )
 }

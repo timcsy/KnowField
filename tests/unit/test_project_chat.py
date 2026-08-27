@@ -183,12 +183,16 @@ class TestAskUiSaysWhatItCanRead(unittest.TestCase):
         self.assertIn("in_corpus", code)
         self.assertIn("不在裡面", code)          # 明講哪幾層讀不到
 
-    def test_distinguishes_no_result_from_no_index(self):
-        """⚠️ 「還沒建索引」和「沒有相關的」是**兩件事**——長得一樣就會被誤診。"""
+    def test_says_when_there_is_no_index_yet(self):
+        """⚠️ 「還沒建索引」要說得出來——它跟「問了但它不知道」是**兩件事**，
+        長得一樣就會被誤診。
+
+        ⓘ 原本這條還釘「沒有相關的段落」那句文案，而 spec 078 把單輪的
+        `ask` 換成了真正的聊天 ⇒ 那句話現在是**回答自己**的事（top-k、不設閘門）。
+        """
         code = self._read("components/AskProject.tsx")
-        self.assertIn("indexing", code)
-        self.assertIn("沒有相關的段落", code)
-        self.assertIn("還沒建立索引", code)
+        self.assertIn("還沒建索引", code)
+        self.assertIn("自動建", code)
 
     def test_no_markdown_bold_in_plain_text(self):
         import re
@@ -198,3 +202,101 @@ class TestAskUiSaysWhatItCanRead(unittest.TestCase):
         """⚠️ 互動模式那一頁不該有它——那會讓兩個場的界線在畫面上消失。"""
         self.assertIn("AskProject", self._read("pages/DevPage.tsx"))
         self.assertNotIn("AskProject", self._read("ChatPage.tsx"))
+
+
+class TestProjectChatIsTheSameChat(unittest.TestCase):
+    """spec 078：開發模式用的是**同一條聊天**（多輪、串流），只是換了場。
+
+    ⚠️ 另做一套的話，多輪一定先壞——你問「那第二點呢？」它不記得。
+    """
+
+    def _src(self):
+        import inspect
+
+        from knowfield.web import app as mod
+        return inspect.getsource(mod)
+
+    def test_stream_takes_a_project(self):
+        src = self._src()
+        self.assertIn("def _stream_gen(hist, message, bare, article_id=0, source_url=\"\","
+                      " ext_base_id=0)", src)
+        self.assertIn('int(body.get("ext_base_id") or 0)', src)
+
+    def test_project_mode_does_not_web_search(self):
+        """⚠️ 你問的是**那個專案自己**怎麼想，網路上的東西會把它的聲音蓋掉。"""
+        src = self._src()
+        i = src.index("if ext_base_id:\n                    # ⚠️ 站在某個專案裡時**不撒網**")
+        self.assertIn("web, sources = [], _chat_corpus(message, ext_base_id)", src[i:i + 400])
+
+    def test_project_mode_does_not_inject_your_own_roots(self):
+        """⚠️ 你自己的理解墊進去 ⇒ 你會分不清哪一句是它說的、哪一句是你本來就相信的。"""
+        self.assertIn("if bare or ext_base_id:\n            roots = []", self._src())
+
+    def test_corpus_swap_is_a_parameter_not_a_second_implementation(self):
+        src = self._src()
+        self.assertIn("def _chat_corpus(query, ext_base_id=0)", src)
+
+
+class TestOneShapeNotTwo(unittest.TestCase):
+    """⚠️ `history/112`：「**兩套介面是我自己造的**」。
+
+    使用者要開發模式「跟互動那邊幾乎一樣」——而做第二套的話，
+    兩邊會從第一天開始漂。⇒ 會漂的東西（訊息的樣子、輸入框）收成一份。
+    """
+
+    def _read(self, rel):
+        import pathlib
+        import re
+        src = (pathlib.Path(__file__).resolve().parents[2] / "frontend/src" / rel
+               ).read_text(encoding="utf-8")
+        return re.sub(r"/\*[\s\S]*?\*/", "", re.sub(r"//.*$", "", src, flags=re.M))
+
+    def test_both_use_the_shared_shape(self):
+        for f in ("ChatPage.tsx", "components/AskProject.tsx"):
+            code = self._read(f)
+            self.assertIn("ChatShape", code, f)
+            self.assertIn("UserBubble", code, f)
+            self.assertIn("AssistantFlow", code, f)
+
+    def test_the_bubble_markup_exists_in_exactly_one_place(self):
+        """⚠️ 泡泡的樣式只能寫一次——寫兩次就會漂。"""
+        marker = "rounded-2xl rounded-br-sm bg-muted"
+        hits = [f for f in ("ChatPage.tsx", "components/AskProject.tsx",
+                            "components/ChatShape.tsx") if marker in self._read(f)]
+        self.assertEqual(hits, ["components/ChatShape.tsx"])
+
+    def test_project_chat_uses_the_same_stream(self):
+        """⚠️ 另做一套後端 ⇒ 多輪先壞（「那第二點呢？」它不記得）。"""
+        code = self._read("components/AskProject.tsx")
+        self.assertIn("streamChat", code)
+        self.assertNotIn("baseAsk", code)      # 不用那支單輪的
+
+
+class TestProjectPromptDoesNotLieAboutYou(unittest.TestCase):
+    """⚠️ 站在專案裡時 `roots` 是空的——**那是我們刻意換場造成的空缺**。
+
+    第一次實跑它說「你目前**還沒有存下自己的理解**」。使用者有 80 條。
+    ⇒ 把工程上的隔離講成關於使用者的事實，是**憑空生資訊**。
+    """
+
+    def test_project_prompt_says_where_you_are_not_what_you_lack(self):
+        from knowfield.chat.field_chat import build_field_system_prompt
+        p = build_field_system_prompt([], project="VizGPT")
+        self.assertIn("VizGPT", p)
+        self.assertIn("不要說他沒有存過理解", p)
+        self.assertNotIn("知識庫還空", p)
+
+    def test_empty_field_without_a_project_still_says_so(self):
+        """⚠️ 而**沒站在專案裡**時，空的場仍然要老實講——那時它是真的。"""
+        from knowfield.chat.field_chat import build_field_system_prompt
+        p = build_field_system_prompt([])
+        self.assertIn("還空", p)
+
+    def test_sources_are_labelled_as_the_projects_not_yours(self):
+        """⚠️ 「你收藏的」會讓那個專案的判準聽起來像你的東西。"""
+        import inspect
+
+        from knowfield.chat import field_chat
+        src = inspect.getsource(field_chat)
+        self.assertIn('("這個專案的知識庫" if project else "你收藏的")', src)
+        self.assertIn("不是使用者的地基", src)

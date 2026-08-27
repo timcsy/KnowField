@@ -93,9 +93,20 @@ _BARE_NOTE = (
     "就當一般 AI 對話。但人格不變：不說好聽話、不把猜測講成事實、不確定就說不確定。這輪不附佐證 [n]。）")
 
 
-def build_field_system_prompt(roots) -> str:
-    """膜指令 ＋ 場脈絡注入（每條已冊封根因的 claim＋ladder）。roots 空 → 註明未接場。"""
-    if not roots:
+def build_field_system_prompt(roots, project: str = "") -> str:
+    """膜指令 ＋ 場脈絡注入（每條已冊封根因的 claim＋ladder）。roots 空 → 註明未接場。
+
+    spec 078：`project` ⇒ **站在某個專案裡**。⚠️ 那一邊 `roots` 是空的，
+    但**不能講成「你還沒存任何理解」**——那是我們刻意換場造成的空缺，
+    而使用者其實有一整個場。把工程上的隔離講成關於他的事實，是憑空生資訊。
+    """
+    if project:
+        ctx = (f"你現在站在「{project}」這個**專案的知識庫**裡——參考資料是**它自己寫下的**"
+               "（它的 experience／concepts／principles／vision），不是使用者的理解。\n"
+               "⚠️ 使用者**在別處有他自己的場**，只是這一輪刻意不接進來；"
+               "**不要說他沒有存過理解**。要說「這個專案的知識庫說…」，"
+               "而**它說的不等於他同意**——那是另一個人的判準，可以引用、不要替他採納。")
+    elif not roots:
         ctx = ("（使用者的知識庫還空——還沒存任何理解。仍可一般聊，但要說明還沒接到他存的東西，"
                "並鼓勵他存幾條。）")
     else:
@@ -193,12 +204,13 @@ class FieldChat:
     _ARTICLE_CAP = 6000        # 長文不得吃掉整個脈絡預算（同 sources 的 cap 精神）
 
     def _messages(self, history, user_msg, roots, sources, bare, max_history,
-                  url_contents=None, article=None, source=None):
+                  url_contents=None, article=None, source=None, project=""):
         hist = list(history)
         if max_history > 0:
             hist = hist[-max_history:]
         # bare＝這輪暫時屏蔽知識庫：不注入理解、也不會有 sources；但保留反逢迎人格（膜）。
-        sys_prompt = f"{_MEMBRANE}\n\n{_BARE_NOTE}" if bare else build_field_system_prompt(roots)
+        sys_prompt = (f"{_MEMBRANE}\n\n{_BARE_NOTE}" if bare
+                      else build_field_system_prompt(roots, project))
         messages = [{"role": "system", "content": sys_prompt}]
         messages += hist
         # spec 041：使用者明確帶進來的一篇**生成文章**。它自成一層，而且是**最軟**的一層——
@@ -260,13 +272,16 @@ class FieldChat:
                 title = (getattr(s, "title", "") or "").strip()
                 text = (getattr(s, "snippet", "") or "")
                 cap = 400 if kind == "corpus" else 160
-                label = "你收藏的" if kind == "corpus" else "web"
+                label = ("這個專案的知識庫" if project else "你收藏的") if kind == "corpus" else "web"
                 lines.append(f"[{i}]（{label}）{title}：{text[:cap]}（{getattr(s, 'url', '')}）")
             messages.append({"role": "system", "content": (
                 "以下是為這個問題找到的參考資料，分兩類——**分層看待**：\n"
-                "・**你收藏的**＝使用者以前收進的文章/論文，是**外部證言**：可以引用，但**比他精選的理解軟**"
-                "（可能是他人觀點、也可能有誤）；**別當成他的地基、別替他把它說成就是他的想法**，"
-                "要說「你收的資料說…」。\n"
+                + ("・**這個專案的知識庫**＝那個專案自己寫下的判準，是**別人（或過去的你）的場**："
+                   "可以引用，但**不是使用者的地基**；要說「這個專案說…」，不要替他採納。\n"
+                   if project else
+                   "・**你收藏的**＝使用者以前收進的文章/論文，是**外部證言**：可以引用，但**比他精選的理解軟**"
+                   "（可能是他人觀點、也可能有誤）；**別當成他的地基、別替他把它說成就是他的想法**，"
+                   "要說「你收的資料說…」。\n") +
                 "・**web**＝剛撒網找到的外部資料。\n"
                 "**若你某句話正好被某條支持，就在那句句尾標 [n]**（可多個如 [1][2]）；沒被支持的不要標，"
                 f"也**不要杜撰**來源或內容。用不到的忽略。\n" + "\n".join(lines))})
@@ -275,23 +290,23 @@ class FieldChat:
 
     def reply(self, history: list[dict], user_msg: str, roots, sources=None,
               bare: bool = False, max_history: int = 0, url_contents=None,
-              article=None, source=None) -> str:
+              article=None, source=None, project: str = "") -> str:
         """一輪對話。sources 非空時句尾標 [n]；url_contents＝使用者貼的網址抓到的內容。
         bare=True＝這輪暫時屏蔽知識庫（不注入理解、不撒網）。"""
         return self.backend.reply(
             self._messages(history, user_msg, roots, sources, bare, max_history,
-                           url_contents, article, source))
+                           url_contents, article, source, project))
 
     def reply_stream(self, history: list[dict], user_msg: str, roots, sources=None,
                      bare: bool = False, max_history: int = 0, url_contents=None,
-                     article=None, source=None):
+                     article=None, source=None, project: str = ""):
         """串流版 reply：yield 逐段 token，**return finish_reason**（`"length"`＝被上限切）。
 
         bare=True＝這輪暫時屏蔽知識庫。截斷原因原樣穿過去，讓路由層標給使用者看（憲章 V）。
         """
         return (yield from self.backend.stream(
             self._messages(history, user_msg, roots, sources, bare, max_history,
-                           url_contents, article, source)))
+                           url_contents, article, source, project)))
 
     def title(self, messages: list[dict]) -> str:
         """為一段對話生一句反映**落點/全貌**的標題（≤20 字）。取材首尾並取（spec 027，

@@ -111,25 +111,37 @@ class TestRoute(unittest.TestCase):
                                      json={"title": "x", "body": "y"}).status_code, 404)
 
 
-class TestAnswerThreshold(unittest.TestCase):
-    """⚠️ FR-002：合成的門檻**另外量**，不能沿用檢索的 0.35。"""
+class TestTopKNotAGate(unittest.TestCase):
+    """⚠️ **top-k，不設合成閘門**（使用者 2026-08-27 推翻我的 0.55）。
 
-    def test_answer_threshold_is_separate_and_higher(self):
+    我原本用「最高那一段 ≥ 0.55 才合成」，而實測那個分數**分不開**
+    真相關（0.442）與不相關（0.441）——⇒ 那是拿一個**測不到的代理指標**
+    替使用者做語意判斷，正好是這個庫記過的
+    「程式只擋機械可判的；**會擋掉好答案的檢查要改成呈現**」。
+    （它擋掉的「知識庫要怎麼收斂」，knowie 的知識庫是答得出來的。）
+    """
+
+    def _src(self):
         import inspect
 
         from knowfield.web import app as mod
-        src = inspect.getsource(mod)
-        self.assertIn("_ANSWER_MIN_TOP", src)
-        i = src.index("_ANSWER_MIN_TOP = ")
-        self.assertGreater(float(src[i + 18:i + 23].split()[0]), 0.35)
+        return inspect.getsource(mod)
 
-    def test_weak_material_says_why_instead_of_synthesising(self):
-        """⚠️ 「只給段落」要說得出**為什麼**，否則會被讀成「它答不出來」。"""
-        import inspect
+    def test_no_synthesis_gate(self):
+        src = self._src()
+        self.assertNotIn("_ANSWER_MIN_TOP", src)
+        self.assertNotIn("材料不夠強", src)
 
-        from knowfield.web import app as mod
-        src = inspect.getsource(mod)
-        self.assertIn("材料不夠強", src)
+    def test_retrieval_floor_stays(self):
+        """⚠️ 但**檢索的地板要留著**——它擋的是「義大利麵要煮幾分鐘」那種
+        機械可判的離題（實測 0.198／0.263），那不是語意判斷。"""
+        self.assertIn("_ASK_MIN = 0.35", self._src())
+
+    def test_citations_carry_the_filename_into_the_synthesiser(self):
+        """⚠️ 合成最容易磨掉的就是出處 ⇒ 段落要帶著檔名進去。"""
+        src = self._src()
+        i = src.index("passages = [")
+        self.assertIn("headline=h.title.rsplit", src[i:i + 400])
 
 
 class TestDraftUi(unittest.TestCase):
@@ -140,11 +152,15 @@ class TestDraftUi(unittest.TestCase):
                ).read_text(encoding="utf-8")
         return re.sub(r"/\*[\s\S]*?\*/", "", re.sub(r"//.*$", "", src, flags=re.M))
 
-    def test_says_why_there_is_no_synthesis(self):
-        """⚠️ 「只有段落」要說得出為什麼——否則會被讀成「它答不出來」。"""
+    def test_project_chat_says_what_it_can_read(self):
+        """⚠️ 說不出讀得到哪幾層，「它不知道」與「那不在語料裡」就分不開。
+
+        ⓘ 這條原本釘「合成不夠強時說為什麼」——而那道閘門被使用者推翻了
+        （top-k，不設閘門），所以改釘還在的那個不變式。
+        """
         code = self._read("components/AskProject.tsx")
-        self.assertIn("r?.why", code)
-        self.assertIn("r?.answer", code)
+        self.assertIn("in_corpus", code)
+        self.assertIn("不在裡面", code)
 
     def test_too_long_shows_the_reason_not_a_broken_button(self):
         code = self._read("components/AskProject.tsx")

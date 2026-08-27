@@ -62,8 +62,6 @@ export default function DevPage() {
 
       {/* ── 預覽：吃掉剩下的整片寬度；⚠️ min-w-0，少了它長行會把樹擠爛 ── */}
       <div className={cn("flex min-w-0 flex-1 flex-col overflow-hidden", !iid && "hidden md:flex")}>
-        {/* spec 076：問這個專案的知識庫。⚠️ 換場，不是把它放進你的場 */}
-        {bid > 0 && <AskProject bid={bid} onOpen={() => {}} />}
         <div className="min-h-0 flex-1 overflow-y-auto">
         {doc ? (
           <>
@@ -83,11 +81,12 @@ export default function DevPage() {
             </div>
           </>
         ) : (
-          <div className="hidden h-full items-center justify-center px-6 text-center md:flex">
-            <p className="max-w-sm text-sm text-muted-foreground">
-              左邊挑一份來看，或在上面問這個專案的知識庫。{base && `（${base.name || base.repo}）`}
-            </p>
-          </div>
+          // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**（spec 078）——
+          //    跟互動那邊同一條串流、同一份形狀，只是換了場。
+          bid > 0 ? <AskProject bid={bid} name={base?.name || base?.repo || ""} />
+                  : <div className="hidden h-full items-center justify-center px-6 text-center md:flex">
+                      <p className="max-w-sm text-sm text-muted-foreground">左邊挑一個專案。</p>
+                    </div>
         )}
         </div>
       </div>

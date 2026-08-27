@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { api, pages, streamChat, type Candidate, type Message } from "@/lib/api"
+import { AssistantFlow, UserBubble } from "@/components/ChatShape"
 import { Markdown } from "@/components/Markdown"
-import { Sources, FoundExtra } from "@/components/Sources"
 import { KINDS } from "@/components/KindBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -372,37 +372,23 @@ export default function ChatPage() {
 
   const renderMsg = (m: Message, i: number) =>
     m.role === "user" ? (
-      <div key={i} className="group flex flex-col items-end gap-0.5">
-        <div className={cn("max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-muted px-4 py-2",
-                           covered.has(i + 1) && "border-l-2 border-primary/40")}>{m.content}</div>
+      // spec 078：形狀走共用的那一份（`ChatShape`）——開發模式用的是同一個元件。
+      <UserBubble key={i} content={m.content} marked={covered.has(i + 1)} extra={
         <button onClick={() => editMessage(i)} title="編輯這句重問（改這串）"
                 className="pr-1 text-muted-foreground opacity-100 hover:text-foreground md:opacity-0 md:transition md:group-hover:opacity-100">
           <Pencil className="size-3.5" />
-        </button>
-      </div>
+        </button>} />
     ) : (
       // SOTA：AI 回覆＝全寬無框文字流（不裝卡片），文字區最大化；用留白＋對齊區分你我，不用框
-      <div key={i} className={cn("group", covered.has(i + 1) && "border-l-2 border-primary/40 pl-3")}>
-        <Markdown text={m.content} prefix={`m${i}`} />
-        {/* 不完整就明說是哪一種——靜默半句看起來像講完了，兩種斷法也得分得出來（憲章 V） */}
-        {m.truncated && (
-          <div className="mt-2 text-xs text-amber-600 dark:text-amber-500">
-            {m.truncated === "length"
-              ? "⚠ 這則回答到長度上限被截斷了（沒講完）。可以請它「接著上面繼續」。"
-              : "⚠ 這則回答中途斷線，只收到一半。可以重新生成。"}
-          </div>
-        )}
-        <Sources sources={m.sources || []} prefix={`m${i}`} />
-        <FoundExtra extra={m.found_extra || []} />
-        {/* 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支 */}
+      <AssistantFlow key={i} m={m} prefix={`m${i}`} marked={covered.has(i + 1)} extra={
+        // 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支——互動模式專屬
         <div className="mt-2 flex gap-4 text-muted-foreground opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
           <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
           {i === messages.length - 1 && !busy && (
             <button onClick={regenerateLast} title="重新生成這則回覆" className="hover:text-foreground"><RefreshCw className="size-3.5" /></button>
           )}
           <button onClick={() => branchFrom(i + 1)} title="從這裡開分支（原互動不動、另開一串接著聊）" className="hover:text-primary"><GitBranch className="size-3.5" /></button>
-        </div>
-      </div>
+        </div>} />
     )
   const hasChapters = !!(chapters && chapters.length > 1)
   // 該預設展開的章 index：定位進來→出處章；否則→最後章

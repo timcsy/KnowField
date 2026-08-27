@@ -402,13 +402,17 @@ export async function streamChat(
   h: StreamHandlers,
   articleId = 0,   // spec 041：使用者明確帶進來的一篇生成文章（0＝沒帶）
   sourceUrl = "",  // spec 042：使用者明確帶進來的一份收進來源（空＝沒帶）
+  // spec 078：站在某個專案裡（0＝你自己的場）。⚠️ **換場，不是加東西**——
+  // 那一邊不撒網、不注入你的理解，證言只有那個專案的 knowledge/。
+  extBaseId = 0,
 ) {
   let resp: Response
   try {
     resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, message, bare, article_id: articleId, source_url: sourceUrl }),
+      body: JSON.stringify({ history, message, bare, article_id: articleId,
+                            source_url: sourceUrl, ext_base_id: extBaseId }),
     })
   } catch {
     h.onError?.("連線中斷，請重試。")

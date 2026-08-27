@@ -248,8 +248,13 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
-    def _chat_corpus(query):
-        """檢索使用者收進的相關資料，當「你收藏的」證言（spec 029）。失敗/無語料→空、不擋聊天（教訓 3）。"""
+    def _chat_corpus(query, ext_base_id=0):
+        """檢索相關資料當證言（spec 029）。失敗/無語料→空、不擋聊天（教訓 3）。
+
+        spec 078：`ext_base_id` ⇒ **換一個場**——站在某個專案裡時，證言是**那個專案的**
+        `knowledge/`，不是你自己的理解。⚠️ 而它**不是把外部知識加進你的場**：
+        兩個場互斥，切回互動模式就完全不碰它（spec 074／076 那兩層測試照樣綠）。
+        """
         inj = getattr(app.state, "corpus_search_for_test", None)
         if inj is not None:
             try:
@@ -264,6 +269,19 @@ def create_app() -> FastAPI:
             cfg = app.state.config
             repo = app.state.repo_factory(cfg)
             try:
+                if ext_base_id:
+                    entries, vecs, _layers, emb = _ext_corpus_ready(repo, ext_base_id)
+                    # ⚠️ **top-k，不設合成閘門。**（使用者 2026-08-27）
+                    #    我原本用 `top >= 0.55` 決定要不要合成，而實測那個分數
+                    #    **分不開**真相關（0.442）與不相關（0.441）
+                    #    ⇒ 那是拿一個測不到的代理指標替使用者做語意判斷，
+                    #    正好是這個庫記過的「會擋掉好答案的檢查要改成呈現」。
+                    #    改成：給 top-k、每段標出處，**由回答自己說材料夠不夠**。
+                    hits = retrieve_corpus(repo, emb, query, top_k=cfg.rag_top_k,
+                                           min_score=_ASK_MIN, entries=entries, vectors=vecs)
+                    return [_t.SimpleNamespace(
+                        title=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
+                        snippet=h.body or "", url="", kind="corpus") for h in hits]
                 hits = retrieve_corpus(repo, make_embedder(cfg), query,
                                        top_k=cfg.rag_top_k, min_score=cfg.rag_min_score)
             finally:
@@ -308,6 +326,7 @@ def create_app() -> FastAPI:
             finally:
                 repo.close()
         fc = FieldChat(_chat_backend())
+        _project_name = ""
         url_contents = _fetch_message_urls(message)   # 貼的網址→讀進來（best-effort）
         if bare:
             sources = []
@@ -315,7 +334,7 @@ def create_app() -> FastAPI:
             q = fc.search_query(history, message)        # LLM 先把問題轉成好 query（消歧義）
             # web 撒網＋收進的文章併成一個連號來源清單（web 在前、收進在後，帶 kind）
             sources = list(_chat_search(q)) + _chat_corpus(message)
-        text = fc.reply(history, message, roots, sources, bare=bare,
+        text = fc.reply(history, message, roots, sources, bare=bare, project=_project_name,
                         max_history=app.state.config.chat_context_messages,
                         url_contents=url_contents)
         # 只顯示回答真的引用到的來源（[n]）——沒被引用的（多半不相關）一律不列，濾掉垃圾
@@ -477,7 +496,7 @@ def create_app() -> FastAPI:
                       extra={"extra": {"url": u, "reason": f"{type(exc).__name__}: {exc}"}})
             return []
 
-    def _stream_gen(hist, message, bare, article_id=0, source_url=""):
+    def _stream_gen(hist, message, bare, article_id=0, source_url="", ext_base_id=0):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
         bare＝這輪暫時屏蔽知識庫：不注入理解、不撒網、不查收藏。
         article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。
@@ -506,7 +525,20 @@ def create_app() -> FastAPI:
         _source = None
         if source_url and not bare:
             _source = _load_source_context(source_url, message)
-        if bare:
+        # ⚠️ spec 078：站在某個專案裡時，**你自己的理解也不進來**——那會混場。
+        #    你問的是「那個專案怎麼想」，不是「我怎麼想」；把你的地基墊進去，
+        #    你會分不清哪一句是它說的、哪一句是你本來就相信的。
+        # ⚠️ 站在專案裡時要把**專案名**傳進 prompt——否則 `roots` 空會被講成
+        #    「你還沒存任何理解」，而那是我們刻意換場造成的空缺，不是關於他的事實。
+        _project = ""
+        if ext_base_id:
+            _r = app.state.repo_factory(cfg)
+            try:
+                _b = next((x for x in _r.list_ext_bases() if int(x["id"]) == ext_base_id), None)
+            finally:
+                _r.close()
+            _project = (_b["name"] or _b["repo"]) if _b else ""
+        if bare or ext_base_id:
             roots = []
         else:
             repo = app.state.repo_factory(cfg)
@@ -524,10 +556,16 @@ def create_app() -> FastAPI:
             else:
                 yield _sse({"type": "stage", "text": "找關鍵字…"})
                 q = fc.search_query(hist, message)
-                yield _sse({"type": "stage", "text": "撒網找佐證…"})
-                web = _chat_search(q)
-                yield _sse({"type": "stage", "text": "翻你收進的資料…"})
-                sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
+                if ext_base_id:
+                    # ⚠️ 站在某個專案裡時**不撒網**：你問的是**那個專案自己**怎麼想，
+                    #    而網路上的東西會把它的聲音蓋掉。
+                    yield _sse({"type": "stage", "text": "翻這個專案的知識庫…"})
+                    web, sources = [], _chat_corpus(message, ext_base_id)
+                else:
+                    yield _sse({"type": "stage", "text": "撒網找佐證…"})
+                    web = _chat_search(q)
+                    yield _sse({"type": "stage", "text": "翻你收進的資料…"})
+                    sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
                 if _source:
                     # ⚠️ FR-007：同一份既被帶入又被撒網命中 → 只算一份證言。
                     # 不去重的話模型會把同一段當成**兩個獨立佐證**，而畫面上完全看不出來。
@@ -536,6 +574,7 @@ def create_app() -> FastAPI:
             yield _sse({"type": "stage", "text": "回答中…"})
             full, truncated = yield from _pump(
                 fc.reply_stream(hist, message, roots, sources, bare=bare, article=_article,
+                                project=_project,
                                 source=_source,
                                 max_history=cfg.chat_context_messages,
                                 url_contents=url_contents))
@@ -628,7 +667,8 @@ def create_app() -> FastAPI:
         return StreamingResponse(
             _stream_gen(hist, message, bool(body.get("bare")),
                         int(body.get("article_id") or 0),
-                        str(body.get("source_url") or "").strip()),
+                        str(body.get("source_url") or "").strip(),
+                        int(body.get("ext_base_id") or 0)),
             media_type="text/event-stream")
 
     @app.post("/api/chat/distill")
@@ -986,16 +1026,6 @@ def create_app() -> FastAPI:
     #:    這裡是**檢索**（給你段落）不是**回答**，所以寧可讓你看到而不是替你決定。
     _ASK_MIN = 0.35
 
-    #: spec 077：⚠️ **合成的門檻另外量，不能沿用檢索的**——「檢索寧可寬、回答必須嚴」。
-    #: 實測（knowie 125 段，看六段的分數）：
-    #:   「為什麼 why 沒有 oracle？」 0.825 → 0.534（落差 0.290）  ← 有一份檔案就叫這個
-    #:   「知識庫要怎麼收斂？」（真相關）0.442 → 0.385（落差 0.057）
-    #:   「Transformer 的殘差匯流排」（不相關）0.441 → 0.402（落差 0.039）
-    #: ⚠️ **0.442 vs 0.441——真相關與不相關在這個層級分不開**，落差也救不了。
-    #: ⇒ 唯一安全的規則：**最高那一段夠強才合成**，否則退回給段落。
-    #:    它會拒答一些真的相關的問題——而那是**對的失敗方向**：
-    #:    退回去的就是已經在跑的檢索模式，不是失敗。
-    _ANSWER_MIN_TOP = 0.55
 
     @app.post("/api/bases/{bid}/ask")
     async def api_base_ask(bid: int, request: Request):
@@ -1016,25 +1046,24 @@ def create_app() -> FastAPI:
             # ⚠️ 引用一定帶**檔案**：看不出哪一份，就沒辦法回去看原文
             out = [{"path": h.title.rsplit("#", 1)[0], "seq": int(h.title.rsplit("#", 1)[1]),
                     "text": h.body} for h in hits]
-            answer, why = "", ""
+            # ⚠️ **top-k，不設合成閘門**（使用者 2026-08-27）。
+            #    原本用 `top >= 0.55` 決定要不要合成，而實測那個分數**分不開**
+            #    真相關（0.442）與不相關（0.441）⇒ 那是拿測不到的代理指標
+            #    替使用者做語意判斷，而這個庫記過：**會擋掉好答案的檢查要改成呈現**。
+            #    改成給 top-k、每段標出處，**由回答自己說材料夠不夠**。
+            answer = ""
             if hits:
-                from ..rag.service import cosine
-                top = cosine(emb.embed(q), vecs[hits[0].entry_id])
-                if top >= _ANSWER_MIN_TOP:
-                    from ..backends.factory import make_answerer
-                    ans = getattr(app.state, "answerer_for_test", None) or make_answerer(
-                        app.state.config)
-                    # ⚠️ 段落帶著**檔名**進合成器——合成最容易磨掉的就是出處
-                    passages = [
-                        type(h)(entry_id=h.entry_id, title=h.title, url="",
-                                headline=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
-                                body=h.body, digest_date="", source_class="ordinary")
-                        for h in hits]
-                    answer = ans.answer(q, passages, "zh-TW")
-                else:
-                    # ⚠️ 說得出**為什麼只有段落**——不然會被當成「它答不出來」
-                    why = f"材料不夠強（最相關 {top:.2f}，要 {_ANSWER_MIN_TOP} 才合成）——先給你段落。"
-            return _JSON({"layers": layers, "hits": out, "answer": answer, "why": why})
+                from ..backends.factory import make_answerer
+                ans = getattr(app.state, "answerer_for_test", None) or make_answerer(
+                    app.state.config)
+                # 段落帶著**檔名**進合成器——合成最容易磨掉的就是出處
+                passages = [
+                    type(h)(entry_id=h.entry_id, title=h.title, url="",
+                            headline=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
+                            body=h.body, digest_date="", source_class="ordinary")
+                    for h in hits]
+                answer = ans.answer(q, passages, "zh-TW")
+            return _JSON({"layers": layers, "hits": out, "answer": answer})
         finally:
             repo.close()
 
