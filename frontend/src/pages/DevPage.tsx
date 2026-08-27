@@ -4,6 +4,7 @@ import { pages, type ExtBase, type ExtFile, type ExtTreeItem } from "@/lib/api"
 import { AskProject } from "@/components/AskProject"
 import { FileTree } from "@/components/FileTree"
 import { Markdown } from "@/components/Markdown"
+import { touchRecentDoc } from "@/lib/recentDocs"
 import { cn } from "@/lib/utils"
 
 // spec 074：開發模式的主區＝**檔案樹｜預覽**（側欄是專案，那是 IDE 的最左段）。
@@ -23,6 +24,7 @@ export default function DevPage() {
   const [doc, setDoc] = useState<ExtFile | null>(null)
   const bid = Number(sp.get("base") || 0)
   const path = sp.get("doc") || ""
+  const open = sp.get("open") || ""
 
   useEffect(() => { pages.bases().then((d) => setBases(d.bases)).catch(() => setBases([])) }, [])
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function DevPage() {
   useEffect(() => {
     if (!bid || !path) { setDoc(null); return }
     setDoc(null); pages.baseFile(bid, path).then(setDoc).catch(() => setDoc(null))
+    touchRecentDoc(bid, path)
   }, [bid, path])
 
   const go = (patch: Record<string, string>) => {
@@ -79,7 +82,7 @@ export default function DevPage() {
               <p className="text-xs">抓完之後重新整理這一頁。</p>
             </div>
           ) : (
-            <FileTree items={items} sel={path} onPick={(id) => go({ doc: id })} />
+            <FileTree items={items} sel={path} open={open} onPick={(id) => go({ doc: id })} />
           )}
         </div>
       </div>

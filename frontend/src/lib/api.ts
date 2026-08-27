@@ -226,7 +226,10 @@ export const pages = {
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
     post("/api/borrowed/import", { groups }),
-  library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
+  // ⚠️ `n_projects` ＝ 被濾掉的專案知識檔有幾份。**它們仍在語料裡、仍會被引用**
+  //    ⇒ 這一頁一定要說得出來，否則就是「看不到卻會影響回答」。
+  library: (): Promise<{ sources: SourceGroup[]; n_projects: number }> =>
+    fetch("/api/library").then(json),
   // spec 070：搜尋給不了的那三塊。⚠️ has_geometry=false 時要**說算不出來**，不是顯示空的
   // ——三塊一起沉默地失效，比少一塊更糟：你會以為這一區真的沒有鄰居。
   domainContext: (did: number | null): Promise<DomainContext> =>

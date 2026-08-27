@@ -646,16 +646,28 @@ class Repository:
         return True
 
     # --- 收進來源（spec 031：同 url 的塊＝一份來源；管理/檢視用來源、檢索用塊，無新表） ---
-    def list_source_groups(self) -> list[dict]:
-        """種子容器裡的塊按 url 歸成「來源」，一來源一列（新在上）。"""
+    #: 專案落成的來源長這樣（`_base_to_sources`）——**這個 scheme 只有它會產生**，
+    #: 所以拿它當判準是結構性的，不是猜的。
+    PROJECT_URL_PREFIX = "github://"
+
+    def list_source_groups(self, projects: bool = True) -> list[dict]:
+        """種子容器裡的塊按 url 歸成「來源」，一來源一列（新在上）。
+
+        ⚠️ `projects=False` ＝ 濾掉**專案落成的來源**。使用者：「為何開發的來源
+        都跑到互動模式那邊了？」——226 份專案檔會把他自己收的 9 筆壓到看不見。
+        ⚠️ 而它們**仍在語料裡、仍會被引用** ⇒ 少了它們的那一頁**要說出來**，
+        否則就變成「看不到卻會影響回答」，那正是這個庫記過的那種沉默。
+        """
         from ..config import SEEDS_DATE
+        skip = ("" if projects else
+                f" AND de.url NOT LIKE '{self.PROJECT_URL_PREFIX}%'")
         rows = self.conn.execute(
             "SELECT de.url AS url, MIN(de.title) AS title, COUNT(*) AS n,"
             " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
             " MIN(de.note) AS note, MIN(de.ingested_at) AS ingested_at"
             " FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
             f" WHERE {self._own('de')} AND d.date=%s AND COALESCE(de.archived_at,'')=''"
-            " GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
+            f"{skip} GROUP BY de.url ORDER BY MAX(de.id) DESC", (SEEDS_DATE,)).fetchall()
         return [{"url": r["url"], "title": r["title"] or r["url"], "count": r["n"],
                  "source_class": r["sclass"] or "ordinary", "first_id": r["first_id"],
                  "note": r["note"] or "", "ingested_at": r["ingested_at"] or ""}

@@ -1174,9 +1174,12 @@ def create_app() -> FastAPI:
     @app.get("/api/library")
     async def api_library():
         repo = app.state.repo_factory(app.state.config)
-        groups = repo.list_source_groups()
+        groups = repo.list_source_groups(projects=False)
+        # ⚠️ 濾掉了幾份**要說出來**——它們仍在語料裡、仍會被引用。
+        #    不說的話這一頁就是「看不到卻會影響回答」。
+        n_projects = len(repo.list_source_groups()) - len(groups)
         repo.close()
-        return _JSON({"sources": groups})
+        return _JSON({"sources": groups, "n_projects": n_projects})
 
     @app.get("/api/source")
     async def api_source(u: str = Query(""), raw: str = Query("0")):

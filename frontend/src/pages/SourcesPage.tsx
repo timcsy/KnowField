@@ -37,7 +37,10 @@ export default function SourcesPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [paperUrl, setPaperUrl] = useState("")
 
-  const load = () => pages.library().then((r) => setAllSources(r.sources)).catch(() => {})
+  // ⚠️ 專案的知識檔不在這一頁（226 份會把你自己收的壓到看不見），但**要說出來**
+  const [nProjects, setNProjects] = useState(0)
+  const load = () => pages.library()
+    .then((r) => { setAllSources(r.sources); setNProjects(r.n_projects || 0) }).catch(() => {})
   useEffect(() => { load() }, [])
 
   async function run(fn: () => Promise<Res>) {
@@ -95,6 +98,18 @@ export default function SourcesPage() {
       </div>
 
       {msg && <div className="rounded-md bg-muted px-3 py-2 text-sm">{msg}</div>}
+
+      {/* ⚠️ 專案的知識檔**不在這一頁**（226 份會把你自己收的壓到看不見），
+          但它們**仍在語料裡、仍會被引用** ⇒ 這句話不能省：
+          少了它就變成「看不到卻會影響回答」，而那是這個庫記過的那種沉默。 */}
+      {nProjects > 0 && (
+        <p className="text-sm text-muted-foreground">
+          另有 <span className="font-medium text-foreground">{nProjects} 份專案知識檔</span>
+          沒有列在這裡（它們會把你自己收的壓到看不見）。
+          聊天時它們一樣會被引用，標成「📁 專案名」。
+          <Link to="/dev" className="ml-1 text-primary hover:underline">到開發模式看 →</Link>
+        </p>
+      )}
 
       {showIngest && (
         <div className="space-y-6 rounded-xl border bg-card p-4">

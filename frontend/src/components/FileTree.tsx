@@ -83,14 +83,20 @@ function Row({ n, depth, sel, open, toggle, pick }: {
   )
 }
 
-export function FileTree({ items, sel, onPick }: {
+export function FileTree({ items, sel, onPick, open: openPath = "" }: {
   items: { path: string }[]
   sel: string
   onPick: (id: string) => void
+  /** 側欄點了某一層 ⇒ 那個資料夾要打開（`?open=history`）。 */
+  open?: string
 }) {
   const tree = useMemo(() => buildTree(items), [items])
   // 選到的那份，它的每一層祖先都要是打開的——否則點搜尋結果過來會看不到它在哪
-  const forced = useMemo(() => new Set(ancestorsOf(tree, sel) ?? []), [tree, sel])
+  const forced = useMemo(() => {
+    const s = new Set(ancestorsOf(tree, sel) ?? [])
+    if (openPath) s.add(openPath)
+    return s
+  }, [tree, sel, openPath])
   const [manual, setManual] = useState<Set<string>>(new Set())
   const open = useMemo(() => new Set([...forced, ...manual]), [forced, manual])
   const toggle = (p: string) =>

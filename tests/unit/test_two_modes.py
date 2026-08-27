@@ -173,29 +173,37 @@ class TestUiInvariants(unittest.TestCase):
         for forbidden in ("whynodeAnoint", "importBorrowed", "anoint", "method: \"POST\""):
             self.assertNotIn(forbidden, code)
 
-    def test_persona_switcher_hidden_in_dev(self):
-        """⚠️ FR-006：專案 base 天然隔離，再疊一層可見性只是負擔。
+    def test_persona_is_in_both_sidebars(self):
+        """⚠️ **推翻 spec 074 FR-006**（「persona 不進開發模式」）。
 
-        ⓘ 這條原本釘一個**字面字串**（`{!dev && <PersonaSwitcher />}`），換個寫法就假紅。
-        改成釘**不變式**：開發側欄裡沒有它，而互動側欄裡的它在 `dev ?` 的 else 那一支。
+        當時的理由是「專案 base 天然隔離」——那在專案是**第二個場**時成立。
+        spec 080 之後專案就是**來源**，跟你的東西同一個庫 ⇒ 身分當然也管得到它。
+        使用者 2026-08-27：「開發模式的側邊欄要幾乎跟互動模式一樣」。
+        ⇒ 釘的是**不變式**：它在雙模式分支**之上**（所以兩邊都有），不是某個字面寫法。
         """
-        self.assertNotIn("PersonaSwitcher", self._read("components/DevSidebar.tsx"))
         code = self._read("components/ConversationSidebar.tsx")
-        self.assertLess(code.index("dev ? <DevSidebar"), code.index("<PersonaSwitcher"))
+        self.assertLess(code.index("<PersonaSwitcher"), code.index("dev ? <DevSidebar"))
 
-    def test_dev_sidebar_is_projects_only(self):
-        """⚠️ 使用者：「我的側邊欄要放的是專案，然後主要區域的左邊是檔案樹」。
+    def test_dev_sidebar_mirrors_the_interaction_one(self):
+        """⚠️ 使用者：「開發模式的側邊欄要幾乎跟互動模式一樣」。
 
-        ⓘ 我先做錯過一次：把**檔案樹也塞進側欄**，於是主區只剩預覽。
-        正確的是 IDE 的三段——最左專案、中間檔案樹、右邊預覽。
-        而互動那套（領域／對話歷史／身分）一個都不進來。
+        ⇒ **同一個骨架**：你站在哪（導航列）→ ＋主要動作 → 這底下有什麼（帶計數）
+        → 最近（時間軸）→ 範圍說明。
+        ⓘ 但**檔案樹仍不在側欄**——它在主區的左半（IDE 三段：專案／檔案樹／預覽）。
+        我先做錯過一次，把樹塞進側欄，於是主區只剩預覽。
         """
         code = self._read("components/DevSidebar.tsx")
-        for forbidden in ("DomainNav", "ConvMenu", "新互動", "PersonaSwitcher", "resume="):
-            self.assertNotIn(forbidden, code)
-        self.assertIn("pages.bases", code)              # 它列的是**專案**
-        self.assertNotIn("pages.baseTree", code)        # ⚠️ 檔案樹不在側欄
+        self.assertIn("pages.bases", code)              # 你站在哪：專案
+        self.assertIn("＋ 新增專案", code)               # 對應「＋ 新互動」
+        self.assertIn("layersOf", code)                 # 這底下有什麼（帶計數）
+        self.assertIn("readRecentDocs", code)           # 時間軸（對應「最近的互動」）
+        self.assertNotIn("FileTree", code)              # ⚠️ 檔案樹不在側欄
         self.assertNotIn("Markdown", code)              # 預覽也不在側欄
+        self.assertNotIn("resume=", code)               # 互動的對話歷史不進來
+
+    def test_dev_sidebar_says_whose_knowledge_this_is(self):
+        """⚠️ 看不出是別人的，就等於冒充你自己的知識（原則 6 那道膜）。"""
+        self.assertIn("別人專案", self._read("components/DevSidebar.tsx"))
 
     def test_dev_page_has_tree_and_preview(self):
         """主區＝檔案樹｜預覽，而**預覽要拿到剩下的整片寬度**。"""

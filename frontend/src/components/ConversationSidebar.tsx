@@ -98,11 +98,12 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
       </div>
       {/* spec 067：身分在**最上面**，導航列之上。同一條理由的更硬版本——
           領域放錯還能搬回來；身分放錯是**私人的東西寫進了工作的場**，而且不會報錯。 */}
-      {/* ⚠️ spec 074：開發模式的側欄放的是**專案**，互動那套（領域／歷史／persona）
-          一個都不進來——硬把兩套導覽疊在一起就是雙模式介面的第一個坑。
-          FR-006：persona 不進開發模式（專案 base 天然隔離，再疊一層可見性只是負擔）。 */}
-      {dev ? <DevSidebar onNavigate={onNavigate} /> : <>
+      {/* ⚠️ spec 080：身分在**兩邊都在**、而且都在最上面。
+          ⓘ 這推翻了 spec 074 FR-006（「persona 不進開發模式」）：那時專案是**第二個場**、
+          天然隔離；專案落成來源之後它跟你的東西同一個庫 ⇒ 身分當然也管得到它。
+          使用者 2026-08-27：「開發模式的側邊欄要幾乎跟互動模式一樣」。 */}
       <PersonaSwitcher />
+      {dev ? <DevSidebar onNavigate={onNavigate} /> : <>
       {/* ⚠️ 導航列在「＋新互動」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
       <DomainNav onNavigate={onNavigate} />
 
