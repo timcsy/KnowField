@@ -1,9 +1,11 @@
-"""spec 074：互動／開發雙模式。
+"""spec 074／080：互動／開發雙模式。
 
-⚠️ 這一刀的核心是一條線：**外部知識進搜尋，不進檢索語料。**
-   搜尋是「找得到」；語料是聊天時的**地基**。混為一談的話，別人的判準會
-   **沒有經過冊封**就開始影響你的回答——而那正是原則 6 那道膜守的東西，
-   且它壞掉**不會報錯**：回答只是慢慢變成別人的。
+⚠️ 這一刀原本的核心是「**外部知識進搜尋、不進檢索語料**」。
+   spec 080 把它換掉了：專案的知識檔**就是來源**（外部證言那一層），
+   ⇒ 它進語料，但**帶著出處**、而且**軟於你冊封過的理解**——
+   原則 6 那道膜守的不是「不准進來」，是「**分得出是誰說的**」。
+   ⚠️ 而**沒落成來源的快照**（`ext_items`）**仍然不准進語料**：
+   那才是無主的、看不出出處的那一份，而它壞掉不會報錯。
 """
 import unittest
 
@@ -13,6 +15,17 @@ from knowfield.store.repository import Repository
 from tests.web_helpers import build_app, temp_db
 
 MAGIC = "只存在於別人知識庫的一句話"
+#: ⚠️ 只出現在**來源**、不在快照裡——預覽讀錯邊就會紅
+ONLY_SOURCE = "這一句只在落成的來源裡"
+
+
+class _FakeEmb:
+    """不打網路的嵌入（維度隨便，測的是落庫不是相似度）。"""
+    def embed_many(self, texts):
+        return [[float(len(t) % 7), 1.0, 0.0] for t in texts]
+
+    def embed(self, text):
+        return self.embed_many([text])[0]
 
 
 class Base(unittest.TestCase):
@@ -43,8 +56,12 @@ class TestTheLine(Base):
         self.assertEqual(ext[0]["items"][0]["base"], "VizGPT")     # ⚠️ 一定看得出是誰的
         self.assertEqual(ext[0]["items"][0]["base_id"], self.bid)  # 點得過去
 
-    def test_external_knowledge_is_NOT_in_the_retrieval_corpus(self):
-        """⚠️ 這一條壞掉不會報錯：回答只是慢慢變成別人的。"""
+    def test_the_raw_snapshot_is_NOT_in_the_retrieval_corpus(self):
+        """⚠️ 只抓下來、**沒落成來源**的那一份不進語料（spec 080 之後仍然成立）。
+
+        它沒有 url、沒有出處、也沒有進過 `_ingest_markdown` 的去重
+        ——進了語料就是一段**無主的話**，而這壞掉不會報錯：回答只是慢慢變成別人的。
+        """
         r = Repository(self.db)
         blob = " ".join((e.body or "") + (e.headline or "") + (e.title or "")
                         for e in r.list_corpus_entries())
@@ -69,20 +86,65 @@ class TestTheLine(Base):
 
 
 class TestDevModeReads(Base):
-    def test_layer_listing_and_document(self):
-        items = self.c.get(f"/api/bases/{self.bid}/layer/experience").json()["items"]
-        self.assertEqual([i["path"] for i in items], ["knowledge/experience.md"])
-        d = self.c.get(f"/api/ext/{items[0]['id']}").json()
-        self.assertIn(MAGIC, d["body"])
+    """spec 080 FR-004：⚠️ 樹讀的是**來源**，不是抓下來的快照。"""
+
+    def _as_sources(self):
+        """把這個 base 落成來源（`_base_to_sources` 的最小等價：走 ingest 的共同出口）。"""
+        from knowfield.ingest.service import ContentIngestService
+        r = Repository(self.db)
+        svc = ContentIngestService(r, _FakeEmb(), None)
+        did = r.create_domain("VizGPT")
+        r.set_ext_domain(self.bid, did)
+        # ⚠️ 內容**故意跟快照不一樣**（`ONLY_SOURCE`），而 `SKILL.md` **只存在於來源**
+        #    ——否則「預覽讀來源」跟「預覽讀快照」長得一模一樣，攻擊改了也不會紅。
+        for path, body in (("knowledge/experience.md", f"### {MAGIC}\n\n- {ONLY_SOURCE}\n"),
+                           ("knowledge/skills/x/SKILL.md", f"{ONLY_SOURCE}・巢狀的一份\n")):
+            url = f"github://timcsy/VizGPT/{path}"
+            svc._ingest_markdown(body, path.split("/")[-1], url)
+            r.set_knowledge_domain("source", url, did, by="machine")
+        r.close()
+        return did
+
+    def test_tree_lists_the_sources_not_the_snapshot(self):
+        did = self._as_sources()
+        d = self.c.get(f"/api/bases/{self.bid}/tree").json()
+        self.assertEqual([i["path"] for i in d["items"]],
+                         ["knowledge/experience.md", "knowledge/skills/x/SKILL.md"])
+        # ⚠️ 快照裡有 vision.md 而**來源裡沒有** ⇒ 樹上也不准有它
+        self.assertNotIn("knowledge/vision.md", [i["path"] for i in d["items"]])
+        self.assertEqual(d["domain_id"], did)
+
+    def test_archived_file_leaves_the_tree(self):
+        """⚠️ 讀快照的話，封存掉的檔還會留在樹上——**看得到、問不到**，而沒人會發現。"""
+        self._as_sources()
+        r = Repository(self.db)
+        r.delete_source("github://timcsy/VizGPT/knowledge/experience.md")
+        r.close()
+        paths = [i["path"] for i in self.c.get(f"/api/bases/{self.bid}/tree").json()["items"]]
+        self.assertEqual(paths, ["knowledge/skills/x/SKILL.md"])
+
+    def test_preview_reads_the_source_chunks(self):
+        """⚠️ 預覽跟回答要用**同一份**——不然你看到的跟它引用的不是同一段文字。"""
+        self._as_sources()
+        d = self.c.get(f"/api/bases/{self.bid}/file",
+                       params={"path": "knowledge/experience.md"}).json()
+        self.assertIn(ONLY_SOURCE, d["body"], "預覽回頭讀了快照")
         self.assertEqual(d["repo"], "timcsy/VizGPT")
+        # 只存在於來源的那一份也要預覽得到（快照裡根本沒有它）
+        d2 = self.c.get(f"/api/bases/{self.bid}/file",
+                        params={"path": "knowledge/skills/x/SKILL.md"}).json()
+        self.assertIn(ONLY_SOURCE, d2["body"])
 
     def test_unknown_document_404s(self):
-        self.assertEqual(self.c.get("/api/ext/999999").status_code, 404)
+        self._as_sources()
+        self.assertEqual(self.c.get(f"/api/bases/{self.bid}/file",
+                                    params={"path": "knowledge/nope.md"}).status_code, 404)
+        self.assertEqual(self.c.get("/api/bases/999999/tree").status_code, 404)
 
     def test_isolation(self):
+        self._as_sources()
         other = Repository(self.db, owner=999)
-        self.assertEqual(other.ext_layer_items(self.bid, "experience"), [])
-        self.assertEqual(other.ext_item(1), {})
+        self.assertEqual(other.project_sources("github://timcsy/VizGPT/"), [])
         self.assertEqual(other.search(MAGIC[:8]), [])
         other.close()
 
@@ -132,7 +194,7 @@ class TestUiInvariants(unittest.TestCase):
         for forbidden in ("DomainNav", "ConvMenu", "新互動", "PersonaSwitcher", "resume="):
             self.assertNotIn(forbidden, code)
         self.assertIn("pages.bases", code)              # 它列的是**專案**
-        self.assertNotIn("pages.baseLayer", code)       # ⚠️ 檔案樹不在側欄
+        self.assertNotIn("pages.baseTree", code)        # ⚠️ 檔案樹不在側欄
         self.assertNotIn("Markdown", code)              # 預覽也不在側欄
 
     def test_dev_page_has_tree_and_preview(self):
@@ -155,7 +217,6 @@ class TestUiInvariants(unittest.TestCase):
         self.assertIn("buildTree", code)
         page = self._read("pages/DevPage.tsx")
         self.assertIn("pages.baseTree", page)           # 一次拿全部路徑才畫得出樹
-        self.assertNotIn("pages.baseLayer", page)       # 不再分層拿
 
     def test_expansion_is_not_in_the_url(self):
         """⚠️ 展開狀態是**當下的視線**，不是位置。
@@ -176,8 +237,8 @@ class TestUiInvariants(unittest.TestCase):
         code = self._read("pages/DevPage.tsx")
         # ⓘ 原本釘 `"hidden md:block"` 這個**字面**，換成 md:flex 就假紅（今天第三次）。
         #    釘的是**不變式**：兩塊各有一條「手機上依 iid 隱藏」的規則。
-        self.assertTrue(re.search(r'[^!]iid && "hidden md:\w+"', code), "選了檔要在手機藏樹")
-        self.assertTrue(re.search(r'!iid && "hidden md:\w+"', code), "沒選檔要在手機藏預覽")
+        self.assertTrue(re.search(r'[^!]path && "hidden md:\w+"', code), "選了檔要在手機藏樹")
+        self.assertTrue(re.search(r'!path && "hidden md:\w+"', code), "沒選檔要在手機藏預覽")
         self.assertIn("md:hidden", code)                    # 返回鍵只在手機
         self.assertIn("← 檔案", code)
 

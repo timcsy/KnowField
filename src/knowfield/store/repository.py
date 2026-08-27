@@ -97,8 +97,14 @@ class Repository:
         )
         self.conn.commit()
 
-    def delete_source(self, source_id: str) -> None:
-        """刪除一個來源（spec 008）。digest 僅在來源全空時重種預設 → 刪除被尊重。"""
+    def delete_feed(self, source_id: str) -> None:
+        """刪除一個**訂閱來源**（`sources` 表，spec 008）——RSS 那種，不是你收進的資料。
+
+        ⚠️ 它本來叫 `delete_source`，而**下面有另一支同名的**（封存收進的來源，spec 055）
+        ——後定義的會蓋掉前面的 ⇒ **這一支從那天起就到不了**。
+        兩個呼叫點都傳 url，所以沒有人踩到；但那是運氣，不是設計。
+        ⇒ 判準：**同一個類別裡出現同名方法，那不是重載，是其中一支已經死了。**
+        """
         self.conn.execute("DELETE FROM sources WHERE id=%s", (source_id,))
         self.conn.commit()
 
@@ -500,68 +506,33 @@ class Repository:
                 out.append(b)
         return out
 
-    def sync_ext_chunks(self, bid: int) -> int:
-        """把一個 base 的四層切成塊。⚠️ **保留既有向量**（照塊文字比對）——
-        不然每次重抓都要把整個 base 重新 embedding 一次。"""
-        keep = {r["text"]: (r["tag"], r["vector_json"]) for r in self.conn.execute(
-            f"SELECT text, tag, vector_json FROM ext_chunks WHERE {self._OWN} AND base_id=%s",
-            (bid,)).fetchall()}
-        self.conn.execute(f"DELETE FROM ext_chunks WHERE {self._OWN} AND base_id=%s", (bid,))
-        n = 0
-        for r in self.conn.execute(
-                "SELECT id, layer, path, body FROM ext_items"
-                f" WHERE {self._OWN} AND base_id=%s ORDER BY path", (bid,)).fetchall():
-            if r["layer"] not in self.CHAT_LAYERS:
-                continue
-            for i, t in enumerate(self.chunk_markdown(r["body"] or "")):
-                tag, vec = keep.get(t, ("", ""))
-                self.conn.execute(
-                    "INSERT INTO ext_chunks (base_id, item_id, layer, path, seq, text,"
-                    f" tag, vector_json, owner_id, persona_id)"
-                    f" VALUES (%s,%s,%s,%s,%s,%s,%s,%s,{self.owner},{self._P})",
-                    (bid, r["id"], r["layer"], r["path"], i, t, tag, vec))
-                n += 1
-        self.conn.commit()
-        return n
+    def project_sources(self, prefix: str) -> list[dict]:
+        """spec 080 FR-004：這個專案底下**活著的來源**（一檔一列，路徑從 url 還原）。
 
-    def ext_chunks_missing_vectors(self, bid: int, tag: str) -> list[dict]:
-        return [dict(r) for r in self.conn.execute(
-            f"SELECT id, text FROM ext_chunks WHERE {self._OWN} AND base_id=%s"
-            " AND (tag<>%s OR COALESCE(vector_json,'')='')", (bid, tag)).fetchall()]
-
-    def save_ext_chunk_vectors(self, rows: list, tag: str) -> None:
-        import json as _json
-        for cid, vec in rows:
-            self.conn.execute(
-                f"UPDATE ext_chunks SET tag=%s, vector_json=%s WHERE {self._OWN} AND id=%s",
-                (tag, _json.dumps(vec), cid))
-        self.conn.commit()
-
-    def ext_corpus(self, bid: int, tag: str):
-        """回 `(entries, vectors)` 給 `retrieve_corpus` 換場用。
-
-        ⚠️ `entry_id` 用 `ext_chunks.id`，而**不共用** `entry_embeddings`
-        ——那張表的 id 空間已經被佔了。
+        ⚠️ 讀的是**來源**，不是 `ext_items` 快照。快照是「抓下來的那一刻的樣子」，
+           而回答用的是來源——樹顯示快照就是在給你看**場沒有在用的東西**，
+           而且兩邊不一致時**沒有任何人會發現**（封存過的檔還留在樹上）。
         """
-        import json as _json
+        from ..config import SEEDS_DATE
+        rows = self.conn.execute(
+            "SELECT de.url AS url, COUNT(*) AS chunks FROM digest_entries de"
+            f" JOIN digests d ON de.digest_id=d.id WHERE {self._own('de')}"
+            f" AND {self._live('de')} AND d.date=%s AND de.url LIKE %s"
+            " GROUP BY de.url ORDER BY de.url", (SEEDS_DATE, prefix + "%")).fetchall()
+        n = len(prefix)
+        return [{"path": r["url"][n:], "url": r["url"], "chunks": int(r["chunks"])}
+                for r in rows]
 
-        from ..rag.types import CorpusEntry
-        entries, vecs = [], {}
-        for r in self.conn.execute(
-                "SELECT id, path, layer, seq, text, vector_json FROM ext_chunks"
-                f" WHERE {self._OWN} AND base_id=%s AND tag=%s"
-                " AND COALESCE(vector_json,'')<>'' ORDER BY id", (bid, tag)).fetchall():
-            entries.append(CorpusEntry(
-                entry_id=r["id"], title=f"{r['path']}#{r['seq']}", url="",
-                headline="", body=r["text"], digest_date="", source_class="ordinary"))
-            vecs[r["id"]] = _json.loads(r["vector_json"])
-        return entries, vecs
+    def stale_project_sources(self, prefix: str, alive: set) -> list:
+        """這個專案底下、**已經不在 repo 裡**的來源 url。
 
-    def ext_layers_in_corpus(self, bid: int) -> dict:
-        """⚠️ FR-003：**哪幾層進了語料**要說得出來。"""
-        return {r["layer"]: int(r["n"]) for r in self.conn.execute(
-            f"SELECT layer, COUNT(*) AS n FROM ext_chunks WHERE {self._OWN} AND base_id=%s"
-            " GROUP BY layer", (bid,)).fetchall()}
+        ⚠️ 不處理的話它們會永遠留著、而且**還在語料裡**——你以為場反映那個專案
+        現在的樣子，其實混著幾個月前刪掉的東西，而且不會報錯。
+        """
+        rows = self.conn.execute(
+            f"SELECT DISTINCT url FROM digest_entries WHERE {self._OWN} AND {self._LIVE}"
+            " AND url LIKE %s", (prefix + "%",)).fetchall()
+        return [r["url"] for r in rows if r["url"] not in alive]
 
     def delete_ext_base(self, bid: int) -> bool:
         """移除一個外部知識庫——**四張表一起清**。
@@ -580,23 +551,6 @@ class Repository:
         self.conn.execute(f"DELETE FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,))
         self.conn.commit()
         return True
-
-    def ext_tree(self, bid: int) -> list[dict]:
-        """一個 base 的 `knowledge/**` 全部路徑（不帶內容）——給檔案樹用。
-
-        ⓘ 一次全給：一個 base 最多兩三百筆，而**分層拿會讓樹沒辦法一次畫出來**
-        （資料夾的存在與計數，都要看過全部路徑才知道）。
-        """
-        return [dict(r) for r in self.conn.execute(
-            "SELECT id, path FROM ext_items"
-            f" WHERE {self._OWN} AND base_id=%s ORDER BY path", (bid,)).fetchall()]
-
-    def ext_layer_items(self, bid: int, layer: str) -> list[dict]:
-        """開發模式的一個入口：某個 base 的某一層有哪些檔（不帶內容）。"""
-        return [dict(r) for r in self.conn.execute(
-            "SELECT id, path FROM ext_items"
-            f" WHERE {self._OWN} AND base_id=%s AND layer=%s ORDER BY path",
-            (bid, layer)).fetchall()]
 
     # --- 種子 ingest（spec 006） ---
     def get_or_create_seeds_digest(self) -> int:
@@ -861,6 +815,13 @@ class Repository:
             " (SELECT COUNT(*) FROM ext_items i WHERE i.base_id=b.id) AS n_items"
             f" FROM ext_bases b WHERE {self._own('b')} ORDER BY b.id").fetchall()
         return [dict(r) for r in rows]
+
+    def set_ext_domain(self, bid: int, did: int) -> None:
+        """這個專案的來源歸在哪個領域。⚠️ **存下來**，不要之後靠 repo 名去撈——
+        改個名就對不上，而對不上時聊天只是**少了證言**，不會有任何錯誤訊息。"""
+        self.conn.execute(
+            f"UPDATE ext_bases SET domain_id=%s WHERE {self._OWN} AND id=%s", (int(did), bid))
+        self.conn.commit()
 
     def set_ext_status(self, bid: int, status: str, error: str = "") -> None:
         self.conn.execute(

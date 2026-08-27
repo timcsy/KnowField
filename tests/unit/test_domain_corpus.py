@@ -169,8 +169,15 @@ class TestUiSaysItScoped(unittest.TestCase):
         return re.sub(r"/\*[\s\S]*?\*/", "", re.sub(r"//.*$", "", src, flags=re.M))
 
     def test_chat_passes_the_domain(self):
+        """⚠️ 釘的是**不變式**（`did` 是 `streamChat` 的最後一個參數），
+
+        不是字面 `"0, did)"`——那個參數表少一格就假紅（spec 080 拿掉 `ext_base_id` 時
+        它就紅了，而功能完全正確）。
+        """
+        import re
         code = self._read("ChatPage.tsx")
-        self.assertIn("0, did)", code)          # streamChat 的最後一個參數
+        self.assertTrue(re.search(r"streamChat\([\s\S]*?\bdid\)", code),
+                        "streamChat 的最後一個參數要是 did")
         self.assertIn("useCurrentDomain", code)
 
     def test_chat_says_which_domain(self):

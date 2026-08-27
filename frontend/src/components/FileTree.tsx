@@ -9,12 +9,14 @@ import { cn } from "@/lib/utils"
 export type Node = {
   name: string
   path: string
-  id?: number                 // 有 id ＝ 檔案
+  id?: string                 // 有 id ＝ 檔案（spec 080：id ＝ 完整路徑）
   children?: Node[]
   count?: number              // 資料夾底下的檔案數（含子孫）
 }
 
-export function buildTree(items: { id: number; path: string }[], strip = "knowledge/"): Node[] {
+// spec 080：⚠️ **一份檔的身分是它的路徑**，不是列的 id——重抓會重新落列，
+// 而網址裡的 `?doc=` 必須在重抓之後還指到同一份（不然分享出去的連結會失效）。
+export function buildTree(items: { path: string }[], strip = "knowledge/"): Node[] {
   const root: Node = { name: "", path: "", children: [] }
   for (const it of items) {
     const rel = it.path.startsWith(strip) ? it.path.slice(strip.length) : it.path
@@ -25,7 +27,7 @@ export function buildTree(items: { id: number; path: string }[], strip = "knowle
       cur.children ??= []
       let next = cur.children.find((c) => c.name === part && !!c.children === !leaf)
       if (!next) {
-        next = leaf ? { name: part, path: it.path, id: it.id }
+        next = leaf ? { name: part, path: it.path, id: it.path }
                     : { name: part, path: parts.slice(0, i + 1).join("/"), children: [] }
         cur.children.push(next)
       }
@@ -44,7 +46,7 @@ export function buildTree(items: { id: number; path: string }[], strip = "knowle
   return sort(root).children ?? []
 }
 
-function ancestorsOf(nodes: Node[], id: number, acc: string[] = []): string[] | null {
+function ancestorsOf(nodes: Node[], id: string, acc: string[] = []): string[] | null {
   for (const n of nodes) {
     if (n.id === id) return acc
     if (n.children) {
@@ -56,8 +58,8 @@ function ancestorsOf(nodes: Node[], id: number, acc: string[] = []): string[] | 
 }
 
 function Row({ n, depth, sel, open, toggle, pick }: {
-  n: Node; depth: number; sel: number
-  open: Set<string>; toggle: (p: string) => void; pick: (id: number) => void
+  n: Node; depth: number; sel: string
+  open: Set<string>; toggle: (p: string) => void; pick: (id: string) => void
 }) {
   const isDir = !!n.children
   const shown = isDir && open.has(n.path)
@@ -74,7 +76,7 @@ function Row({ n, depth, sel, open, toggle, pick }: {
         {isDir && <span className="shrink-0 text-xs text-muted-foreground">{n.count}</span>}
       </button>
       {shown && n.children!.map((c) => (
-        <Row key={c.path + (c.id ?? "")} n={c} depth={depth + 1} sel={sel}
+        <Row key={c.path + (c.children ? "/" : "")} n={c} depth={depth + 1} sel={sel}
              open={open} toggle={toggle} pick={pick} />
       ))}
     </>
@@ -82,9 +84,9 @@ function Row({ n, depth, sel, open, toggle, pick }: {
 }
 
 export function FileTree({ items, sel, onPick }: {
-  items: { id: number; path: string }[]
-  sel: number
-  onPick: (id: number) => void
+  items: { path: string }[]
+  sel: string
+  onPick: (id: string) => void
 }) {
   const tree = useMemo(() => buildTree(items), [items])
   // 選到的那份，它的每一層祖先都要是打開的——否則點搜尋結果過來會看不到它在哪
@@ -101,7 +103,7 @@ export function FileTree({ items, sel, onPick }: {
   return (
     <div className="space-y-px">
       {tree.map((n) => (
-        <Row key={n.path + (n.id ?? "")} n={n} depth={0} sel={sel}
+        <Row key={n.path + (n.children ? "/" : "")} n={n} depth={0} sel={sel}
              open={open} toggle={toggle} pick={onPick} />
       ))}
     </div>

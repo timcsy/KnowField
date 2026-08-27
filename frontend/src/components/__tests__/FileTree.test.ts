@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { buildTree, type Node } from "../FileTree"
 
-const P = (...paths: string[]) => paths.map((path, i) => ({ id: i + 1, path }))
+// spec 080：⚠️ **一份檔的身分是它的路徑**——重抓會重新落列，
+//    而網址裡的 `?doc=` 必須在重抓之後還指到同一份。
+const P = (...paths: string[]) => paths.map((path) => ({ path }))
 const names = (ns: Node[]): string[] => ns.map((n) => (n.children ? `${n.name}/` : n.name))
 const find = (ns: Node[], name: string): Node | undefined =>
   ns.find((n) => n.name === name)
@@ -24,7 +26,7 @@ describe("buildTree", () => {
     const skills = find(t, "skills")!
     const pull = find(skills.children!, "knowie-pull")!
     expect(names(pull.children!)).toEqual(["SKILL.md"])
-    expect(pull.children![0].id).toBe(1)
+    expect(pull.children![0].id).toBe("knowledge/skills/knowie-pull/SKILL.md")
   })
 
   it("資料夾帶「含子孫」的計數", () => {
@@ -36,7 +38,7 @@ describe("buildTree", () => {
   it("只有檔案節點有 id——資料夾點下去是展開，不是開檔", () => {
     const t = buildTree(P("knowledge/draft/a.md"))
     expect(find(t, "draft")!.id).toBeUndefined()
-    expect(find(find(t, "draft")!.children!, "a.md")!.id).toBe(1)
+    expect(find(find(t, "draft")!.children!, "a.md")!.id).toBe("knowledge/draft/a.md")
   })
 
   it("同名的資料夾與檔案不會互相吃掉", () => {

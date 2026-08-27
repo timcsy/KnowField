@@ -131,16 +131,9 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
-// ⚠️ `in_corpus` 一定要顯示出來——說不出哪幾層進了語料，
-// 「答不出來」就會被誤讀成「它不知道」。
-export type BaseCorpus = { layers: Record<string, number>; in_corpus: string[]; n_chunks: number }
-export type BaseDraft = { path: string; content: string; url: string | null
-                          too_long: boolean; why: string; error?: string }
-export type BaseAsk = { hits?: { path: string; seq: number; text: string }[]
-                        // ⚠️ `why` ＝ 為什麼只給段落沒合成。沒有它，會被讀成「它答不出來」
-                        answer?: string; why?: string
-                        layers?: Record<string, number>; indexing?: boolean; error?: string }
-export type ExtItem = { id: number; path: string; layer: string; body: string; repo: string; error?: string }
+// spec 080：一份專案的檔——**讀的是來源**（塊拼回），不是抓下來的快照。
+export type ExtFile = { path: string; repo: string; url: string; body: string; error?: string }
+export type ExtTreeItem = { path: string; url: string; chunks: number }
 export type GhRepo = { repo: string; private: boolean; branch: string }
 // spec 072：別人的 base。⚠️ `fetched_at` 與 `tree_truncated` **一定要顯示出來**——
 // 沒有它們，死指標報告就是一份看起來很權威的過期漏報。
@@ -220,20 +213,12 @@ export const pages = {
   // spec 073：場自己算跨 base 群 → 落進收件匣（⚠️ 不繞過那道閘門）
   crosscheck: (threshold?: number): Promise<CrossCheck> =>
     post("/api/bases/crosscheck", { threshold }),
-  // spec 074：開發模式的閱讀入口——⚠️ **唯讀**（外部知識不編輯、不進檢索語料）
-  baseLayer: (bid: number, layer: string): Promise<{ items: { id: number; path: string }[] }> =>
-    fetch(`/api/bases/${bid}/layer/${layer}`).then(json),
-  baseTree: (bid: number): Promise<{ items: { id: number; path: string }[] }> =>
+  // spec 080：開發模式的樹讀的是**那個專案落成的來源**（不是抓下來的快照）。
+  // ⚠️ `domain_id` ＝ 站在這個專案裡聊天時要縮到的領域——**同一條聊天**，只是縮了範圍。
+  baseTree: (bid: number): Promise<{ items: ExtTreeItem[]; repo: string; domain_id: number }> =>
     fetch(`/api/bases/${bid}/tree`).then(json),
-  extItem: (iid: number): Promise<ExtItem> => fetch(`/api/ext/${iid}`).then(json),
-  // spec 076：站在某個專案裡問它的 knowledge/。⚠️ 這是**換一個場**，
-  // 不是把外部知識放進你的場——切回互動模式就問不到了。
-  baseCorpus: (bid: number): Promise<BaseCorpus> => fetch(`/api/bases/${bid}/corpus`).then(json),
-  baseAsk: (bid: number, q: string): Promise<BaseAsk> => post(`/api/bases/${bid}/ask`, { q }),
-  // spec 077：把一段思考整理成一塊 draft，送回**那個專案**。
-  // ⚠️ 只碰 knowledge/draft/——短期記憶；怎麼處理它是那個專案的事。
-  baseDraft: (bid: number, title: string, body: string, cites: unknown[]): Promise<BaseDraft> =>
-    post(`/api/bases/${bid}/draft`, { title, body, cites }),
+  baseFile: (bid: number, path: string): Promise<ExtFile> =>
+    fetch(`/api/bases/${bid}/file?path=${encodeURIComponent(path)}`).then(json),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
@@ -402,9 +387,6 @@ export async function streamChat(
   h: StreamHandlers,
   articleId = 0,   // spec 041：使用者明確帶進來的一篇生成文章（0＝沒帶）
   sourceUrl = "",  // spec 042：使用者明確帶進來的一份收進來源（空＝沒帶）
-  // spec 078：站在某個專案裡（0＝你自己的場）。⚠️ **換場，不是加東西**——
-  // 那一邊不撒網、不注入你的理解，證言只有那個專案的 knowledge/。
-  extBaseId = 0,
   // spec 079：站在哪個領域裡（null＝不縮＝全場）。⚠️ 縮了**畫面上要說**——
   // 「找不到」和「這裡沒有」長得一模一樣。
   domainId: number | null = null,
@@ -415,8 +397,7 @@ export async function streamChat(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history, message, bare, article_id: articleId,
-                            source_url: sourceUrl, ext_base_id: extBaseId,
-                            domain_id: domainId }),
+                            source_url: sourceUrl, domain_id: domainId }),
     })
   } catch {
     h.onError?.("連線中斷，請重試。")

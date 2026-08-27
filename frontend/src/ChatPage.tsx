@@ -252,7 +252,7 @@ export default function ChatPage() {
        carried?.kind === "source" ? carried.url : "",
        // spec 079：⚠️ 站在某個領域裡就**只用那裡的**——在此之前，
        //    你站在「音樂與數學結構」裡問問題，它照樣拿「Transformer 表示」的東西回答你。
-       0, did)
+       did)
     setBusy(false)
   }
   // spec 043：帶著這段對話去生成頁。⚠️ **不在這裡判斷有沒有冊封過**——

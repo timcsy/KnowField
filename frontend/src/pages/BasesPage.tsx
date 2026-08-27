@@ -206,7 +206,10 @@ export default function BasesPage() {
               {b.status === "error" ? (
                 <p className="mt-1 text-xs text-destructive">抓不到：{b.error}</p>
               ) : b.status !== "ok" ? (
-                <p className="mt-1 text-xs text-muted-foreground">抓取中…（一個專案大約 20 秒）</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {b.status === "indexing" ? "收進場中…（一個檔一個來源，大的專案要幾分鐘）"
+                                           : "抓取中…（一個專案大約 20 秒）"}
+                </p>
               ) : (
                 <>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

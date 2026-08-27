@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { pages, type ExtBase, type ExtItem } from "@/lib/api"
+import { pages, type ExtBase, type ExtFile, type ExtTreeItem } from "@/lib/api"
 import { AskProject } from "@/components/AskProject"
 import { FileTree } from "@/components/FileTree"
 import { Markdown } from "@/components/Markdown"
@@ -13,20 +13,25 @@ import { cn } from "@/lib/utils"
 export default function DevPage() {
   const [sp, setSp] = useSearchParams()
   const [bases, setBases] = useState<ExtBase[] | null>(null)
-  const [items, setItems] = useState<{ id: number; path: string }[]>([])
-  const [doc, setDoc] = useState<ExtItem | null>(null)
+  const [items, setItems] = useState<ExtTreeItem[]>([])
+  // spec 080：⚠️ **這個專案聊天時要縮到哪個領域**——沒有它就是不縮，而不縮
+  //    跟縮了長得一模一樣（都會回答），你不會發現它其實在翻整個場。
+  const [did, setDid] = useState(0)
+  const [doc, setDoc] = useState<ExtFile | null>(null)
   const bid = Number(sp.get("base") || 0)
-  const iid = Number(sp.get("doc") || 0)
+  const path = sp.get("doc") || ""
 
   useEffect(() => { pages.bases().then((d) => setBases(d.bases)).catch(() => setBases([])) }, [])
   useEffect(() => {
-    if (!bid) { setItems([]); return }
-    pages.baseTree(bid).then((d) => setItems(d.items)).catch(() => setItems([]))
+    if (!bid) { setItems([]); setDid(0); return }
+    pages.baseTree(bid)
+      .then((d) => { setItems(d.items || []); setDid(d.domain_id || 0) })
+      .catch(() => { setItems([]); setDid(0) })
   }, [bid])
   useEffect(() => {
-    if (!iid) { setDoc(null); return }
-    setDoc(null); pages.extItem(iid).then(setDoc).catch(() => setDoc(null))
-  }, [iid])
+    if (!bid || !path) { setDoc(null); return }
+    setDoc(null); pages.baseFile(bid, path).then(setDoc).catch(() => setDoc(null))
+  }, [bid, path])
 
   const go = (patch: Record<string, string>) => {
     const s = new URLSearchParams(sp)
@@ -49,19 +54,19 @@ export default function DevPage() {
     <div className="flex h-full min-h-0">
       {/* ── 檔案樹（手機：選了檔就讓位給預覽）── */}
       <div className={cn("flex min-h-0 w-full flex-col md:w-64 md:border-r lg:w-72",
-                         iid && "hidden md:flex")}>
+                         path && "hidden md:flex")}>
         {base && (
           <p className="truncate border-b px-3 py-2 text-sm text-muted-foreground">
             📁 {base.name || base.repo} · {base.branch}
           </p>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-1">
-          <FileTree items={items} sel={iid} onPick={(id) => go({ doc: String(id) })} />
+          <FileTree items={items} sel={path} onPick={(id) => go({ doc: id })} />
         </div>
       </div>
 
       {/* ── 預覽：吃掉剩下的整片寬度；⚠️ min-w-0，少了它長行會把樹擠爛 ── */}
-      <div className={cn("flex min-w-0 flex-1 flex-col overflow-hidden", !iid && "hidden md:flex")}>
+      <div className={cn("flex min-w-0 flex-1 flex-col overflow-hidden", !path && "hidden md:flex")}>
         <div className="min-h-0 flex-1 overflow-y-auto">
         {doc ? (
           <>
@@ -77,13 +82,14 @@ export default function DevPage() {
               </p>
             </div>
             <div className="mx-auto max-w-4xl px-4 py-5 md:px-8 md:py-6">
-              <Markdown text={doc.body} prefix={`ext${doc.id}`} />
+              <Markdown text={doc.body} prefix={`ext${doc.path}`} />
             </div>
           </>
         ) : (
-          // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**（spec 078）——
-          //    跟互動那邊同一條串流、同一份形狀，只是換了場。
-          bid > 0 ? <AskProject bid={bid} name={base?.name || base?.repo || ""} />
+          // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**——跟互動那邊
+          //    **同一條串流、同一份形狀**，只是縮到這個專案的領域（spec 080）。
+          bid > 0 ? <AskProject did={did} name={base?.name || base?.repo || ""}
+                                 files={items.length} chunks={items.reduce((s, i) => s + i.chunks, 0)} />
                   : <div className="hidden h-full items-center justify-center px-6 text-center md:flex">
                       <p className="max-w-sm text-sm text-muted-foreground">左邊挑一個專案。</p>
                     </div>

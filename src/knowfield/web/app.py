@@ -248,12 +248,12 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
-    def _chat_corpus(query, ext_base_id=0, domain=None):
+    def _chat_corpus(query, domain=None):
         """檢索相關資料當證言（spec 029）。失敗/無語料→空、不擋聊天（教訓 3）。
 
-        spec 078：`ext_base_id` ⇒ **換一個場**——站在某個專案裡時，證言是**那個專案的**
-        `knowledge/`，不是你自己的理解。⚠️ 而它**不是把外部知識加進你的場**：
-        兩個場互斥，切回互動模式就完全不碰它（spec 074／076 那兩層測試照樣綠）。
+        spec 080：⚠️ **只有一個場**——專案的知識檔是**來源**，站在它的領域裡就縮到它。
+        在此之前這裡有第二條分支（`ext_chunks` 換場），⇒ 兩套語料、兩套門檻，
+        而它們一定會漂；漂掉的那一套不會報錯。
         """
         inj = getattr(app.state, "corpus_search_for_test", None)
         if inj is not None:
@@ -269,19 +269,6 @@ def create_app() -> FastAPI:
             cfg = app.state.config
             repo = app.state.repo_factory(cfg)
             try:
-                if ext_base_id:
-                    entries, vecs, _layers, emb = _ext_corpus_ready(repo, ext_base_id)
-                    # ⚠️ **top-k，不設合成閘門。**（使用者 2026-08-27）
-                    #    我原本用 `top >= 0.55` 決定要不要合成，而實測那個分數
-                    #    **分不開**真相關（0.442）與不相關（0.441）
-                    #    ⇒ 那是拿一個測不到的代理指標替使用者做語意判斷，
-                    #    正好是這個庫記過的「會擋掉好答案的檢查要改成呈現」。
-                    #    改成：給 top-k、每段標出處，**由回答自己說材料夠不夠**。
-                    hits = retrieve_corpus(repo, emb, query, top_k=cfg.rag_top_k,
-                                           min_score=_ASK_MIN, entries=entries, vectors=vecs)
-                    return [_t.SimpleNamespace(
-                        title=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
-                        snippet=h.body or "", url="", kind="corpus") for h in hits]
                 hits = retrieve_corpus(repo, make_embedder(cfg), query,
                                        top_k=cfg.rag_top_k, min_score=cfg.rag_min_score,
                                        domain=domain)   # spec 079：站在哪就只用哪裡的
@@ -497,8 +484,7 @@ def create_app() -> FastAPI:
                       extra={"extra": {"url": u, "reason": f"{type(exc).__name__}: {exc}"}})
             return []
 
-    def _stream_gen(hist, message, bare, article_id=0, source_url="", ext_base_id=0,
-                    domain=None):
+    def _stream_gen(hist, message, bare, article_id=0, source_url="", domain=None):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
         bare＝這輪暫時屏蔽知識庫：不注入理解、不撒網、不查收藏。
         article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。
@@ -527,20 +513,19 @@ def create_app() -> FastAPI:
         _source = None
         if source_url and not bare:
             _source = _load_source_context(source_url, message)
-        # ⚠️ spec 078：站在某個專案裡時，**你自己的理解也不進來**——那會混場。
-        #    你問的是「那個專案怎麼想」，不是「我怎麼想」；把你的地基墊進去，
-        #    你會分不清哪一句是它說的、哪一句是你本來就相信的。
-        # ⚠️ 站在專案裡時要把**專案名**傳進 prompt——否則 `roots` 空會被講成
-        #    「你還沒存任何理解」，而那是我們刻意換場造成的空缺，不是關於他的事實。
+        # ⚠️ 縮了範圍就要把**你站在哪**傳進 prompt——否則 `roots` 被領域濾空之後，
+        #    模型會講成「你還沒存下自己的理解」，而那是**我們縮出來的空缺**，
+        #    不是關於他的事實（他有 80 條）。實際發生過，spec 078。
+        #    ⚠️ 而這對**每一個窄領域**都成立，不只專案——所以它掛在 `domain` 上。
         _project = ""
-        if ext_base_id:
+        if domain is not None:
             _r = app.state.repo_factory(cfg)
             try:
-                _b = next((x for x in _r.list_ext_bases() if int(x["id"]) == ext_base_id), None)
+                _d = next((d for d in _r.list_domains() if int(d["id"]) == int(domain)), None)
             finally:
                 _r.close()
-            _project = (_b["name"] or _b["repo"]) if _b else ""
-        if bare or ext_base_id:
+            _project = (_d["name"] or "") if _d else ""
+        if bare:
             roots = []
         else:
             repo = app.state.repo_factory(cfg)
@@ -564,19 +549,14 @@ def create_app() -> FastAPI:
             else:
                 yield _sse({"type": "stage", "text": "找關鍵字…"})
                 q = fc.search_query(hist, message)
-                if ext_base_id:
-                    # ⚠️ 站在某個專案裡時**不撒網**：你問的是**那個專案自己**怎麼想，
-                    #    而網路上的東西會把它的聲音蓋掉。
-                    yield _sse({"type": "stage", "text": "翻這個專案的知識庫…"})
-                    web, sources = [], _chat_corpus(message, ext_base_id)
-                else:
-                    yield _sse({"type": "stage", "text": "撒網找佐證…"})
-                    web = _chat_search(q)
-                    yield _sse({"type": "stage", "text": "翻你收進的資料…"})
-                    # spec 079：⚠️ 站在某個領域裡就**只用那裡的**——
-                    #    在此之前，你站在「音樂與數學結構」裡問問題，
-                    #    它照樣拿「Transformer 表示」的東西回答你。
-                    sources = list(web) + _chat_corpus(message, domain=domain)
+                yield _sse({"type": "stage", "text": "撒網找佐證…"})
+                web = _chat_search(q)
+                yield _sse({"type": "stage",
+                            "text": f"翻「{_project}」裡的資料…" if _project else "翻你收進的資料…"})
+                # spec 079：⚠️ 站在某個領域裡就**只用那裡的**——
+                #    在此之前，你站在「音樂與數學結構」裡問問題，
+                #    它照樣拿「Transformer 表示」的東西回答你。
+                sources = list(web) + _chat_corpus(message, domain=domain)
                 if _source:
                     # ⚠️ FR-007：同一份既被帶入又被撒網命中 → 只算一份證言。
                     # 不去重的話模型會把同一段當成**兩個獨立佐證**，而畫面上完全看不出來。
@@ -679,7 +659,6 @@ def create_app() -> FastAPI:
             _stream_gen(hist, message, bool(body.get("bare")),
                         int(body.get("article_id") or 0),
                         str(body.get("source_url") or "").strip(),
-                        int(body.get("ext_base_id") or 0),
                         None if body.get("domain_id") in (None, "", 0)
                         else int(body["domain_id"])),
             media_type="text/event-stream")
@@ -842,7 +821,7 @@ def create_app() -> FastAPI:
     #    那讓「場從來沒有拿過你的程式碼」是一句**掃程式碼就能驗證**的話，而不是一句紀律。
     def _github():
         from ..github import app_from_config
-        return app_from_config(app.state.config)
+        return getattr(app.state, "github_for_test", None) or app_from_config(app.state.config)
 
     def _parse_repo(text: str) -> str:
         """`https://github.com/a/b(.git)` ／ `git@github.com:a/b` ／ `a/b` → `a/b`。"""
@@ -859,6 +838,44 @@ def create_app() -> FastAPI:
             return ""
         return "/".join(parts[:2])
 
+    def _base_to_sources(r, bid, repo_full, fetched):
+        """spec 080：把抓下來的知識檔**逐檔落成來源**，並歸到這個專案的領域。
+
+        ⚠️ 走既有的 `_ingest_markdown` ⇒ 切塊、嵌入、去重、進語料**全部免費**。
+        ⚠️ 而**歸屬跟抓取同時發生**：三個專案 ＝ 514 個新來源，湧進一個只有 55 個
+           來源的頁面——**第一次淹掉就是你唯一會發現它的時刻**。
+        """
+        from ..backends.factory import make_embedder
+        from ..ingest.service import ContentIngestService
+        cfg = app.state.config
+        name = repo_full.rsplit("/", 1)[-1]
+        did = next((d["id"] for d in r.list_domains() if d["name"] == name), None)
+        if did is None:
+            did = r.create_domain(name)
+        # ⚠️ **記在 base 上**——聊天要縮到這個領域，靠名字回頭撈的話，
+        #    repo 或領域改個名就對不上，而對不上時只是「少了證言」，不會報錯。
+        r.set_ext_domain(bid, did)
+        svc = ContentIngestService(r, make_embedder(cfg), app.state.doc_converter,
+                                   chat_backend=_chat_backend(), media_dir=cfg.media_dir)
+        n = 0
+        for it in fetched["items"]:
+            url = f"github://{repo_full}/{it['path']}"
+            res = svc._ingest_markdown(it["body"], it["path"].split("/")[-1], url,
+                                       note=f"{repo_full} · {it['layer']}")
+            if res.status == "ingested":
+                n += 1
+            # ⚠️ 歸屬**不管是新收還是已存在**都要設——已存在時漏掉，重抓就永遠補不上
+            r.set_knowledge_domain("source", url, did, by="machine")
+        # ⚠️ **那個 repo 裡已經刪掉的檔案**：來源會永遠留著，而且**還在語料裡**
+        #    ——你以為它反映那個專案現在的樣子，其實混著幾個月前的東西，而且不會報錯。
+        #    ⇒ 封存（不是抹除）：它是別人 repo 的快照，但**曾經影響過你的回答**，留下疤。
+        gone = r.stale_project_sources(f"github://{repo_full}/",
+                                       {f"github://{repo_full}/{it['path']}"
+                                        for it in fetched["items"]})
+        for url in gone:
+            r.delete_source(url)
+        return did, n, len(gone)
+
     def _fetch_base(bid: int, repo_full: str, persona):
         """背景抓取（實測 17s/base ⇒ **不能塞在一個 request 裡**）。
 
@@ -872,7 +889,16 @@ def create_app() -> FastAPI:
                 r.set_ext_status(bid, "error", "沒有設定 GitHub App")
                 return
             r.set_ext_status(bid, "fetching")
-            r.save_ext_fetch(bid, gh.fetch(repo_full))
+            fetched = gh.fetch(repo_full)
+            r.save_ext_fetch(bid, fetched)
+            # spec 080：⚠️ `ext_items` 退成**抓下來的原始快照**（死指標檢查與樹在用）；
+            #    真正進場的是**來源**，走既有那條路。
+            # ⚠️ `save_ext_fetch` 會把狀態設成 `ok`，而**落成來源還沒做完**
+            #    ——實跑時我因此查得太早，看到「1 個檔、歸屬 0 筆」以為壞了。
+            #    ⇒ 先扳回 fetching，全部做完才是 ok（工具回報成功 ≠ 它做到了）。
+            r.set_ext_status(bid, "indexing")
+            _base_to_sources(r, bid, repo_full, fetched)
+            r.set_ext_status(bid, "ok")
         except Exception as e:                     # noqa: BLE001 —— 錯誤要留在那一列上給人看
             r.set_ext_status(bid, "error", str(e))
         finally:
@@ -974,138 +1000,10 @@ def create_app() -> FastAPI:
         return _JSON(_crosscheck(_CURRENT_PERSONA.get(), th,
                                  int(b.get("top") or 15), bool(b.get("dry"))))
 
-    # spec 074：開發模式的閱讀入口——⚠️ **唯讀**。外部知識不編輯、不進檢索語料。
-    # spec 076：站在某個專案裡問它的 knowledge/。
-    # ⚠️ **這不是把外部知識放進你的場**——是**換一個場**。
-    #    VizGPT 的判準只在你明確站在 VizGPT 裡時是語料，切回互動模式就不是
-    #    （spec 074 那兩層測試照樣綠）。
-    def _ext_corpus_ready(repo, bid):
-        """回 `(entries, vectors, layers)`；順手把還沒算的塊補上向量。"""
-        from ..backends.factory import make_embedder
-        from ..rag.service import embedder_tag
-        emb = make_embedder(app.state.config)
-        tag = embedder_tag(emb)
-        if not repo.ext_layers_in_corpus(bid):
-            repo.sync_ext_chunks(bid)
-        miss = repo.ext_chunks_missing_vectors(bid, tag)
-        for i in range(0, len(miss), 64):
-            ch = miss[i:i + 64]
-            repo.save_ext_chunk_vectors(
-                list(zip([m["id"] for m in ch], emb.embed_many([m["text"] for m in ch]))), tag)
-        entries, vecs = repo.ext_corpus(bid, tag)
-        return entries, vecs, repo.ext_layers_in_corpus(bid), emb
-
-    @app.post("/api/bases/{bid}/index")
-    async def api_base_index(bid: int, background: BackgroundTasks):
-        """把這個 base 的四層切塊並算向量（背景跑——184 萬字，不能塞在一個 request 裡）。"""
-        repo = app.state.repo_factory(app.state.config)
-        ok = any(int(b["id"]) == bid for b in repo.list_ext_bases())
-        repo.close()
-        if not ok:
-            return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
-        persona = _CURRENT_PERSONA.get()
-
-        def run():
-            r = Repository(app.state.config.database_url or None, persona=persona)
-            try:
-                r.sync_ext_chunks(bid)
-                _ext_corpus_ready(r, bid)
-            except Exception as e:                 # noqa: BLE001
-                _log.error("切塊失敗", extra={"extra": {"base": bid, "reason": str(e)}})
-            finally:
-                r.close()
-        background.add_task(run)
-        return _JSON({"ok": True})
-
-    @app.get("/api/bases/{bid}/corpus")
-    async def api_base_corpus(bid: int):
-        """⚠️ FR-003：**哪幾層進了語料**要說得出來——
-        否則「答不出來」會被誤讀成「它不知道」。"""
-        repo = app.state.repo_factory(app.state.config)
-        try:
-            layers = repo.ext_layers_in_corpus(bid)
-            return _JSON({"layers": layers, "in_corpus": list(Repository.CHAT_LAYERS),
-                          "n_chunks": sum(layers.values())})
-        finally:
-            repo.close()
-
-    #: ⚠️ **量出來的，不是抄 `rag_min_score`（0.10）**——那個是給「聊天時撒網」用的。
-    #: 實測（knowie 的 125 段）：
-    #:   答得出來的  0.824 / 0.442 / 0.423
-    #:   答不出來的  0.441（技術性但不在這個 base）/ 0.263 / 0.198
-    #: ⚠️ **沒有斷點**：明顯離題的（0.3 以下）切得乾淨，而「技術性但不在這個 base」切不掉
-    #:    ——那是**領域相似**的雜訊，不是主題相關。
-    #: ⇒ 0.35 擋掉明顯離題的；剩下的靠**每一段都標出處**讓人自己判斷。
-    #:    這裡是**檢索**（給你段落）不是**回答**，所以寧可讓你看到而不是替你決定。
-    _ASK_MIN = 0.35
-
-
-    @app.post("/api/bases/{bid}/ask")
-    async def api_base_ask(bid: int, request: Request):
-        from ..rag.service import retrieve_corpus
-        b = await request.json()
-        q = str(b.get("q") or "").strip()
-        if not q:
-            return _JSON({"error": "問一句話。"}, status_code=400)
-        repo = app.state.repo_factory(app.state.config)
-        try:
-            if not any(int(x["id"]) == bid for x in repo.list_ext_bases()):
-                return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
-            entries, vecs, layers, emb = _ext_corpus_ready(repo, bid)
-            if not entries:
-                return _JSON({"hits": [], "layers": layers, "indexing": True})
-            hits = retrieve_corpus(repo, emb, q, top_k=6, min_score=_ASK_MIN,
-                                   entries=entries, vectors=vecs)
-            # ⚠️ 引用一定帶**檔案**：看不出哪一份，就沒辦法回去看原文
-            out = [{"path": h.title.rsplit("#", 1)[0], "seq": int(h.title.rsplit("#", 1)[1]),
-                    "text": h.body} for h in hits]
-            # ⚠️ **top-k，不設合成閘門**（使用者 2026-08-27）。
-            #    原本用 `top >= 0.55` 決定要不要合成，而實測那個分數**分不開**
-            #    真相關（0.442）與不相關（0.441）⇒ 那是拿測不到的代理指標
-            #    替使用者做語意判斷，而這個庫記過：**會擋掉好答案的檢查要改成呈現**。
-            #    改成給 top-k、每段標出處，**由回答自己說材料夠不夠**。
-            answer = ""
-            if hits:
-                from ..backends.factory import make_answerer
-                ans = getattr(app.state, "answerer_for_test", None) or make_answerer(
-                    app.state.config)
-                # 段落帶著**檔名**進合成器——合成最容易磨掉的就是出處
-                passages = [
-                    type(h)(entry_id=h.entry_id, title=h.title, url="",
-                            headline=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
-                            body=h.body, digest_date="", source_class="ordinary")
-                    for h in hits]
-                answer = ans.answer(q, passages, "zh-TW")
-            return _JSON({"layers": layers, "hits": out, "answer": answer})
-        finally:
-            repo.close()
-
-    # spec 077：把一段思考整理成一塊 draft，送回**那個專案**。
-    # ⚠️ 只碰 `knowledge/draft/`——見 `github/draftout.py` 的理由。
-    @app.post("/api/bases/{bid}/draft")
-    async def api_base_draft(bid: int, request: Request):
-        from ..github import draftout
-        b = await request.json()
-        title = str(b.get("title") or "").strip()
-        body = str(b.get("body") or "").strip()
-        if not title or not body:
-            return _JSON({"error": "要有標題與內容。"}, status_code=400)
-        repo = app.state.repo_factory(app.state.config)
-        try:
-            row = next((x for x in repo.list_ext_bases() if int(x["id"]) == bid), None)
-        finally:
-            repo.close()
-        if not row:
-            return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
-        date = _now_iso()
-        path = draftout.draft_path(date, title)
-        content = draftout.render(title, body, b.get("cites") or [], row["repo"], date)
-        url = draftout.prefill_url(row["repo"], row["branch"], path, content)
-        # ⚠️ 太長時**說明原因**，不是靜默改行為（實測：網址上限 8,100、中文 5.3 倍 ⇒ 約 1,000 字）
-        return _JSON({"path": path, "content": content, "url": url,
-                      "too_long": url is None,
-                      "why": "" if url else "這一份太長，塞不進 GitHub 的網址（約 1,000 字上限）"
-                                            "——用複製，貼到那個 repo 的 knowledge/draft/。"})
+    # spec 080：⚠️ **「站在專案裡」不再是第二個場**——專案的知識檔就是**來源**，
+    #    站在它的領域裡問，走的是**同一條聊天**（spec 079 的縮範圍）。
+    #    ⇒ `ext_chunks` / `/index` / `/corpus` / `/ask` / `/draft`（spec 077）全部退役。
+    #    留著它們的話會有兩套語料而**它們一定會漂**，而漂掉的那一套不會報錯。
 
     @app.delete("/api/bases/{bid}")
     async def api_base_delete(bid: int):
@@ -1115,29 +1013,44 @@ def create_app() -> FastAPI:
         return _JSON({"ok": True}) if ok else _JSON({"error": "沒有這個知識庫。"},
                                                     status_code=404)
 
+    def _base_row(repo, bid):
+        return next((x for x in repo.list_ext_bases() if int(x["id"]) == bid), None)
+
     @app.get("/api/bases/{bid}/tree")
     async def api_base_tree(bid: int):
-        repo = app.state.repo_factory(app.state.config)
-        items = repo.ext_tree(bid)
-        repo.close()
-        return _JSON({"items": items})
+        """spec 080 FR-004：樹讀的是**來源**，不是抓下來的快照。
 
-    @app.get("/api/bases/{bid}/layer/{layer}")
-    async def api_base_layer(bid: int, layer: str):
+        ⚠️ 讀快照的話，封存掉的檔還會留在樹上、而它已經不在回答裡了
+        ——你看得到、問不到，而**兩邊不一致不會有任何人發現**。
+        """
         repo = app.state.repo_factory(app.state.config)
-        items = repo.ext_layer_items(bid, layer)
-        repo.close()
-        return _JSON({"items": items})
+        try:
+            row = _base_row(repo, bid)
+            if not row:
+                return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+            items = repo.project_sources(f"github://{row['repo']}/")
+            return _JSON({"items": items, "repo": row["repo"],
+                          "domain_id": row.get("domain_id") or 0})
+        finally:
+            repo.close()
 
-    @app.get("/api/ext/{iid}")
-    async def api_ext_item(iid: int):
+    @app.get("/api/bases/{bid}/file")
+    async def api_base_file(bid: int, path: str = ""):
+        """一份檔的內容——**從來源的塊拼回**（`get_source_chunks`），
+        ⚠️ 不是回頭讀 `ext_items`：那會讓預覽跟回答用的是兩份不同的東西。"""
         repo = app.state.repo_factory(app.state.config)
-        it = repo.ext_item(iid)
-        repo.close()
-        if not it:
-            return _JSON({"error": "找不到。"}, status_code=404)
-        return _JSON({"id": it["id"], "path": it["path"], "layer": it["layer"],
-                      "body": it["body"], "repo": it["repo"]})
+        try:
+            row = _base_row(repo, bid)
+            if not row:
+                return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+            url = f"github://{row['repo']}/{path}"
+            chunks = repo.get_source_chunks(url)
+            if not chunks:
+                return _JSON({"error": "找不到。"}, status_code=404)
+            return _JSON({"path": path, "repo": row["repo"], "url": url,
+                          "body": "\n\n".join(chunks)})
+        finally:
+            repo.close()
 
     @app.get("/api/bases/{bid}/dead-refs")
     async def api_bases_dead_refs(bid: int):
