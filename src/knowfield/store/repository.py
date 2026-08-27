@@ -270,16 +270,26 @@ class Repository:
         return (r["article_headline"] or r["title"], r["article_body"] or "", r["url"])
 
     # --- RAG 語料與嵌入（spec 005） ---
-    def list_corpus_entries(self, today: bool = False) -> list[CorpusEntry]:
-        """取語料條目。today=False＝全部匯整＋種子；True＝最近一份『真實』匯整（排除種子容器）。"""
+    def list_corpus_entries(self, today: bool = False, domain=None) -> list[CorpusEntry]:
+        """取語料條目。today=False＝全部匯整＋種子；True＝最近一份『真實』匯整（排除種子容器）。
+
+        spec 079：`domain` ⇒ **只取那個領域及其子孫底下的**。
+        ⚠️ `None` ＝ 照舊（整個場），既有呼叫點行為一個字都不變。
+        ⚠️ 而縮範圍時**不含未歸屬的**——「站在這裡」的意思是「這裡有的東西」，
+           而未歸屬的**不在任何地方**。（把它們算進來，站哪裡都一樣，那就等於沒縮。）
+        """
         from ..config import SEEDS_DATE
+        scope = ""
+        if domain is not None:
+            ids = self.domain_descendants(int(domain)) | {int(domain)}
+            scope = f" AND de.domain_id IN ({','.join(str(int(i)) for i in ids)})"
         base = (
             "SELECT de.id AS eid, de.title, de.url, de.article_headline AS headline,"
             " de.article_body AS body, d.date AS ddate, de.source_class AS sclass"
             f" FROM digest_entries de JOIN digests d ON de.digest_id=d.id"
             # ⚠️ spec 064：**遺骸不進語料**。這一行原本不在，於是封存過的來源
             #    仍在影響每一個回答——而清單頁是對的，所以完全看不出來。
-            f" WHERE {self._own('de')} AND {self._live('de')}"
+            f" WHERE {self._own('de')} AND {self._live('de')}{scope}"
         )
         if today:
             # 最近一份真實每日匯整（種子容器不算「今天」，spec 006 R2）
@@ -302,15 +312,34 @@ class Repository:
         ]
         if not today:
             # 已冊封 why-node 也是語料——最重的吸引子。負 entry_id 避與 digest_entries 碰撞（spec 012）。
-            entries.extend(self._anointed_corpus_entries())
+            # ⚠️ 它們也有 `domain_id` ⇒ **同樣吃領域**。漏掉的話，縮了範圍卻仍拿整個場的
+            #    理解當地基——而那是**最重的**吸引子，等於根本沒縮。
+            entries.extend(self._anointed_corpus_entries(domain))
         return entries
 
-    def _anointed_corpus_entries(self) -> list[CorpusEntry]:
+    def anointed_ids_in_domain(self, domain) -> set:
+        """某個領域（含子孫）底下、已冊封的理解 id。
+
+        ⚠️ 存在的理由：`WhyNode` **沒有 `domain_id` 欄位**，所以在物件上
+        `getattr(r, "domain_id", None)` 永遠是 `None` ⇒ 拿它過濾會**濾掉全部**，
+        而且不會報錯——只會讓聊天忽然沒有任何理解可用。
+        """
+        ids = self.domain_descendants(int(domain)) | {int(domain)}
+        return {int(r["id"]) for r in self.conn.execute(
+            f"SELECT id FROM why_nodes WHERE {self._OWN} AND status='anointed'"
+            f" AND {self._LIVE} AND domain_id IN ({','.join(str(int(i)) for i in ids)})"
+        ).fetchall()}
+
+    def _anointed_corpus_entries(self, domain=None) -> list[CorpusEntry]:
         import json as _json
+        scope = ""
+        if domain is not None:
+            ids = self.domain_descendants(int(domain)) | {int(domain)}
+            scope = f" AND domain_id IN ({','.join(str(int(i)) for i in ids)})"
         out: list[CorpusEntry] = []
         for r in self.conn.execute(
                 f"SELECT id, claim, evidence_urls, ladder FROM why_nodes"
-                f" WHERE {self._OWN} AND status='anointed' AND {self._LIVE}"    # spec 055：遺骸不餵給聊天／RAG
+                f" WHERE {self._OWN} AND status='anointed' AND {self._LIVE}{scope}"  # spec 055：遺骸不餵給聊天／RAG
         ).fetchall():
             urls = _json.loads(r["evidence_urls"] or "[]")
             claim = r["claim"] or ""

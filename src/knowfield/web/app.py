@@ -248,7 +248,7 @@ def create_app() -> FastAPI:
             return []
         return list(results)[:6]
 
-    def _chat_corpus(query, ext_base_id=0):
+    def _chat_corpus(query, ext_base_id=0, domain=None):
         """檢索相關資料當證言（spec 029）。失敗/無語料→空、不擋聊天（教訓 3）。
 
         spec 078：`ext_base_id` ⇒ **換一個場**——站在某個專案裡時，證言是**那個專案的**
@@ -283,7 +283,8 @@ def create_app() -> FastAPI:
                         title=h.title.rsplit("#", 1)[0].replace("knowledge/", ""),
                         snippet=h.body or "", url="", kind="corpus") for h in hits]
                 hits = retrieve_corpus(repo, make_embedder(cfg), query,
-                                       top_k=cfg.rag_top_k, min_score=cfg.rag_min_score)
+                                       top_k=cfg.rag_top_k, min_score=cfg.rag_min_score,
+                                       domain=domain)   # spec 079：站在哪就只用哪裡的
             finally:
                 repo.close()
             return [_t.SimpleNamespace(
@@ -496,7 +497,8 @@ def create_app() -> FastAPI:
                       extra={"extra": {"url": u, "reason": f"{type(exc).__name__}: {exc}"}})
             return []
 
-    def _stream_gen(hist, message, bare, article_id=0, source_url="", ext_base_id=0):
+    def _stream_gen(hist, message, bare, article_id=0, source_url="", ext_base_id=0,
+                    domain=None):
         """SSE 生成器：/chat/stream 與 /api/chat/stream 共用（協定：stage/token/done/error）。
         bare＝這輪暫時屏蔽知識庫：不注入理解、不撒網、不查收藏。
         article_id＝使用者**明確**帶進來的一篇生成文章（spec 041），0＝沒帶。
@@ -544,6 +546,12 @@ def create_app() -> FastAPI:
             repo = app.state.repo_factory(cfg)
             try:
                 roots = repo.list_why_nodes("anointed")
+                if domain is not None:
+                    # ⚠️ 理解是**最重的吸引子**——縮了來源卻不縮它，等於根本沒縮。
+                    #    而 `WhyNode` **沒有 domain_id 欄位** ⇒ 必須回資料庫問，
+                    #    在物件上 getattr 會永遠是 None、濾掉全部，而且不報錯。
+                    keep = repo.anointed_ids_in_domain(domain)
+                    roots = [r for r in roots if r.id in keep]
             finally:
                 repo.close()
         fc = FieldChat(_chat_backend())
@@ -565,7 +573,10 @@ def create_app() -> FastAPI:
                     yield _sse({"type": "stage", "text": "撒網找佐證…"})
                     web = _chat_search(q)
                     yield _sse({"type": "stage", "text": "翻你收進的資料…"})
-                    sources = list(web) + _chat_corpus(message)   # web＋收進併成連號清單
+                    # spec 079：⚠️ 站在某個領域裡就**只用那裡的**——
+                    #    在此之前，你站在「音樂與數學結構」裡問問題，
+                    #    它照樣拿「Transformer 表示」的東西回答你。
+                    sources = list(web) + _chat_corpus(message, domain=domain)
                 if _source:
                     # ⚠️ FR-007：同一份既被帶入又被撒網命中 → 只算一份證言。
                     # 不去重的話模型會把同一段當成**兩個獨立佐證**，而畫面上完全看不出來。
@@ -668,7 +679,9 @@ def create_app() -> FastAPI:
             _stream_gen(hist, message, bool(body.get("bare")),
                         int(body.get("article_id") or 0),
                         str(body.get("source_url") or "").strip(),
-                        int(body.get("ext_base_id") or 0)),
+                        int(body.get("ext_base_id") or 0),
+                        None if body.get("domain_id") in (None, "", 0)
+                        else int(body["domain_id"])),
             media_type="text/event-stream")
 
     @app.post("/api/chat/distill")

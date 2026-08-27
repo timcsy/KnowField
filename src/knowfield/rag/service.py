@@ -29,7 +29,7 @@ def embedder_tag(embedder) -> str:
 
 def retrieve_corpus(repo, embedder, query, top_k=6, min_score=0.10,
                     root_weight=2.0, explainer_weight=1.0, today=False,
-                    entries=None, vectors=None):
+                    entries=None, vectors=None, domain=None):
     """找相關收進條目（spec 029）：取語料→向量→cosine→門檻→加權排序→top_k。
 
     純檢索、不合成。空語料/無相關→[]。RAG 與聊天共用（DRY）。離線可測（注入 stub embedder）。
@@ -39,7 +39,7 @@ def retrieve_corpus(repo, embedder, query, top_k=6, min_score=0.10,
     # spec 076：`entries` ⇒ **換一個場**（開發模式站在某個專案裡時，語料是那個
     # 專案的 `knowledge/`）。⚠️ 預設 None ＝ 照舊，兩個既有呼叫點的行為一個字都不變。
     if entries is None:
-        entries = repo.list_corpus_entries(today=today)
+        entries = repo.list_corpus_entries(today=today, domain=domain)
     if not entries:
         return []
     # ⚠️ 換場時**向量也要一起注入**：`ensure_embeddings` 寫的是 `entry_embeddings`，

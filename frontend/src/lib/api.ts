@@ -405,6 +405,9 @@ export async function streamChat(
   // spec 078：站在某個專案裡（0＝你自己的場）。⚠️ **換場，不是加東西**——
   // 那一邊不撒網、不注入你的理解，證言只有那個專案的 knowledge/。
   extBaseId = 0,
+  // spec 079：站在哪個領域裡（null＝不縮＝全場）。⚠️ 縮了**畫面上要說**——
+  // 「找不到」和「這裡沒有」長得一模一樣。
+  domainId: number | null = null,
 ) {
   let resp: Response
   try {
@@ -412,7 +415,8 @@ export async function streamChat(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history, message, bare, article_id: articleId,
-                            source_url: sourceUrl, ext_base_id: extBaseId }),
+                            source_url: sourceUrl, ext_base_id: extBaseId,
+                            domain_id: domainId }),
     })
   } catch {
     h.onError?.("連線中斷，請重試。")

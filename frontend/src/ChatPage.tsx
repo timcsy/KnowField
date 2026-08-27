@@ -45,6 +45,16 @@ export default function ChatPage() {
   // 之後 autosave 送什麼都不會改到它。
   const pendingDomain = useRef<number | null>(null)
   const { did } = useCurrentDomain()      // 你站的地方（spec 052）
+  // spec 079：⚠️ 縮了範圍要**說出縮到哪裡**——只說「有縮」沒有用，
+  //    你要判斷「它找不到」還是「這裡本來就沒有」，得知道這裡是哪裡。
+  const [domainName, setDomainName] = useState("")
+  useEffect(() => {
+    if (did === null) { setDomainName(""); return }
+    // `path` 是麵包屑（根 → 這裡）⇒ 最後一段就是你站的地方
+    pages.domainView(did)
+      .then((v) => setDomainName(v.path?.[v.path.length - 1]?.name || ""))
+      .catch(() => setDomainName(""))
+  }, [did])
   // 「⋯ 更多」改成受控選單：`<details>` 點空白處收不起來（使用者回報 2026-08-26）
   const [more, setMore] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -239,7 +249,10 @@ export default function ChatPage() {
         }).catch(() => {})
       },
     }, carried?.kind === "article" ? carried.id : 0,
-       carried?.kind === "source" ? carried.url : "")
+       carried?.kind === "source" ? carried.url : "",
+       // spec 079：⚠️ 站在某個領域裡就**只用那裡的**——在此之前，
+       //    你站在「音樂與數學結構」裡問問題，它照樣拿「Transformer 表示」的東西回答你。
+       0, did)
     setBusy(false)
   }
   // spec 043：帶著這段對話去生成頁。⚠️ **不在這裡判斷有沒有冊封過**——
@@ -440,6 +453,8 @@ export default function ChatPage() {
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground">
             從你存下的 {rootCount} 條理解出發，有話直說、不順著你講好聽話。
+            {/* ⚠️ FR-005：縮了範圍要說出來——「找不到」和「這裡沒有」長得一模一樣 */}
+            {did !== null && <span className="ml-1">這一輪只用 <b>{domainName || "你站的領域"}</b> 底下的東西。</span>}
           </p>
         )}
       </div>

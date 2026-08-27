@@ -217,9 +217,11 @@ class TestProjectChatIsTheSameChat(unittest.TestCase):
         return inspect.getsource(mod)
 
     def test_stream_takes_a_project(self):
+        """ⓘ 原本釘整行簽章的**字面**，加一個參數就假紅（今天第四次）。釘的是參數本身。"""
+        import re
         src = self._src()
-        self.assertIn("def _stream_gen(hist, message, bare, article_id=0, source_url=\"\","
-                      " ext_base_id=0)", src)
+        m = re.search(r"def _stream_gen\(([^)]*)\)", src)
+        self.assertIn("ext_base_id=0", m.group(1))
         self.assertIn('int(body.get("ext_base_id") or 0)', src)
 
     def test_project_mode_does_not_web_search(self):
@@ -233,8 +235,9 @@ class TestProjectChatIsTheSameChat(unittest.TestCase):
         self.assertIn("if bare or ext_base_id:\n            roots = []", self._src())
 
     def test_corpus_swap_is_a_parameter_not_a_second_implementation(self):
-        src = self._src()
-        self.assertIn("def _chat_corpus(query, ext_base_id=0)", src)
+        import re
+        m = re.search(r"def _chat_corpus\(([^)]*)\)", self._src())
+        self.assertIn("ext_base_id=0", m.group(1))
 
 
 class TestOneShapeNotTwo(unittest.TestCase):
