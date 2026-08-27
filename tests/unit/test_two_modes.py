@@ -121,25 +121,28 @@ class TestUiInvariants(unittest.TestCase):
         code = self._read("components/ConversationSidebar.tsx")
         self.assertLess(code.index("dev ? <DevSidebar"), code.index("<PersonaSwitcher"))
 
-    def test_dev_sidebar_holds_projects_not_interaction_stuff(self):
-        """⚠️ 使用者：「對於開發而言，側邊欄放的就是專案」。
+    def test_dev_sidebar_is_projects_only(self):
+        """⚠️ 使用者：「我的側邊欄要放的是專案，然後主要區域的左邊是檔案樹」。
 
-        互動那套（領域／對話歷史／身分）一個都不進來——硬把兩套導覽疊在一起，
-        就是雙模式介面的第一個坑（「我寫在哪一邊？」）。
+        ⓘ 我先做錯過一次：把**檔案樹也塞進側欄**，於是主區只剩預覽。
+        正確的是 IDE 的三段——最左專案、中間檔案樹、右邊預覽。
+        而互動那套（領域／對話歷史／身分）一個都不進來。
         """
         code = self._read("components/DevSidebar.tsx")
         for forbidden in ("DomainNav", "ConvMenu", "新互動", "PersonaSwitcher", "resume="):
             self.assertNotIn(forbidden, code)
-        self.assertIn("pages.baseLayer", code)          # 它列的是專案的檔案
-        self.assertIn("pages.bases", code)
+        self.assertIn("pages.bases", code)              # 它列的是**專案**
+        self.assertNotIn("pages.baseLayer", code)       # ⚠️ 檔案樹不在側欄
+        self.assertNotIn("Markdown", code)              # 預覽也不在側欄
 
-    def test_dev_page_is_just_the_document(self):
-        """IDE 的形狀：選檔在**側欄**，主區是那一份檔案（全寬）。"""
+    def test_dev_page_has_tree_and_preview(self):
+        """主區＝檔案樹｜預覽，而**預覽要拿到剩下的整片寬度**。"""
         code = self._read("pages/DevPage.tsx")
-        self.assertIn("Markdown", code)
-        self.assertNotIn("pages.baseLayer", code)      # 清單不在這一頁
-        self.assertNotIn("md:grid-cols", code)         # 也不再切兩欄
-        self.assertIn('sp.get("doc")', code)           # 只讀 URL
+        self.assertIn("pages.baseLayer", code)          # 樹在這裡
+        self.assertIn("Markdown", code)                 # 預覽也在這裡
+        self.assertIn("flex-1", code)                   # 預覽吃掉剩下的
+        self.assertIn("min-w-0", code)                  # ⚠️ 少了它，長行會把樹擠爛
+        self.assertIn('sp.get("doc")', code)            # 選取只讀 URL
 
     def test_dev_route_is_full_width(self):
         self.assertIn('pathname.startsWith("/dev")', self._read("Layout.tsx"))
