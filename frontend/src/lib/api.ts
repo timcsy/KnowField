@@ -215,7 +215,10 @@ export const pages = {
     post("/api/bases/crosscheck", { threshold }),
   // spec 080：開發模式的樹讀的是**那個專案落成的來源**（不是抓下來的快照）。
   // ⚠️ `domain_id` ＝ 站在這個專案裡聊天時要縮到的領域——**同一條聊天**，只是縮了範圍。
-  baseTree: (bid: number): Promise<{ items: ExtTreeItem[]; repo: string; domain_id: number }> =>
+  // ⚠️ `n_snapshot` ＝ 抓下來的快照有幾份。**有快照、樹是空的** ⇒ 這個專案還沒落成來源
+  //    （spec 080 之前抓的）——那時說「還沒有知識檔」是假話，要說得出真正的原因。
+  baseTree: (bid: number): Promise<{ items: ExtTreeItem[]; repo: string
+                                     domain_id: number; n_snapshot: number }> =>
     fetch(`/api/bases/${bid}/tree`).then(json),
   baseFile: (bid: number, path: string): Promise<ExtFile> =>
     fetch(`/api/bases/${bid}/file?path=${encodeURIComponent(path)}`).then(json),

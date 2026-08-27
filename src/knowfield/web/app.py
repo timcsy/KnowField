@@ -1029,8 +1029,13 @@ def create_app() -> FastAPI:
             if not row:
                 return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
             items = repo.project_sources(f"github://{row['repo']}/")
+            # ⚠️ **有快照、沒來源 ＝ 這個專案是 spec 080 之前抓的**，還沒落成來源。
+            #    這時畫面上「還沒有知識檔」是**假話**——檔在，只是樹讀的是另一份。
+            #    ⇒ 說出這個狀態。（不自動補：一個專案就是幾百筆新來源湧進來源頁，
+            #    而**第一次淹掉就是你唯一會發現它的時刻** ⇒ 由人按下那一下。）
             return _JSON({"items": items, "repo": row["repo"],
-                          "domain_id": row.get("domain_id") or 0})
+                          "domain_id": row.get("domain_id") or 0,
+                          "n_snapshot": int(row.get("n_items") or 0)})
         finally:
             repo.close()
 

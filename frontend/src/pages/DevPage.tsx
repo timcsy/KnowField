@@ -17,16 +17,19 @@ export default function DevPage() {
   // spec 080：⚠️ **這個專案聊天時要縮到哪個領域**——沒有它就是不縮，而不縮
   //    跟縮了長得一模一樣（都會回答），你不會發現它其實在翻整個場。
   const [did, setDid] = useState(0)
+  // ⚠️ 抓下來幾份 vs 樹上幾份——兩個都要知道才分得出「沒有檔」與「還沒落成來源」
+  const [snap, setSnap] = useState(0)
+  const [busy, setBusy] = useState(false)
   const [doc, setDoc] = useState<ExtFile | null>(null)
   const bid = Number(sp.get("base") || 0)
   const path = sp.get("doc") || ""
 
   useEffect(() => { pages.bases().then((d) => setBases(d.bases)).catch(() => setBases([])) }, [])
   useEffect(() => {
-    if (!bid) { setItems([]); setDid(0); return }
+    if (!bid) { setItems([]); setDid(0); setSnap(0); return }
     pages.baseTree(bid)
-      .then((d) => { setItems(d.items || []); setDid(d.domain_id || 0) })
-      .catch(() => { setItems([]); setDid(0) })
+      .then((d) => { setItems(d.items || []); setDid(d.domain_id || 0); setSnap(d.n_snapshot || 0) })
+      .catch(() => { setItems([]); setDid(0); setSnap(0) })
   }, [bid])
   useEffect(() => {
     if (!bid || !path) { setDoc(null); return }
@@ -61,7 +64,23 @@ export default function DevPage() {
           </p>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-1">
-          <FileTree items={items} sel={path} onPick={(id) => go({ doc: id })} />
+          {/* ⚠️ 有快照、樹是空的 ＝ 這個專案還沒落成來源（spec 080 之前抓的）。
+              說「還沒有知識檔」是假話——檔在，只是要重抓一次才會變成來源。
+              不自動補：幾百筆新來源湧進來源頁，那一下要由人按。 */}
+          {items.length === 0 && snap > 0 ? (
+            <div className="space-y-2 px-2 py-3 text-sm text-muted-foreground">
+              <p>這個專案抓下來了（{snap} 份檔），但還沒落成來源——重抓一次就會。</p>
+              <button
+                onClick={() => { setBusy(true); pages.baseRefresh(bid).finally(() => setBusy(false)) }}
+                disabled={busy}
+                className="rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground disabled:opacity-50">
+                {busy ? "重新抓取中…" : "重新抓取"}
+              </button>
+              <p className="text-xs">抓完之後重新整理這一頁。</p>
+            </div>
+          ) : (
+            <FileTree items={items} sel={path} onPick={(id) => go({ doc: id })} />
+          )}
         </div>
       </div>
 

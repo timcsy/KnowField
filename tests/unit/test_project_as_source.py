@@ -265,3 +265,36 @@ class TestThereIsOnlyOneField(Base):
         src = self._web_src()
         i = src.index("_project = \"\"")
         self.assertIn("if domain is not None:", src[i:i + 200])
+
+
+class TestOldBasesSayWhy(Base):
+    """⚠️ **我這一刀留下的遷移缺口**：樹改讀來源，而 spec 080 之前抓的 base
+
+    只有快照、沒有來源 ⇒ 樹是空的。而畫面上說「這個專案還沒有知識檔」——
+    那是**假話**：187 份檔就在資料庫裡，只是樹讀的是另一份。
+    ⇒ 判準：**換一份資料當讀取來源時，舊資料不會自己搬過去；
+       而「空的」與「還沒搬」長得一模一樣 ⇒ 一定要分得出來。**
+    """
+
+    def test_tree_reports_the_snapshot_count(self):
+        """有快照、沒來源 ⇒ 樹空的，但 `n_snapshot` 說得出檔在。"""
+        r = self.repo()
+        bid = r.add_ext_base("timcsy/Old")
+        r.save_ext_fetch(bid, {
+            "branch": "main", "private": False, "truncated": False,
+            "paths": ["knowledge/experience.md"],
+            "items": [{"path": "knowledge/experience.md", "layer": "experience",
+                       "body": "# 舊的\n"}]})
+        r.close()
+        d = self.c.get(f"/api/bases/{bid}/tree").json()
+        self.assertEqual(d["items"], [])
+        self.assertEqual(d["n_snapshot"], 1, "說不出檔在，就等於謊稱這個專案是空的")
+        self.assertEqual(d["domain_id"], 0)
+
+    def test_ui_distinguishes_empty_from_unmigrated(self):
+        import pathlib
+        code = (pathlib.Path(__file__).resolve().parents[2]
+                / "frontend/src/pages/DevPage.tsx").read_text(encoding="utf-8")
+        self.assertIn("n_snapshot", code)
+        self.assertIn("還沒落成來源", code)
+        self.assertIn("pages.baseRefresh", code)   # 修的方法要就在原地
