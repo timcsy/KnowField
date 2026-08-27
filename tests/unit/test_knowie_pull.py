@@ -105,3 +105,50 @@ class TestExclude(unittest.TestCase):
         """`knowie-pull` 問的是「**別人**獨立撞到什麼」——自己的不算證據。"""
         found = cc.find_bases([str(pathlib.Path(__file__).resolve().parents[3])])
         self.assertIn("KnowField", found)        # 掃得到才驗得了排除
+
+
+class TestPortableClaim(unittest.TestCase):
+    """⚠️ 各個 base 的**私有記號**不能跟著判準跑到別人那裡去。
+
+    實測（留一法，2026-08-27）：一個真的冷的專案會收到的 12 條裡，**4 條**帶著
+    別的 base 的嚴重度標記（`⭐⭐`／`🔴🔴🔴`）與 HTML（`<u>`）。
+    """
+
+    def test_leading_severity_markers_are_stripped(self):
+        for raw, want in [
+            ("🔴🔴 一個檢查若會靜默失敗，它比沒有檢查更糟",
+             "一個檢查若會靜默失敗，它比沒有檢查更糟"),
+            ("⭐⭐ 一個判準失敗時，先問「門檻錯了」還是「數錯東西了」",
+             "一個判準失敗時，先問「門檻錯了」還是「數錯東西了」"),
+            ("⚠️ 把「失敗的出口」先寫進規格", "把「失敗的出口」先寫進規格"),
+        ]:
+            self.assertEqual(cc.lessons(_base(f"## 教訓\n\n### {raw}\n\n- 內文\n")), [want])
+
+    def test_html_tags_are_stripped_anywhere(self):
+        d = _base("## 教訓\n\n### 一個結論若只在一種排序下成立，那它是<u>排序</u>的性質\n\n- x\n")
+        self.assertEqual(cc.lessons(d), ["一個結論若只在一種排序下成立，那它是排序的性質"])
+
+    def test_meaningful_symbols_survive(self):
+        """⚠️ `→ ≠ ⇒ ∃ ∀` 是**內容**——見到符號就剝會改掉判準本身。
+
+        失敗方向要選對：剝不乾淨只是留一個記號，**剝過頭是改掉別人的話**。
+        """
+        for t in ["提案-批准 ≠ 打到需求",
+                  "先問規則本身還對不對 ⇒ 別連著一起丟",
+                  "從 A → B 的每一步都要留下為什麼"]:
+            self.assertEqual(cc.lessons(_base(f"## 教訓\n\n### {t}\n\n- x\n")), [t])
+
+    def test_meaningful_symbol_at_the_start_also_survives(self):
+        """⚠️ 對抗性驗證翻出來的空隙：把箭頭／數學符號加進剝除類別，**沒有一條測試撞紅**
+        ——因為上面那些案例的符號全在**句中**。真實資料今天剛好 0 條這種標題，
+        所以這個洞今天無害；而**沒有人會發現它變壞**，那就是要釘住它的理由。
+        """
+        for t in ["⇒ 判準：問「這條如果錯了，誰會發現」",
+                  "→ 從規格回推，不是從實作回推",
+                  "≠ 不是同一件事：能跑 和 跑對"]:
+            self.assertEqual(cc.lessons(_base(f"## 教訓\n\n### {t}\n\n- x\n")), [t])
+
+    def test_marker_inside_the_sentence_is_not_a_decoration(self):
+        """句中的 ⚠️ 是作者在強調，不是開頭的嚴重度標記 ⇒ 不動它。"""
+        t = "一條規則寫下來的當天 ⚠️ 就會被自己違反一次"
+        self.assertEqual(cc.lessons(_base(f"## 教訓\n\n### {t}\n\n- x\n")), [t])

@@ -29,6 +29,20 @@ def find_bases(roots: list[str]) -> dict[str, pathlib.Path]:
 # 群數虛增、排序被自己餵大 ⇒ 那就是馬太迴圈。一個常數，兩邊都用。
 BORROWED_MARK = "⚠️ **借來的**"
 
+# ⚠️ 各個 base 的**私有記號**不能跟著判準跑到別人那裡去。
+# 實測 1,358 條標題：`🔴`×356 · `⭐`×102 · `⚠`×48，**275 條以它們開頭**——
+# 那是某些 base 的嚴重度慣例，換一個 base 就沒有意義（而且很醜）。
+# ⚠️ 但 `→ ≠ ⇒ ∃ ∀ ⊊` 是**內容**（「批准 ≠ 打到需求」）⇒ **只剝開頭那一串**，
+#    不是見到符號就剝。失敗方向也對：剝不乾淨只是留一個記號，剝過頭會改掉判準本身。
+_LEAD = re.compile(r"^[\U0001F300-\U0001FAFF\u2b00-\u2bff\u26a0\u2714\u274c\ufe0f\s]+")
+_HTML = re.compile(r"</?[a-zA-Z][^>]*>")          # `<u>…</u>` 之類，40 條標題有
+
+
+def _clean(title: str) -> str:
+    """`### ` 後面那一段 → 可攜的判準句。"""
+    return _LEAD.sub("", _HTML.sub("", re.sub(r"[*`#]", "", title))).strip()
+
+
 
 def lessons(base_dir: pathlib.Path) -> list[str]:
     """`experience.md` 的每個 `###` ＝ 一條教訓；標題就是那句判準。
@@ -50,7 +64,7 @@ def lessons(base_dir: pathlib.Path) -> list[str]:
     for line in f.read_text(encoding="utf-8").splitlines():
         if line.startswith("### "):
             flush()
-            t = re.sub(r"[*`#]", "", line[4:]).strip()
+            t = _clean(line[4:])
             title, body = (t if len(t) >= 6 else ""), []
         elif line.startswith("## "):
             flush()
