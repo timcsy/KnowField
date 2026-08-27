@@ -1,0 +1,129 @@
+"""spec 074：互動／開發雙模式。
+
+⚠️ 這一刀的核心是一條線：**外部知識進搜尋，不進檢索語料。**
+   搜尋是「找得到」；語料是聊天時的**地基**。混為一談的話，別人的判準會
+   **沒有經過冊封**就開始影響你的回答——而那正是原則 6 那道膜守的東西，
+   且它壞掉**不會報錯**：回答只是慢慢變成別人的。
+"""
+import unittest
+
+from fastapi.testclient import TestClient
+
+from knowfield.store.repository import Repository
+from tests.web_helpers import build_app, temp_db
+
+MAGIC = "只存在於別人知識庫的一句話"
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.db = temp_db()
+        self.app = build_app(self.db)
+        self.c = TestClient(self.app)
+        r = Repository(self.db)
+        self.bid = r.add_ext_base("timcsy/VizGPT")
+        r.save_ext_fetch(self.bid, {
+            "branch": "knowledge-python", "private": False, "truncated": False,
+            "paths": ["knowledge/experience.md", "knowledge/vision.md"],
+            "items": [
+                {"path": "knowledge/experience.md", "layer": "experience",
+                 "body": f"## 教訓\n\n### {MAGIC}\n\n- 內文\n"},
+                {"path": "knowledge/vision.md", "layer": "vision", "body": "# 路線圖\n"},
+            ]})
+        r.close()
+
+
+class TestTheLine(Base):
+    """⚠️ 進搜尋、不進語料——兩邊都要驗，而且要**行為層**不只掃描層。"""
+
+    def test_external_knowledge_is_searchable(self):
+        g = self.c.get(f"/api/search?q={MAGIC[:8]}").json()["groups"]
+        ext = [x for x in g if x["kind"] == "ext"]
+        self.assertTrue(ext, "外部知識搜不到——那就是 Spark 跟即時通訊搜不到彼此的病")
+        self.assertEqual(ext[0]["items"][0]["base"], "VizGPT")     # ⚠️ 一定看得出是誰的
+        self.assertEqual(ext[0]["items"][0]["base_id"], self.bid)  # 點得過去
+
+    def test_external_knowledge_is_NOT_in_the_retrieval_corpus(self):
+        """⚠️ 這一條壞掉不會報錯：回答只是慢慢變成別人的。"""
+        r = Repository(self.db)
+        blob = " ".join((e.body or "") + (e.headline or "") + (e.title or "")
+                        for e in r.list_corpus_entries())
+        r.close()
+        self.assertNotIn(MAGIC, blob)
+
+    def test_search_puts_your_own_field_first(self):
+        r = Repository(self.db)
+        w = r.add_why_node(f"我自己寫的{MAGIC}", [], [], False, 0, "2026-08-27T00:00:00Z")
+        r.anoint_why_node(w); r.close()
+        kinds = [x["kind"] for x in self.c.get(f"/api/search?q={MAGIC[:8]}").json()["groups"]]
+        self.assertLess(kinds.index("why_node"), kinds.index("ext"))
+
+    def test_corpus_scan_no_ext_tables(self):
+        """掃描層：語料的組成裡不該出現任何 `ext_` 表。"""
+        import inspect
+
+        from knowfield.store.repository import Repository as R
+        src = inspect.getsource(R.list_corpus_entries) + inspect.getsource(
+            R._anointed_corpus_entries)
+        self.assertNotIn("ext_", src)
+
+
+class TestDevModeReads(Base):
+    def test_layer_listing_and_document(self):
+        items = self.c.get(f"/api/bases/{self.bid}/layer/experience").json()["items"]
+        self.assertEqual([i["path"] for i in items], ["knowledge/experience.md"])
+        d = self.c.get(f"/api/ext/{items[0]['id']}").json()
+        self.assertIn(MAGIC, d["body"])
+        self.assertEqual(d["repo"], "timcsy/VizGPT")
+
+    def test_unknown_document_404s(self):
+        self.assertEqual(self.c.get("/api/ext/999999").status_code, 404)
+
+    def test_isolation(self):
+        other = Repository(self.db, owner=999)
+        self.assertEqual(other.ext_layer_items(self.bid, "experience"), [])
+        self.assertEqual(other.ext_item(1), {})
+        self.assertEqual(other.search(MAGIC[:8]), [])
+        other.close()
+
+
+class TestUiInvariants(unittest.TestCase):
+    """⚠️ 三條寫在介面結構裡的禁令。"""
+
+    def _read(self, rel):
+        import pathlib
+        import re
+        src = (pathlib.Path(__file__).resolve().parents[2] / "frontend/src" / rel
+               ).read_text(encoding="utf-8")
+        return re.sub(r"/\*[\s\S]*?\*/", "", re.sub(r"//.*$", "", src, flags=re.M))
+
+    def test_no_move_between_modes(self):
+        """⚠️ FR-007：**寫在哪就算哪邊** ⇒ 沒有「移動」這個動作。
+
+        有了它就會有「我到底搬過去了沒」那種狀態——雙模式介面第三個坑。
+        """
+        code = self._read("pages/DevPage.tsx") + self._read("components/ModeSwitch.tsx")
+        for forbidden in ("搬到", "移動到", "moveTo", "移到個人場"):
+            self.assertNotIn(forbidden, code)
+
+    def test_dev_mode_is_read_only(self):
+        code = self._read("pages/DevPage.tsx")
+        for forbidden in ("whynodeAnoint", "importBorrowed", "anoint", "method: \"POST\""):
+            self.assertNotIn(forbidden, code)
+
+    def test_persona_switcher_hidden_in_dev(self):
+        """⚠️ FR-006：專案 base 天然隔離，再疊一層可見性只是負擔。"""
+        code = self._read("components/ConversationSidebar.tsx")
+        self.assertIn("{!dev && <PersonaSwitcher />}", code)
+
+    def test_mode_lives_in_the_url(self):
+        """FR-002：可分享、上一頁有用、重整不掉。"""
+        code = self._read("components/ModeSwitch.tsx")
+        self.assertIn("useLocation", code)
+        self.assertIn('"/dev"', code)
+        self.assertNotIn("useState", code)      # 模式不是元件狀態
+
+    def test_search_results_show_which_base(self):
+        code = self._read("components/CommandPalette.tsx")
+        self.assertIn("h.base", code)
+        self.assertIn('ext:', code.replace(" ", "").replace('"ext":', "ext:"))

@@ -389,6 +389,11 @@ class Repository:
         ("source", "digest_entries", "url", "title", ("title", "article_body", "note")),
     ]
 
+    #: spec 074：**外部知識也搜得到**——「Spark 跟即時通訊搜不到彼此」就是那個病。
+    #: ⚠️ 但它**不進 `list_corpus_entries`**：搜尋是「找得到」，語料是聊天時的**地基**。
+    #:    混為一談的話，別人的判準會**沒有經過冊封**就開始影響你的回答（原則 6 那道膜）。
+    _SEARCH_EXT = ("ext", "ext_items", "id", "path", ("path", "body"))
+
     def search(self, q: str, per_kind: int = 8) -> list[dict]:
         """跨四種知識的字面搜尋。回 [{kind, ref, label}]，**不排序跨種**（分組交給呼叫端）。
 
@@ -409,7 +414,34 @@ class Repository:
             for r in rows:
                 out.append({"kind": kind, "ref": r["ref"],
                             "label": (r["label"] or str(r["ref"]))[:120]})
+        # 外部知識：⚠️ 它沒有 archived/erased（重抓就整批取代）⇒ 不套 `_LIVE`；
+        #           而每一筆**一定要帶 base**——看不出是誰的，就等於冒充你自己的知識。
+        _, table, idcol, titlecol, cols = self._SEARCH_EXT
+        where = " OR ".join(f"LOWER(COALESCE(i.{c},'')) LIKE %s" for c in cols)
+        for r in self.conn.execute(
+                f"SELECT i.{idcol} AS ref, i.{titlecol} AS label, i.layer, b.repo, b.id AS base_id"
+                f" FROM ext_items i JOIN ext_bases b ON b.id=i.base_id"
+                f" WHERE {self._own('i')} AND ({where})"
+                f" ORDER BY i.id LIMIT {int(per_kind)}",
+                tuple([like] * len(cols))).fetchall():
+            out.append({"kind": "ext", "ref": r["ref"],
+                        "label": (r["label"] or "")[:120],
+                        "base": r["repo"].rsplit("/", 1)[-1], "layer": r["layer"] or "",
+                        "base_id": r["base_id"]})
         return out
+
+    def ext_item(self, iid: int) -> dict:
+        r = self.conn.execute(
+            "SELECT i.*, b.repo FROM ext_items i JOIN ext_bases b ON b.id=i.base_id"
+            f" WHERE {self._own('i')} AND i.id=%s", (iid,)).fetchone()
+        return dict(r) if r else {}
+
+    def ext_layer_items(self, bid: int, layer: str) -> list[dict]:
+        """開發模式的一個入口：某個 base 的某一層有哪些檔（不帶內容）。"""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, path FROM ext_items"
+            f" WHERE {self._OWN} AND base_id=%s AND layer=%s ORDER BY path",
+            (bid, layer)).fetchall()]
 
     # --- 種子 ingest（spec 006） ---
     def get_or_create_seeds_digest(self) -> int:

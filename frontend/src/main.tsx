@@ -27,6 +27,7 @@ import Layout from "./Layout"
 import ChatPage from "./ChatPage"
 import RootsPage from "./pages/RootsPage"
 import BasesPage from "./pages/BasesPage"
+import DevPage from "./pages/DevPage"
 import DomainsPage from "./pages/DomainsPage"
 import ArticlesPage from "./pages/ArticlesPage"
 import ArticleViewPage from "./pages/ArticleViewPage"
@@ -51,6 +52,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="domains" element={<DomainsPage />} />
           <Route path="roots" element={<RootsPage />} />
           <Route path="bases" element={<BasesPage />} />
+          <Route path="dev" element={<DevPage />} />
           <Route path="articles" element={<ArticlesPage />} />
           <Route path="articles/:id" element={<ArticleViewPage />} />
           <Route path="sources" element={<SourcesPage />} />

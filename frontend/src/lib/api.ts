@@ -131,6 +131,7 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
+export type ExtItem = { id: number; path: string; layer: string; body: string; repo: string; error?: string }
 export type GhRepo = { repo: string; private: boolean; branch: string }
 // spec 072：別人的 base。⚠️ `fetched_at` 與 `tree_truncated` **一定要顯示出來**——
 // 沒有它們，死指標報告就是一份看起來很權威的過期漏報。
@@ -156,7 +157,9 @@ export type DomainContext = {
   nearby: { domain_id: number | null; name: string; dist: number }[]
   has_geometry: boolean
 }
-export type SearchHit = { kind: string; ref: number | string; label: string }
+// ⚠️ spec 074：外部知識的每一筆都帶 `base`——看不出是誰的就等於冒充你自己的知識
+export type SearchHit = { kind: string; ref: number | string; label: string
+                          base?: string; layer?: string; base_id?: number }
 export type SearchGroup = { kind: string; count: number; items: SearchHit[] }
 export type SourceGroup = {
   url: string
@@ -206,6 +209,10 @@ export const pages = {
   // spec 073：場自己算跨 base 群 → 落進收件匣（⚠️ 不繞過那道閘門）
   crosscheck: (threshold?: number): Promise<CrossCheck> =>
     post("/api/bases/crosscheck", { threshold }),
+  // spec 074：開發模式的閱讀入口——⚠️ **唯讀**（外部知識不編輯、不進檢索語料）
+  baseLayer: (bid: number, layer: string): Promise<{ items: { id: number; path: string }[] }> =>
+    fetch(`/api/bases/${bid}/layer/${layer}`).then(json),
+  extItem: (iid: number): Promise<ExtItem> => fetch(`/api/ext/${iid}`).then(json),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>

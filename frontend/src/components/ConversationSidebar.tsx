@@ -8,6 +8,7 @@ import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { ModeSwitch } from "@/components/ModeSwitch"
 import { PersonaSwitcher, usePersonaColor } from "@/components/PersonaSwitcher"
 
 // 側欄的四種葉節點（spec 052/053）。順序＝**膜的流向**：
@@ -29,6 +30,7 @@ const KINDS: { kind: KnowledgeKind; label: string; to: string }[] = [
 export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const dev = pathname.startsWith("/dev")
   // spec 040：不再分暫存/永久——對話就是對話。
   const [convs, setConvs] = useState<ConvRow[]>([])
   // spec 047：目前打開的是哪一段。⚠️ 原本靠 `pathname === /conversations/:id` 判斷，
@@ -88,13 +90,16 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
     //    而顏色是唯一你不看也會注意到的訊號。
     <div className="flex h-full flex-col gap-2 border-l-4 p-2"
          style={{ borderLeftColor: personaColor || "transparent" }}>
-      <div className="flex items-center justify-between px-1">
-        <Link to="/" onClick={onNavigate} className="py-1 text-lg font-bold">🧠 KnowField</Link>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <Link to="/" onClick={onNavigate} className="min-w-0 truncate py-1 text-lg font-bold">🧠 KnowField</Link>
+        <ModeSwitch onNavigate={onNavigate} />
         {onNavigate && <button onClick={onNavigate} aria-label="關閉" className="px-1 text-muted-foreground">✕</button>}
       </div>
       {/* spec 067：身分在**最上面**，導航列之上。同一條理由的更硬版本——
           領域放錯還能搬回來；身分放錯是**私人的東西寫進了工作的場**，而且不會報錯。 */}
-      <PersonaSwitcher />
+      {/* ⚠️ spec 074 FR-006：**persona 不進開發模式**——專案 base 天然就是隔離的
+          （它是另一個 repo），再疊一層可見性只是負擔。 */}
+      {!dev && <PersonaSwitcher />}
       {/* ⚠️ 導航列在「＋新互動」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
       <DomainNav onNavigate={onNavigate} />
 

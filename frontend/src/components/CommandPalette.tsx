@@ -7,11 +7,16 @@ import { pages, type SearchGroup, type SearchHit } from "@/lib/api"
 // 領域的存在理由換了：**搜尋負責「更快找到目標」，領域頁負責「找的過程中複習」**。
 // ⚠️ 所以這裡**刻意不做**「你可能也想看」——那是逛的工作。
 // 摻進來的話，兩個介面都會說不清自己是幹嘛的。
+// ⚠️ spec 074：**⌘K 必須跨模式**——分模式而搜不到彼此，正是 Spark 跟即時通訊那個病。
+//    而外部知識**每一筆都標來源**：看不出是誰的，就等於冒充你自己的知識。
 const KIND_LABEL: Record<string, string> = {
   why_node: "💡 理解", conversation: "💬 互動", source: "📚 來源", article: "🧩 應用",
+  ext: "🌍 別的知識庫",
 }
 
 function hrefOf(h: SearchHit): string {
+  // 跨模式：外部知識點下去跳到**開發模式**那一邊
+  if (h.kind === "ext") return `/dev?base=${h.base_id ?? ""}&layer=${h.layer ?? ""}&doc=${h.ref}`
   if (h.kind === "conversation") return `/?resume=${h.ref}`
   if (h.kind === "source") return `/source?u=${encodeURIComponent(String(h.ref))}`
   if (h.kind === "article") return `/articles/${h.ref}`
@@ -82,6 +87,8 @@ export function CommandPalette() {
                           onMouseEnter={() => setSel(i)}
                           className={`block w-full truncate rounded px-3 py-1.5 text-left text-sm ${
                             i === sel ? "bg-accent" : "hover:bg-accent/50"}`}>
+                    {/* ⚠️ 外部知識一定標來源——它排在最後，而且看得出是別人的 */}
+                    {h.base && <span className="mr-1.5 rounded bg-muted px-1 text-xs">{h.base}</span>}
                     {h.label}
                   </button>
                 )

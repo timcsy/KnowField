@@ -921,6 +921,24 @@ def create_app() -> FastAPI:
         return _JSON(_crosscheck(_CURRENT_PERSONA.get(), th,
                                  int(b.get("top") or 15), bool(b.get("dry"))))
 
+    # spec 074：開發模式的閱讀入口——⚠️ **唯讀**。外部知識不編輯、不進檢索語料。
+    @app.get("/api/bases/{bid}/layer/{layer}")
+    async def api_base_layer(bid: int, layer: str):
+        repo = app.state.repo_factory(app.state.config)
+        items = repo.ext_layer_items(bid, layer)
+        repo.close()
+        return _JSON({"items": items})
+
+    @app.get("/api/ext/{iid}")
+    async def api_ext_item(iid: int):
+        repo = app.state.repo_factory(app.state.config)
+        it = repo.ext_item(iid)
+        repo.close()
+        if not it:
+            return _JSON({"error": "找不到。"}, status_code=404)
+        return _JSON({"id": it["id"], "path": it["path"], "layer": it["layer"],
+                      "body": it["body"], "repo": it["repo"]})
+
     @app.get("/api/bases/{bid}/dead-refs")
     async def api_bases_dead_refs(bid: int):
         repo = app.state.repo_factory(app.state.config)
@@ -1366,7 +1384,9 @@ def create_app() -> FastAPI:
             hits = repo.search(q)
         finally:
             repo.close()
-        order = {"why_node": 0, "conversation": 1, "source": 2, "article": 3}
+        # spec 074：`ext`（別的 base）排最後——**你自己的場優先**。
+        # ⚠️ 它進得了搜尋，但進不了檢索語料：找得到 ≠ 當成你的地基。
+        order = {"why_node": 0, "conversation": 1, "source": 2, "article": 3, "ext": 4}
         groups: dict[str, list] = {}
         for h in hits:
             groups.setdefault(h["kind"], []).append(h)
