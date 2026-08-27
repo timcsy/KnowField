@@ -112,9 +112,43 @@ class TestUiInvariants(unittest.TestCase):
             self.assertNotIn(forbidden, code)
 
     def test_persona_switcher_hidden_in_dev(self):
-        """⚠️ FR-006：專案 base 天然隔離，再疊一層可見性只是負擔。"""
+        """⚠️ FR-006：專案 base 天然隔離，再疊一層可見性只是負擔。
+
+        ⓘ 這條原本釘一個**字面字串**（`{!dev && <PersonaSwitcher />}`），換個寫法就假紅。
+        改成釘**不變式**：開發側欄裡沒有它，而互動側欄裡的它在 `dev ?` 的 else 那一支。
+        """
+        self.assertNotIn("PersonaSwitcher", self._read("components/DevSidebar.tsx"))
         code = self._read("components/ConversationSidebar.tsx")
-        self.assertIn("{!dev && <PersonaSwitcher />}", code)
+        self.assertLess(code.index("dev ? <DevSidebar"), code.index("<PersonaSwitcher"))
+
+    def test_dev_sidebar_holds_projects_not_interaction_stuff(self):
+        """⚠️ 使用者：「對於開發而言，側邊欄放的就是專案」。
+
+        互動那套（領域／對話歷史／身分）一個都不進來——硬把兩套導覽疊在一起，
+        就是雙模式介面的第一個坑（「我寫在哪一邊？」）。
+        """
+        code = self._read("components/DevSidebar.tsx")
+        for forbidden in ("DomainNav", "ConvMenu", "新互動", "PersonaSwitcher", "resume="):
+            self.assertNotIn(forbidden, code)
+        self.assertIn("pages.baseLayer", code)          # 它列的是專案的檔案
+        self.assertIn("pages.bases", code)
+
+    def test_dev_page_is_just_the_document(self):
+        """IDE 的形狀：選檔在**側欄**，主區是那一份檔案（全寬）。"""
+        code = self._read("pages/DevPage.tsx")
+        self.assertIn("Markdown", code)
+        self.assertNotIn("pages.baseLayer", code)      # 清單不在這一頁
+        self.assertNotIn("md:grid-cols", code)         # 也不再切兩欄
+        self.assertIn('sp.get("doc")', code)           # 只讀 URL
+
+    def test_dev_route_is_full_width(self):
+        self.assertIn('pathname.startsWith("/dev")', self._read("Layout.tsx"))
+
+    def test_bases_entry_not_in_interaction_nav(self):
+        """⚠️ 使用者：「不要顯示『別的知識庫』了」——它是**開發**的事。"""
+        code = self._read("components/ConversationSidebar.tsx")
+        self.assertNotIn("別的知識庫", code)
+        self.assertIn("管理專案", self._read("components/DevSidebar.tsx"))
 
     def test_mode_lives_in_the_url(self):
         """FR-002：可分享、上一頁有用、重整不掉。"""

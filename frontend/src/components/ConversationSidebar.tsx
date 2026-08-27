@@ -8,6 +8,7 @@ import { ConvMenu } from "@/components/ConvMenu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { DevSidebar } from "@/components/DevSidebar"
 import { ModeSwitch } from "@/components/ModeSwitch"
 import { PersonaSwitcher, usePersonaColor } from "@/components/PersonaSwitcher"
 
@@ -97,9 +98,11 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
       </div>
       {/* spec 067：身分在**最上面**，導航列之上。同一條理由的更硬版本——
           領域放錯還能搬回來；身分放錯是**私人的東西寫進了工作的場**，而且不會報錯。 */}
-      {/* ⚠️ spec 074 FR-006：**persona 不進開發模式**——專案 base 天然就是隔離的
-          （它是另一個 repo），再疊一層可見性只是負擔。 */}
-      {!dev && <PersonaSwitcher />}
+      {/* ⚠️ spec 074：開發模式的側欄放的是**專案**，互動那套（領域／歷史／persona）
+          一個都不進來——硬把兩套導覽疊在一起就是雙模式介面的第一個坑。
+          FR-006：persona 不進開發模式（專案 base 天然隔離，再疊一層可見性只是負擔）。 */}
+      {dev ? <DevSidebar onNavigate={onNavigate} /> : <>
+      <PersonaSwitcher />
       {/* ⚠️ 導航列在「＋新互動」**之上**：你按下它之前，要先看得到它會生在哪（FR-001）。 */}
       <DomainNav onNavigate={onNavigate} />
 
@@ -126,13 +129,8 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
             </Link>
           )
         })}
-        {/* spec 072：別人的知識庫——⚠️ 刻意**不放進上面那組**：
-            那一組是「當前領域底下的**你的**知識」，而這是外來的、還沒收進場的。 */}
-        <Link to="/bases" onClick={onNavigate}
-          className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
-            isActive("/bases") && "bg-sidebar-accent font-medium")}>
-          <span className="min-w-0 flex-1 truncate">🌍 別的知識庫</span>
-        </Link>
+        {/* ⓘ spec 074：「別的知識庫」**不在這裡**——它是開發模式的事（使用者 2026-08-27）。
+            互動這一組是「當前領域底下的**你的**知識」，混進去只會讓兩邊都說不清自己是幹嘛的。 */}
       </nav>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
@@ -196,6 +194,8 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
           </button>
         </div>
       )}
+
+      </>}
 
       {/* 登入身分＋登出（只在門鎖啟用時顯示） */}
       {me.auth_enabled && (

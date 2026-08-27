@@ -10,7 +10,8 @@ export default function Layout() {
   useEffect(() => installMathCopy(), [])   // 選取數學→Ctrl/⌘+C 得 LaTeX，全站生效
   // 滿版頁：自己管捲動與版面。⚠️ `max-w-3xl` 的置中容器對「兩欄檔案總管」是致命的
   //    ——樹被擠成一小格、清單只剩半個螢幕（2026-08-26 使用者指出）。
-  const isFull = pathname === "/" || pathname.startsWith("/domains")
+  // spec 074：開發模式是 IDE 的形狀——側欄是檔案樹，主區是**那一份檔案**，要全寬
+  const isFull = pathname === "/" || pathname.startsWith("/domains") || pathname.startsWith("/dev")
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground md:flex-row">
