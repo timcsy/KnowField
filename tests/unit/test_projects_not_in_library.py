@@ -32,8 +32,15 @@ class Base(unittest.TestCase):
         r = Repository(self.db)
         svc = ContentIngestService(r, _FakeEmb(), None)
         svc._ingest_markdown("我自己收的一段。", "我的來源", "https://example.com/mine")
+        # ⚠️ 那條線是**領域**不是網址前綴——一份判準、一個地方（`project_domain_ids`）。
+        #    所以測資也要照真實路徑來：base 記著它的領域，來源歸在那個領域底下。
+        self.bid = r.add_ext_base("timcsy/Demo")
+        self.did = r.create_domain("Demo")
+        r.set_ext_domain(self.bid, self.did)
         for p in ("knowledge/experience.md", "knowledge/history/1-x.md"):
-            svc._ingest_markdown("專案的一段。", p.split("/")[-1], f"github://timcsy/Demo/{p}")
+            url = f"github://timcsy/Demo/{p}"
+            svc._ingest_markdown("專案的一段。", p.split("/")[-1], url)
+            r.set_knowledge_domain("source", url, self.did, by="machine")
         r.close()
 
 

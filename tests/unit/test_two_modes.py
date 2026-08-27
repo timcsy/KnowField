@@ -195,11 +195,15 @@ class TestUiInvariants(unittest.TestCase):
         code = self._read("components/DevSidebar.tsx")
         self.assertIn("pages.bases", code)              # 你站在哪：專案
         self.assertIn("＋ 新增專案", code)               # 對應「＋ 新互動」
-        self.assertIn("layersOf", code)                 # 這底下有什麼（帶計數）
+        # ⚠️ 使用者：「在開發模式，仍然是領域、來源、互動、理解、應用」
+        #    ——**同一組五格**，換的是被照的東西，不是鏡頭本身。
+        for label in ("🗂 領域", "📚 來源", "💬 互動", "💡 理解", "🧩 應用"):
+            self.assertIn(label, code, f"開發模式少了「{label}」那一格")
+        self.assertIn("pages.domainView", code)         # 計數跟互動側欄同一支 API
+        self.assertIn("layersOf", code)                 # 「來源」底下才展層
         self.assertIn("readRecentDocs", code)           # 時間軸（對應「最近的互動」）
         self.assertNotIn("FileTree", code)              # ⚠️ 檔案樹不在側欄
         self.assertNotIn("Markdown", code)              # 預覽也不在側欄
-        self.assertNotIn("resume=", code)               # 互動的對話歷史不進來
 
     def test_dev_sidebar_says_whose_knowledge_this_is(self):
         """⚠️ 看不出是別人的，就等於冒充你自己的知識（原則 6 那道膜）。"""

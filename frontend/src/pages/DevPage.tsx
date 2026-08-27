@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom"
 import { pages, type ExtBase, type ExtFile, type ExtTreeItem } from "@/lib/api"
 import { AskProject } from "@/components/AskProject"
 import { FileTree } from "@/components/FileTree"
+import { ProjectDomains, ProjectItems } from "@/components/ProjectItems"
 import { Markdown } from "@/components/Markdown"
 import { touchRecentDoc } from "@/lib/recentDocs"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,9 @@ export default function DevPage() {
   const bid = Number(sp.get("base") || 0)
   const path = sp.get("doc") || ""
   const open = sp.get("open") || ""
+  // ⚠️ 五格＝**同一組鏡頭換被照的東西**；預設是「來源」（那才是專案的本體）
+  const view = sp.get("view") || "sources"
+  const [dv, setDv] = useState<Awaited<ReturnType<typeof pages.domainView>> | null>(null)
 
   useEffect(() => { pages.bases().then((d) => setBases(d.bases)).catch(() => setBases([])) }, [])
   useEffect(() => {
@@ -38,6 +42,10 @@ export default function DevPage() {
     setDoc(null); pages.baseFile(bid, path).then(setDoc).catch(() => setDoc(null))
     touchRecentDoc(bid, path)
   }, [bid, path])
+  useEffect(() => {
+    if (!did) { setDv(null); return }
+    pages.domainView(did).then(setDv).catch(() => setDv(null))
+  }, [did, view])
 
   const go = (patch: Record<string, string>) => {
     const s = new URLSearchParams(sp)
@@ -53,6 +61,28 @@ export default function DevPage() {
           這裡讀的是你其他專案的知識庫。還沒有任何一個——
           到 <Link to="/dev/bases" className="text-primary hover:underline">⚙ 管理專案</Link> 加一個進來。
         </p>
+      </div>
+    )
+  }
+  const name = base?.name || base?.repo || ""
+  // ⚠️ 只有「來源」那一格有檔案樹——其餘四格是清單，樹在那裡沒有意義
+  //    （硬留一欄空樹會讓人以為是壞掉了）。
+  if (view !== "sources") {
+    return (
+      <div className="h-full min-h-0 overflow-y-auto">
+        {!did ? (
+          <div className="flex h-full items-center justify-center px-6 text-center">
+            <p className="max-w-sm text-sm text-muted-foreground">
+              📁 {name} 還沒歸到領域——重新抓取一次就會。
+            </p>
+          </div>
+        ) : view === "domains" ? (
+          <ProjectDomains children={dv?.children || []} name={name} />
+        ) : (
+          <ProjectItems name={name} items={dv?.items || []}
+                        kind={view === "conversations" ? "conversation"
+                              : view === "roots" ? "why_node" : "article"} />
+        )}
       </div>
     )
   }
@@ -110,7 +140,7 @@ export default function DevPage() {
         ) : (
           // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**——跟互動那邊
           //    **同一條串流、同一份形狀**，只是縮到這個專案的領域（spec 080）。
-          bid > 0 ? <AskProject did={did} name={base?.name || base?.repo || ""}
+          bid > 0 ? <AskProject did={did} name={name}
                                  files={items.length} chunks={items.reduce((s, i) => s + i.chunks, 0)} />
                   : <div className="hidden h-full items-center justify-center px-6 text-center md:flex">
                       <p className="max-w-sm text-sm text-muted-foreground">左邊挑一個專案。</p>

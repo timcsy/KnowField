@@ -646,9 +646,36 @@ class Repository:
         return True
 
     # --- 收進來源（spec 031：同 url 的塊＝一份來源；管理/檢視用來源、檢索用塊，無新表） ---
-    #: 專案落成的來源長這樣（`_base_to_sources`）——**這個 scheme 只有它會產生**，
-    #: 所以拿它當判準是結構性的，不是猜的。
+    #: 專案落成的來源長這樣（`_base_to_sources`）——**這個 scheme 只有它會產生**。
     PROJECT_URL_PREFIX = "github://"
+
+    def project_domain_ids(self) -> set:
+        """哪些領域是**專案的**（`ext_bases.domain_id` 及其子孫）。
+
+        ⚠️ 這是互動／開發之間**唯一那條線**。使用者：「不要把開發模式的來源
+        歸換在互動模式的裡面」——而它不只是來源：對話、理解、應用、子領域
+        全都要照同一條線切，否則你會在某一格看到專案的東西、在別格看不到，
+        而**不一致比全有或全無更難察覺**。
+        ⚠️ 一份判準、一個地方——兩套會漂，而漂掉的那一套不會報錯。
+        """
+        roots = [int(r["domain_id"]) for r in self.conn.execute(
+            f"SELECT domain_id FROM ext_bases WHERE {self._OWN}"
+            " AND domain_id IS NOT NULL").fetchall()]
+        # ⚠️ 沒有專案就**一個查詢結束**：這條線每一次領域視野都會走，
+        #    而每個 base 各跑一次 `domain_descendants` 讓整套測試慢了 50%。
+        if not roots:
+            return set()
+        kids: dict = {}
+        for d in self.list_domains():
+            kids.setdefault(d["parent_id"], []).append(d["id"])
+        out, stack = set(), list(roots)
+        while stack:
+            did = stack.pop()
+            if did in out:
+                continue
+            out.add(did)
+            stack.extend(kids.get(did, []))
+        return out
 
     def list_source_groups(self, projects: bool = True) -> list[dict]:
         """種子容器裡的塊按 url 歸成「來源」，一來源一列（新在上）。
@@ -659,8 +686,10 @@ class Repository:
         否則就變成「看不到卻會影響回答」，那正是這個庫記過的那種沉默。
         """
         from ..config import SEEDS_DATE
-        skip = ("" if projects else
-                f" AND de.url NOT LIKE '{self.PROJECT_URL_PREFIX}%'")
+        hide = set() if projects else self.project_domain_ids()
+        skip = ("" if not hide else
+                f" AND (de.domain_id IS NULL OR de.domain_id NOT IN"
+                f" ({','.join(str(int(i)) for i in hide)}))")
         rows = self.conn.execute(
             "SELECT de.url AS url, MIN(de.title) AS title, COUNT(*) AS n,"
             " MIN(de.source_class) AS sclass, MIN(de.id) AS first_id, MAX(de.id) AS last_id,"
@@ -1193,12 +1222,19 @@ class Repository:
         把它當成固有屬性的話，站在祖先會看到一堆其實在自己家裡的「外部連結」。
         """
         scope = self.domain_scope(did)
-        rows = self._inventory_rows()
+        # ⚠️ 站在專案裡就看專案的；站在**別處（含根）就完全不看**。
+        #    使用者：「不要把開發模式的來源歸換在互動模式的裡面」——
+        #    三個專案 514 件東西會把他自己的 9 件擠掉，而那是他實際撞到的。
+        projects = self.project_domain_ids()
+        hide = set() if (scope is not None and (scope & projects)) else projects
+        rows = [r for r in self._inventory_rows() if r["domain_id"] not in hide]
         # 每個子領域**含子孫**有幾件——側欄的數字要跟「點進去之後看到的」一致，
         # ⚠️ 否則那個數字就是在說謊，而說謊的數字比沒有數字更糟。
         children = []
         for d in self.list_domains():
-            if d["parent_id"] != did:
+            # ⚠️ 子領域也要照同一條線——不然「領域」那一格會列出專案，
+            #    而它底下的東西在別格看不到，數字對不起來。
+            if d["parent_id"] != did or d["id"] in hide:
                 continue
             sub = self.domain_descendants(d["id"])
             children.append({**d, "count": sum(1 for r in rows if r["domain_id"] in sub)})
