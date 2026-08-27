@@ -922,6 +922,13 @@ def create_app() -> FastAPI:
                                  int(b.get("top") or 15), bool(b.get("dry"))))
 
     # spec 074：開發模式的閱讀入口——⚠️ **唯讀**。外部知識不編輯、不進檢索語料。
+    @app.get("/api/bases/{bid}/tree")
+    async def api_base_tree(bid: int):
+        repo = app.state.repo_factory(app.state.config)
+        items = repo.ext_tree(bid)
+        repo.close()
+        return _JSON({"items": items})
+
     @app.get("/api/bases/{bid}/layer/{layer}")
     async def api_base_layer(bid: int, layer: str):
         repo = app.state.repo_factory(app.state.config)

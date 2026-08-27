@@ -436,6 +436,16 @@ class Repository:
             f" WHERE {self._own('i')} AND i.id=%s", (iid,)).fetchone()
         return dict(r) if r else {}
 
+    def ext_tree(self, bid: int) -> list[dict]:
+        """一個 base 的 `knowledge/**` 全部路徑（不帶內容）——給檔案樹用。
+
+        ⓘ 一次全給：一個 base 最多兩三百筆，而**分層拿會讓樹沒辦法一次畫出來**
+        （資料夾的存在與計數，都要看過全部路徑才知道）。
+        """
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, path FROM ext_items"
+            f" WHERE {self._OWN} AND base_id=%s ORDER BY path", (bid,)).fetchall()]
+
     def ext_layer_items(self, bid: int, layer: str) -> list[dict]:
         """開發模式的一個入口：某個 base 的某一層有哪些檔（不帶內容）。"""
         return [dict(r) for r in self.conn.execute(

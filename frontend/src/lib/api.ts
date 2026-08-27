@@ -212,6 +212,8 @@ export const pages = {
   // spec 074：開發模式的閱讀入口——⚠️ **唯讀**（外部知識不編輯、不進檢索語料）
   baseLayer: (bid: number, layer: string): Promise<{ items: { id: number; path: string }[] }> =>
     fetch(`/api/bases/${bid}/layer/${layer}`).then(json),
+  baseTree: (bid: number): Promise<{ items: { id: number; path: string }[] }> =>
+    fetch(`/api/bases/${bid}/tree`).then(json),
   extItem: (iid: number): Promise<ExtItem> => fetch(`/api/ext/${iid}`).then(json),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。

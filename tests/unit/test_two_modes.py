@@ -138,11 +138,45 @@ class TestUiInvariants(unittest.TestCase):
     def test_dev_page_has_tree_and_preview(self):
         """主區＝檔案樹｜預覽，而**預覽要拿到剩下的整片寬度**。"""
         code = self._read("pages/DevPage.tsx")
-        self.assertIn("pages.baseLayer", code)          # 樹在這裡
+        self.assertIn("FileTree", code)                 # 樹在這裡
         self.assertIn("Markdown", code)                 # 預覽也在這裡
         self.assertIn("flex-1", code)                   # 預覽吃掉剩下的
         self.assertIn("min-w-0", code)                  # ⚠️ 少了它，長行會把樹擠爛
         self.assertIn('sp.get("doc")', code)            # 選取只讀 URL
+
+    def test_tree_is_a_real_tree(self):
+        """⚠️ 使用者：「這邊用檔案樹呈現會比較好」。
+
+        之前是「層的籤 ＋ 平面清單」——那個形狀**說不出巢狀**，
+        而 `knowledge/skills/knowie-pull/SKILL.md` 本來就是巢狀的。
+        """
+        code = self._read("components/FileTree.tsx")
+        self.assertIn("children", code)                 # 有巢狀
+        self.assertIn("buildTree", code)
+        page = self._read("pages/DevPage.tsx")
+        self.assertIn("pages.baseTree", page)           # 一次拿全部路徑才畫得出樹
+        self.assertNotIn("pages.baseLayer", page)       # 不再分層拿
+
+    def test_expansion_is_not_in_the_url(self):
+        """⚠️ 展開狀態是**當下的視線**，不是位置。
+
+        塞進網址的話，分享出去的連結會帶著你的展開狀態——那不是對方要的東西。
+        （而 `?doc=` 是位置，所以它在網址裡。）
+        """
+        code = self._read("components/FileTree.tsx")
+        self.assertNotIn("useSearchParams", code)
+        self.assertIn("useState", code)
+
+    def test_mobile_is_master_detail(self):
+        """⚠️ 手機上三欄不可能 ⇒ 沒選檔＝樹滿版、選了＝預覽滿版＋「← 檔案」。
+
+        而它**不需要新狀態**——「有沒有選檔」本來就在網址裡。
+        """
+        code = self._read("pages/DevPage.tsx")
+        self.assertIn('iid && "hidden md:flex"', code)      # 選了檔 → 手機藏樹
+        self.assertIn('!iid && "hidden md:block"', code)    # 沒選檔 → 手機藏預覽
+        self.assertIn("md:hidden", code)                    # 返回鍵只在手機
+        self.assertIn("← 檔案", code)
 
     def test_dev_route_is_full_width(self):
         self.assertIn('pathname.startsWith("/dev")', self._read("Layout.tsx"))
