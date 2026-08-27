@@ -56,9 +56,13 @@ function Dead({ id }: { id: number }) {
 function CrossCheck() {
   const [r, setR] = useState<CrossCheckT | null>(null)
   const [busy, setBusy] = useState(false)
-  async function run() {
+  // ⚠️ 門檻要能改。兩個界只顯示、不能動，那等於演戲——
+  //    而下界（會不會黏成一坨）**取決於你有幾個知識庫**，不是一個固定值：
+  //    13 個 base 時 0.59 會黏成一群 178 條；3 個 base 時最大群只有 3。
+  const [th, setTh] = useState(0.62)
+  async function run(t = th) {
     setBusy(true); setR(null)
-    try { setR(await pages.crosscheck()) } finally { setBusy(false) }
+    try { setR(await pages.crosscheck(t)) } finally { setBusy(false) }
   }
   return (
     <section className="space-y-2 rounded-xl border bg-card p-4">
@@ -70,7 +74,17 @@ function CrossCheck() {
             由你一條一條決定。
           </p>
         </div>
-        <Button size="sm" disabled={busy} onClick={run}>{busy ? "算…" : "開始找"}</Button>
+        <div className="flex items-center gap-2">
+          <select value={th} onChange={(e) => setTh(Number(e.target.value))}
+                  title="要多像才算同一條。放寬會找到更多，但也可能把不同的判準串成一坨"
+                  className="rounded-md border bg-background px-2 py-1 text-xs">
+            <option value={0.56}>放寬</option>
+            <option value={0.59}>稍寬</option>
+            <option value={0.62}>預設</option>
+            <option value={0.65}>嚴格</option>
+          </select>
+          <Button size="sm" disabled={busy} onClick={() => run()}>{busy ? "算…" : "開始找"}</Button>
+        </div>
       </div>
       {r?.error && <p className="text-xs text-destructive">{r.error}</p>}
       {r && !r.error && (
