@@ -31,7 +31,7 @@ class Base(unittest.TestCase):
         return Repository(self.db)
 
     def imp(self, *groups):
-        return self.c.post("/api/xbase/import", json={"groups": list(groups)})
+        return self.c.post("/api/borrowed/import", json={"groups": list(groups)})
 
 
 class TestImportLandsInInbox(Base):
@@ -160,7 +160,7 @@ class TestGarbageIn(Base):
         self.assertEqual((r["added"], r["skipped"]), (1, 3))
 
     def test_groups_must_be_a_list(self):
-        self.assertEqual(self.c.post("/api/xbase/import", json={"groups": "G1"}).status_code, 400)
+        self.assertEqual(self.c.post("/api/borrowed/import", json={"groups": "G1"}).status_code, 400)
 
 
 class TestNoBulkAccept(Base):
@@ -182,8 +182,10 @@ class TestNoBulkAccept(Base):
             body = inspect.getsource(fn) if fn else ""
             self.assertNotIn("ids", body,
                              f"{path} 看起來吃複數 id——收下必須一條一條")
-        self.assertNotIn("anoint_all", src)
-        self.assertNotIn("def api_xbase_accept_all", src)
+        # ⚠️ 別釘一個**具體的函式名**——改名就悄悄失效了（`api_xbase_accept_all`
+        #    在 2026-08-27 改名後就是一個永遠不會出現的字串）。釘**形狀**。
+        import re
+        self.assertIsNone(re.search(r"def \w*(anoint|accept)_(all|many|bulk)", src))
 
 
 class TestIsolation(Base):
@@ -231,7 +233,7 @@ class TestInboxUiScan(unittest.TestCase):
         import pathlib
         import re
         src = (pathlib.Path(__file__).resolve().parents[2]
-               / "frontend/src/components/XbaseInbox.tsx").read_text(encoding="utf-8")
+               / "frontend/src/components/BorrowedInbox.tsx").read_text(encoding="utf-8")
         # 註解正是在**解釋這些規則**，留著會讓每條規則被自己絆倒
         self.code = re.sub(r"/\*.*?\*/", "", re.sub(r"//.*$", "", src, flags=re.M), flags=re.S)
 

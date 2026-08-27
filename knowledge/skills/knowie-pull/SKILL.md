@@ -6,7 +6,7 @@ description: 從個人場拉判準進這個 knowie base——冷啟動的第一�
 # 從場裡拉判準
 
 **為什麼存在**：使用者有十幾個專案、上千條教訓，而開新專案還是從零撞起。
-`knowie-xbase` 已經證明複利是真的（49 群跨 base、16 群跨 ≥3 個）——
+`knowie-crosscheck` 已經證明複利是真的（49 群跨 base、16 群跨 ≥3 個）——
 這一支是把那些判準**送進去**的那一半。
 
 ## 為什麼叫 pull，而**沒有** push
@@ -22,7 +22,7 @@ description: 從個人場拉判準進這個 knowie base——冷啟動的第一�
 | 有共同祖先、可 merge | 沒有共同物件——你送出的是**拷貝** |
 | 對稱：push 完再 pull 拿得回自己 | ⚠️ **那正是馬太迴圈** |
 
-場怎麼知道這個 base 學到什麼？**它自己來讀**（`knowie-xbase` 掃所有 base）。
+場怎麼知道這個 base 學到什麼？**它自己來讀**（`knowie-crosscheck` 掃所有 base）。
 設計原話就是那份 draft 的標題：**讀而不寫**。
 要主動送就叫**「發送」**（送出的是拷貝，落在**收件匣**），不叫 push。
 
@@ -43,9 +43,9 @@ description: 從個人場拉判準進這個 knowie base——冷啟動的第一�
 
 ```bash
 # 在**新專案的 repo 裡**跑。--exclude 自己：問的是「**別人**獨立撞到什麼」
-XB=~/Documents/Projects/KnowField/knowledge/skills/knowie-xbase/xbase.py
+XB=~/Documents/Projects/KnowField/knowledge/skills/knowie-crosscheck/crosscheck.py
 
-# 1. 先看數字（不帶 --threshold ⇒ 拒絕給群；門檻校驗見 knowie-xbase）
+# 1. 先看數字（不帶 --threshold ⇒ 拒絕給群；門檻校驗見 knowie-crosscheck）
 uv run python $XB ~/Documents/Projects --exclude <這個專案> \
   --calib "沒有東西會叫的失敗|||沉默的失敗不會自己現形"
 

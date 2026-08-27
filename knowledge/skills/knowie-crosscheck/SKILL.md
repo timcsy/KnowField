@@ -1,5 +1,5 @@
 ---
-name: knowie-xbase
+name: knowie-crosscheck
 description: 找出多個 knowie 知識庫各自獨立撞出的同一條判準，產出可匯入 KnowField 收件匣的群。
 ---
 
@@ -22,7 +22,7 @@ description: 找出多個 knowie 知識庫各自獨立撞出的同一條判準�
 它只有 **0.581**；而隨機跨 base 配對是 0.27–0.42。⇒ 真門檻在 **0.62** 附近，
 不是 0.78。差這 0.16，結論從「49 群」變成「沒有」。
 
-**所以校驗配對是人給的，而且不給就不出結果**（`xbase.py` 直接 exit）。
+**所以校驗配對是人給的，而且不給就不出結果**（`crosscheck.py` 直接 exit）。
 兩個獨立的人各自寫下同一條判準，用字幾乎不會重疊——這件事**沒有先驗值可以查**。
 
 ### ⚠️ 而校驗配對只給你**下界**
@@ -44,22 +44,22 @@ description: 找出多個 knowie 知識庫各自獨立撞出的同一條判準�
 
 ```bash
 # 1. 先只看數字（不帶 --threshold ⇒ 它會拒絕給群）
-uv run python knowledge/skills/knowie-xbase/xbase.py ~/Documents/Projects \
+uv run python knowledge/skills/knowie-crosscheck/crosscheck.py ~/Documents/Projects \
   --calib "沒有東西會叫的失敗|||沉默的失敗不會自己現形"
 
 # 2. 看噪音帶與校驗分數，門檻落在兩者之間，再跑一次
-uv run python knowledge/skills/knowie-xbase/xbase.py ~/Documents/Projects \
+uv run python knowledge/skills/knowie-crosscheck/crosscheck.py ~/Documents/Projects \
   --calib "沒有東西會叫的失敗|||沉默的失敗不會自己現形" \
-  --threshold 0.62 --out /tmp/xbase.json
+  --threshold 0.62 --out /tmp/crosscheck.json
 
 # 3. 貼進 KnowField 的「💡 你的理解 → 🛬 從別的知識庫來的判準」，或直接送
-curl -s localhost:8001/api/xbase/import -H 'Content-Type: application/json' -d @/tmp/xbase.json
+curl -s localhost:8001/api/borrowed/import -H 'Content-Type: application/json' -d @/tmp/crosscheck.json
 ```
 
 ## 三個會安靜出錯的地方
 
 - ⚠️ **離線 embedding stub**：256 維雜湊向量，**會跑完、不會報錯**，相似度全是噪音。
-  已在 `xbase.py` 擋掉（`OpenAIEmbedder` 以外一律拒絕）。
+  已在 `crosscheck.py` 擋掉（`OpenAIEmbedder` 以外一律拒絕）。
 - ⚠️ **recall 有限**：那對 0.581 的真配對，**任何合理門檻都抓不到**。
   所以輸出是**複審佇列**，不是「全部的複利」——別把它當成完整清單報告給人。
 - ⚠️ **相似度是篩子，不是判準**。0.62 把 1,393² 降到十分鐘看得完的 49 群，

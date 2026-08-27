@@ -58,7 +58,7 @@ function Card({ w, onDone }: { w: WhyNode; onDone: () => void }) {
   )
 }
 
-export function XbaseInbox({ candidates, onDone }: { candidates: WhyNode[]; onDone: () => void }) {
+export function BorrowedInbox({ candidates, onDone }: { candidates: WhyNode[]; onDone: () => void }) {
   const [paste, setPaste] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -71,7 +71,7 @@ export function XbaseInbox({ candidates, onDone }: { candidates: WhyNode[]; onDo
       groups = Array.isArray(v) ? v : (v?.groups ?? [])
       if (!Array.isArray(groups)) throw new Error()
     } catch { setMsg("讀不懂這份 JSON——要是群的陣列，或 { groups: [...] }"); return }
-    const r = await pages.xbaseImport(groups)
+    const r = await pages.borrowedImport(groups)
     if (r.error) { setMsg(r.error); return }
     setPaste("")
     // ⚠️ 略過過的會被算進 skipped ⇒ 要說清楚，否則使用者以為匯入壞了
@@ -104,7 +104,7 @@ export function XbaseInbox({ candidates, onDone }: { candidates: WhyNode[]; onDo
       {open && (
         <div className="space-y-2 rounded-lg border bg-background p-3">
           <p className="text-xs text-muted-foreground">
-            在有那些知識庫的機器上跑 <code className="rounded bg-muted px-1">knowie-xbase</code>，把它印出來的 JSON 貼進來。
+            在有那些知識庫的機器上跑 <code className="rounded bg-muted px-1">knowie-crosscheck</code>，把它印出來的 JSON 貼進來。
           </p>
           <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={4}
                     className="w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-xs"

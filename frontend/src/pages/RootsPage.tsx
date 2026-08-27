@@ -7,7 +7,7 @@ import { Markdown } from "@/components/Markdown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { WriteUnderstanding } from "@/components/WriteUnderstanding"
-import { XbaseInbox } from "@/components/XbaseInbox"
+import { BorrowedInbox } from "@/components/BorrowedInbox"
 
 // 原文＝唯一真相：由來連結帶 Text Fragment（#:~:text=）→ 瀏覽器原生捲到並高亮原文那段。
 // best-effort：匹配失敗（抽取清理過/SPA 渲染）→ 只開頁面、不跳段（無害）。
@@ -91,7 +91,7 @@ export default function RootsPage() {
       </div>
 
       {/* spec 071：借來的判準停在這裡，直到你收進自己的場 */}
-      <XbaseInbox candidates={data.candidates} onDone={load} />
+      <BorrowedInbox candidates={data.candidates} onDone={load} />
 
       {/* 知識的輸出（階段 30）：從理解生成高證實文章——只用已證實/推論、每主張連回佐證、猜想隔到延伸閱讀 */}
       {anointed.length > 0 && (

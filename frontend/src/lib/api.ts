@@ -177,10 +177,10 @@ export const pages = {
   whynodeAnoint: (id: number, claim?: string, kind?: string, domain_id?: number | null) =>
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
-  // spec 071：把 `knowie-xbase` 算出來的跨 base 群送進**收件匣**。
+  // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
-  xbaseImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
-    post("/api/xbase/import", { groups }),
+  borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>
+    post("/api/borrowed/import", { groups }),
   library: (): Promise<{ sources: SourceGroup[] }> => fetch("/api/library").then(json),
   // spec 070：搜尋給不了的那三塊。⚠️ has_geometry=false 時要**說算不出來**，不是顯示空的
   // ——三塊一起沉默地失效，比少一塊更糟：你會以為這一區真的沒有鄰居。

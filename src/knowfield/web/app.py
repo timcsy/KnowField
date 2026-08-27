@@ -768,11 +768,12 @@ def create_app() -> FastAPI:
                       "provenance": {str(k): v for k, v in prov.items()},
                       "source_provenance": {str(k): v for k, v in sprov.items()}})
 
-    # spec 071：把 `knowie-xbase` 算出來的跨 base 群收進**收件匣**（＝候選理解）。
+    # spec 071：把借來的判準收進**收件匣**（＝候選理解）。來源目前是 `knowie-crosscheck`，
+    # ⚠️ 但路由**不用餵它的東西命名**——明天判準會從別人**發送**過來，形狀一樣。
     # ⚠️ 匯入是批次的，**收下不是**——一條一條走既有的 `/api/whynode/anoint`（FR-004）。
     #    匯入只是「東西送到你門口」，不等於你收了它。
-    @app.post("/api/xbase/import")
-    async def api_xbase_import(request: Request):
+    @app.post("/api/borrowed/import")
+    async def api_borrowed_import(request: Request):
         b = await request.json()
         groups = b.get("groups") or []
         if not isinstance(groups, list):

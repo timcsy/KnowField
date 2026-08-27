@@ -73,7 +73,7 @@ def emit_lesson(group: dict) -> str:
              f"——**在這個專案真的撞到之前，它不算這個專案的經驗**。",
              "- **各自撞到的原文**："]
     lines += [f"  - `{m['base']}` {m['text']}" for m in group["members"]]
-    lines += ["- **來源**：借自個人場的跨 base 量測（`knowie-xbase`）。",
+    lines += ["- **來源**：借自個人場的跨 base 量測（`knowie-crosscheck`）。",
               "  ⇒ **這個 base 真的撞到之後**：刪掉上面那整行、換成這裡的實際出處"
               "（commit／history），它才開始算這個 base 的經驗。", ""]
     block = "\n".join(lines)

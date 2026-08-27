@@ -1118,7 +1118,7 @@
   一個有校驗背書的錯數字，會讓下一個人省掉查證。
   ⇒ 校驗過的儀器要標明**校驗到的是哪一側**，而不是標明「已校驗」。
 - **來源**：[history/137](history/137-兩條規則被同一天的實跑推翻-而測試都是綠的.md)；
-  `knowledge/skills/knowie-xbase/`（`最大一群` 那行就是下界的量法）。
+  `knowledge/skills/knowie-crosscheck/`（`最大一群` 那行就是下界的量法）。
 
 ### 去重／冪等的身分，不能是**使用者被鼓勵去改**的那個欄位
 
@@ -1134,11 +1134,12 @@
   對抗性攻擊測的是**實作**寫錯；只有實跑測得到**測試的假設**寫錯。
 - **來源**：[history/137](history/137-兩條規則被同一天的實跑推翻-而測試都是綠的.md)；
   `src/knowfield/store/repository.py` `import_borrowed`；
-  `tests/unit/test_xbase_inbox.py::test_reimport_after_rewriting_the_claim_does_not_duplicate`。
+  `tests/unit/test_borrowed_inbox.py::test_reimport_after_rewriting_the_claim_does_not_duplicate`。
 
 ### 開一個**寫入口**時，去問「哪一支**讀**這份資料的程式，假設現在假了？」
 
-- **實際發生**：`knowie-xbase` 讀 `experience.md` 每個 `###` 當一條獨立教訓——
+- **實際發生**：跨 base 量測（今名 `knowie-crosscheck`）讀 `experience.md`
+  每個 `###` 當一條獨立教訓——
   那個假設在**只能讀**的時候是對的。而 `knowie-pull` 一旦能把借來的判準**寫進去**，
   下一次量測就會讀成「這個 base 也獨立撞到了」⇒ 計數餵回推薦、推薦餵回計數。
 - **教訓**：禁令早就寫過（「只算『撞到』，不算『借走』」），但那時**沒有寫入口**
@@ -1147,7 +1148,7 @@
 - ⚠️ 這種洞不會由**新功能的測試**抓到——它壞的是**舊功能**，而舊測試餵的還是舊形狀的資料。
   ⇒ 有效的測法是**來回**：用新的產生器寫出來的東西，餵給舊的讀取器。
 - **來源**：[history/138](history/138-pull有push沒有-而對稱的名字會蓋出不對稱的東西.md)；
-  `knowledge/skills/knowie-xbase/xbase.py`（`BORROWED_MARK` 產生器與讀取器共用）；
+  `knowledge/skills/knowie-crosscheck/crosscheck.py`（`BORROWED_MARK` 產生器與讀取器共用）；
   `tests/unit/test_knowie_pull.py::test_round_trip_written_then_read_is_skipped`。
 
 ### 一個標記的「拿掉」，必須跟「加上」一樣機械
