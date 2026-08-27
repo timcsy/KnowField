@@ -63,7 +63,7 @@ class TestTheLineIsOne(Base):
         r.close()
 
     def test_sub_domains_of_a_project_count_too(self):
-        """⚠️ 只擋那一個領域、不擋子孫的話，往下分一層就漏回互動模式了。"""
+        """⚠️ 只擋那一個領域、不擋子孫的話，往下分一層就漏回思考模式了。"""
         r = self.repo()
         sub = r.create_domain("Demo/內部", parent_id=self.pdid)
         self.assertEqual(r.project_domain_ids(), {self.pdid, sub})
@@ -77,7 +77,7 @@ class TestTheLineIsOne(Base):
 
 
 class TestInteractionCannotSeeProjects(Base):
-    """站在**根**（＝整個互動模式）時，四種知識與子領域都看不到專案的。"""
+    """站在**根**（＝整個思考模式）時，四種知識與子領域都看不到專案的。"""
 
     def test_every_kind_is_filtered(self):
         r = self.repo()
@@ -85,7 +85,7 @@ class TestInteractionCannotSeeProjects(Base):
         r.close()
         labels = {i["label"] for i in v["items"]}
         for gone in ("借來的判準", "專案的應用的對話", "專案的應用"):
-            self.assertNotIn(gone, labels, f"專案的東西漏進互動模式：{gone}")
+            self.assertNotIn(gone, labels, f"專案的東西漏進思考模式：{gone}")
         for kept in ("我自己的判準", "我的應用的對話", "我的應用"):
             self.assertIn(kept, labels)
 

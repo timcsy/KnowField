@@ -1,4 +1,4 @@
-"""spec 074／080：互動／開發雙模式。
+"""spec 074／080：思考／開發雙模式。
 
 ⚠️ 這一刀原本的核心是「**外部知識進搜尋、不進檢索語料**」。
    spec 080 把它換掉了：專案的知識檔**就是來源**（外部證言那一層），
@@ -254,6 +254,21 @@ class TestUiInvariants(unittest.TestCase):
         self.assertIn("md:hidden", code)                    # 返回鍵只在手機
         self.assertIn("← 檔案", code)
 
+    def test_mode_names_do_not_collide_with_the_five_entries(self):
+        """⚠️ 這一邊原本叫「互動」——而**「互動」已經是那五格裡的一格**（💬 互動 ＝ 對話）。
+
+        ⇒ 同一個側欄上下兩處，同一個詞指兩件事：上面是整個模式、下面是其中一格。
+        那不是語感問題，是**撞名**。改成「思考」（使用者 2026-08-27）。
+        ⇒ 判準：**模式的名字不能是它底下某一格的名字。**
+        """
+        import re
+        code = self._read("components/ModeSwitch.tsx")
+        labels = set(re.findall(r'\[\["?([^"\]]+)"', code)) | set(re.findall(r'"([^"]+)", "/[^"]*", ', code))
+        self.assertTrue(labels, "抓不到切換鈕的標籤——這條測試守不住任何東西")
+        # 那五格的名字（`ConversationSidebar` 的 KINDS ＋ 領域）
+        for entry in ("領域", "來源", "互動", "理解", "應用"):
+            self.assertNotIn(entry, labels, f"模式名「{entry}」跟五格裡的一格撞名")
+
     def test_dev_route_is_full_width(self):
         self.assertIn('pathname.startsWith("/dev")', self._read("Layout.tsx"))
 
@@ -291,7 +306,7 @@ class TestUiInvariants(unittest.TestCase):
         """⚠️ 使用者：「管理專案那邊也要修一下，更好融入現在的開發 UI」。
 
         不融入的**根本原因不是樣式**：那一頁在 `/bases`，而 `dev` 是
-        `pathname.startsWith("/dev")` ⇒ 點進去側欄整個切回互動那套。
+        `pathname.startsWith("/dev")` ⇒ 點進去側欄整個切回思考那套。
         ⇒ 判準：**「它算哪個模式」是路由的事，不是樣式的事。**
         """
         main = self._read("main.tsx")

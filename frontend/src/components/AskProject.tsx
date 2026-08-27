@@ -3,7 +3,7 @@ import { streamChat, type Message } from "@/lib/api"
 import { AssistantFlow, Composer, Streaming, UserBubble } from "@/components/ChatShape"
 
 // spec 080：站在某個專案裡聊它的知識庫。
-// ⚠️ **跟互動那邊是同一條聊天**（`/api/chat/stream` ＋ `ChatShape`）——
+// ⚠️ **跟思考那邊是同一條聊天**（`/api/chat/stream` ＋ `ChatShape`）——
 //    專案的知識檔就是**來源**，站在這裡只是把範圍縮到它的領域（spec 079）。
 //    在此之前這裡是「第二個場」（另一套語料、另一套門檻）；兩套一定會漂，
 //    而漂掉的那一套不會報錯。

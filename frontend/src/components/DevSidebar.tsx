@@ -164,7 +164,7 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* ── 這個專案底下有什麼（對應互動的五格）。⚠️ 帶計數：說不出有幾份，
           「找不到」就會被讀成「它沒有」 ── */}
       {/* ── 五格（領域／來源／互動／理解／應用）——⚠️ 跟互動**同一組**，
-          只是換成這個專案的。而互動那邊完全看不到專案的東西。 ── */}
+          只是換成這個專案的。而思考那邊完全看不到專案的東西。 ── */}
       <nav className="flex flex-col gap-0.5">
         <button onClick={() => go({ view: "domains", doc: "", open: "" })}
           className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm hover:bg-sidebar-accent",
@@ -245,7 +245,7 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
           而這裡要多說一句**這是誰的東西**：看不出是別人的，就等於冒充你自己的知識。 */}
       <div className="border-t px-2 pt-2 text-[11px] text-muted-foreground">
         這裡讀的是<span className="font-medium text-foreground">別人專案</span>寫下的東西
-        ——互動那邊看不到它們{did ? "" : "（⚠ 這個專案還沒歸到領域）"}。
+        ——思考那邊看不到它們{did ? "" : "（⚠ 這個專案還沒歸到領域）"}。
       </div>
     </div>
   )

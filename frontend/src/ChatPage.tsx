@@ -394,7 +394,7 @@ export default function ChatPage() {
     ) : (
       // SOTA：AI 回覆＝全寬無框文字流（不裝卡片），文字區最大化；用留白＋對齊區分你我，不用框
       <AssistantFlow key={i} m={m} prefix={`m${i}`} marked={covered.has(i + 1)} extra={
-        // 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支——互動模式專屬
+        // 回覆下方操作列（一般 AI 聊天慣例）：複製、重生、分支——思考模式專屬
         <div className="mt-2 flex gap-4 text-muted-foreground opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
           <button onClick={() => copyMsg(m.content)} title="複製這則回覆" className="hover:text-foreground"><Copy className="size-3.5" /></button>
           {i === messages.length - 1 && !busy && (

@@ -138,7 +138,7 @@ export default function DevPage() {
             </div>
           </>
         ) : (
-          // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**——跟互動那邊
+          // ⚠️ 沒選檔案時，右邊就是**這個專案的聊天**——跟思考那邊
           //    **同一條串流、同一份形狀**，只是縮到這個專案的領域（spec 080）。
           bid > 0 ? <AskProject did={did} name={name}
                                  files={items.length} chunks={items.reduce((s, i) => s + i.chunks, 0)} />
