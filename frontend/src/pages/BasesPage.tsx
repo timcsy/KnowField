@@ -121,6 +121,17 @@ export default function BasesPage() {
     return () => clearTimeout(t)
   }, [data])
 
+  async function remove(b: ExtBase) {
+    // ⚠️ 講清楚**留下什麼**：外部知識是別人 repo 的快照，重加就回來；
+    //    而已經收進場的借來判準是你冊封過的，那是你的，不會跟著走。
+    if (!confirm(`移除「${b.repo}」？\n\n`
+      + `它的 ${b.n_items} 份知識與目錄樹會從這裡刪掉。重新加回來就會再抓一次。\n`
+      + `已經收進「你的理解」的借來判準不受影響。`)) return
+    const r = await pages.baseRemove(b.id)
+    if (r.error) { setMsg(r.error); return }
+    load()
+  }
+
   async function add(repo: string) {
     setMsg(null)
     const r = await pages.baseAdd(repo)
@@ -128,13 +139,16 @@ export default function BasesPage() {
     setUrl(""); load()
   }
 
-  if (!data) return <p className="text-sm text-muted-foreground">載入中…</p>
+  if (!data) return <p className="p-6 text-sm text-muted-foreground">載入中…</p>
   const have = new Set(data.bases.map((b) => b.repo))
+  // ⚠️ `/dev/bases` 在 isFull 裡 ⇒ 外層不再給捲動與內距，這一頁要自己來
+  //    （而字行仍收在舒服的寬度，跟預覽那一塊一致）
   return (
-    <div className="space-y-5 pb-8">
+    <div className="h-full overflow-y-auto">
+    <div className="mx-auto max-w-4xl space-y-5 px-4 py-5 pb-10 md:px-8">
       <div>
-        <h1 className="text-2xl font-bold">🌍 別的知識庫</h1>
-        <p className="text-xs text-muted-foreground">
+        <h1 className="text-xl font-bold">⚙ 管理專案</h1>
+        <p className="text-sm text-muted-foreground">
           你其他專案的 knowledge/——場自己去 GitHub 拿。只拿知識，其餘只拿目錄結構、不拿內容。
         </p>
       </div>
@@ -186,6 +200,7 @@ export default function BasesPage() {
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{since(b.fetched_at)}</span>
                   <button onClick={() => pages.baseRefresh(b.id).then(load)} className="hover:text-foreground">重新抓</button>
+                  <button onClick={() => remove(b)} className="hover:text-destructive">移除</button>
                 </div>
               </div>
               {b.status === "error" ? (
@@ -209,6 +224,7 @@ export default function BasesPage() {
           ))}
         </div>
       )}
+    </div>
     </div>
   )
 }

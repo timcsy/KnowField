@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { pages, type ExtBase } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
 //    就是雙模式介面的第一個坑（「我寫在哪一邊？」）。
 export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [sp, setSp] = useSearchParams()
+  const { pathname } = useLocation()
+  const nav = useNavigate()
   const [bases, setBases] = useState<ExtBase[] | null>(null)
   const bid = Number(sp.get("base") || 0)
 
@@ -27,7 +29,10 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
     // 換專案就放掉層與檔案——那是**另一個專案**的位置，留著只會指到空的
     const s = new URLSearchParams(sp)
     s.set("base", String(id)); s.delete("layer"); s.delete("doc")
-    setSp(s); onNavigate?.()
+    // 在「管理專案」頁時點一個專案 ⇒ 回到閱讀那一頁（你選它是為了看它）
+    if (pathname === "/dev/bases") nav(`/dev?${s.toString()}`)
+    else setSp(s)
+    onNavigate?.()
   }
 
   return (
@@ -38,7 +43,7 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
       ) : bases.length === 0 ? (
         <p className="px-2 text-sm text-muted-foreground">
           還沒有專案。到{" "}
-          <Link to="/bases" onClick={onNavigate} className="text-primary hover:underline">⚙ 管理專案</Link>
+          <Link to="/dev/bases" onClick={onNavigate} className="text-primary hover:underline">⚙ 管理專案</Link>
           {" "}加一個進來。
         </p>
       ) : (
@@ -55,8 +60,13 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
           ))}
         </ul>
       )}
-      <Link to="/bases" onClick={onNavigate}
-        className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+      {/* ⚠️ 用 useLocation 不用 window.location——後者不會隨路由更新，
+          於是「我在哪」這個訊號會停在你第一次進來的那一頁。 */}
+      <Link to="/dev/bases" onClick={onNavigate}
+        className={cn("rounded-lg px-3 py-1.5 text-sm hover:bg-sidebar-accent",
+          pathname === "/dev/bases"
+            ? "bg-sidebar-accent font-medium text-foreground"
+            : "text-muted-foreground hover:text-foreground")}>
         ⚙ 管理專案
       </Link>
     </div>

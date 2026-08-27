@@ -436,6 +436,24 @@ class Repository:
             f" WHERE {self._own('i')} AND i.id=%s", (iid,)).fetchone()
         return dict(r) if r else {}
 
+    def delete_ext_base(self, bid: int) -> bool:
+        """移除一個外部知識庫——**四張表一起清**。
+
+        ⚠️ 這裡是**真的刪**，不是封存：外部知識是**別人 repo 的快照**，
+        重加一次就回來了 ⇒ 沒有「遺骸」要留（spec 055 那套是給**你自己的**知識用的，
+        因為那些刪掉就真的沒了）。
+        ⚠️ 而**已經收進場的借來判準不動**——它們是 `why_nodes`，你冊封過，那是你的了。
+        """
+        r = self.conn.execute(
+            f"SELECT id FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,)).fetchone()
+        if not r:
+            return False
+        for t in ("ext_items", "ext_paths", "ext_lessons"):
+            self.conn.execute(f"DELETE FROM {t} WHERE {self._OWN} AND base_id=%s", (bid,))
+        self.conn.execute(f"DELETE FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,))
+        self.conn.commit()
+        return True
+
     def ext_tree(self, bid: int) -> list[dict]:
         """一個 base 的 `knowledge/**` 全部路徑（不帶內容）——給檔案樹用。
 

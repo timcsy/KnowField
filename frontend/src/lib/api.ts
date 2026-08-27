@@ -205,6 +205,8 @@ export const pages = {
   baseAdd: (repo: string): Promise<{ id?: number; repo?: string; error?: string }> =>
     post("/api/bases", { repo }),
   baseRefresh: (id: number) => post(`/api/bases/${id}/refresh`, {}),
+  baseRemove: (id: number): Promise<{ ok?: boolean; error?: string }> =>
+    fetch(`/api/bases/${id}`, { method: "DELETE" }).then(json),
   deadRefs: (id: number): Promise<DeadRefs> => fetch(`/api/bases/${id}/dead-refs`).then(json),
   // spec 073：場自己算跨 base 群 → 落進收件匣（⚠️ 不繞過那道閘門）
   crosscheck: (threshold?: number): Promise<CrossCheck> =>

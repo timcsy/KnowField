@@ -51,7 +51,9 @@ createRoot(document.getElementById("root")!).render(
           <Route index element={<ChatPage />} />
           <Route path="domains" element={<DomainsPage />} />
           <Route path="roots" element={<RootsPage />} />
-          <Route path="bases" element={<BasesPage />} />
+          <Route path="dev/bases" element={<BasesPage />} />
+          {/* 舊連結還指得到 */}
+          <Route path="bases" element={<Navigate to="/dev/bases" replace />} />
           <Route path="dev" element={<DevPage />} />
           <Route path="articles" element={<ArticlesPage />} />
           <Route path="articles/:id" element={<ArticleViewPage />} />

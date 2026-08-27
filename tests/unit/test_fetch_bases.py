@@ -348,3 +348,63 @@ class TestBasesPageScan(unittest.TestCase):
         """
         for forbidden in ("whynodeAnoint", "anoint", "importBorrowed"):
             self.assertNotIn(forbidden, self.code)
+
+
+class TestRemoveBase(Base):
+    """⚠️ 刪除最容易安靜出錯的兩處：**刪一半**（孤兒列留在別的表裡，
+    下次計數就對不上）與**刪到別人的**（`_own()` 漏掉一張表就夠）。
+    """
+
+    def _counts(self, r):
+        return {t: r.conn.execute(f"SELECT COUNT(*) AS n FROM {t}").fetchone()["n"]
+                for t in ("ext_bases", "ext_items", "ext_paths", "ext_lessons")}
+
+    def test_removes_every_table(self):
+        bid = self.seed()
+        r = self.repo()
+        r.sync_ext_lessons(bid, ["一條抽出來的判準句"])
+        self.assertTrue(all(v > 0 for v in self._counts(r).values()))
+        self.assertTrue(r.delete_ext_base(bid))
+        self.assertEqual(set(self._counts(r).values()), {0})   # ⚠️ 四張表都要空
+        r.close()
+
+    def test_removing_one_keeps_the_others(self):
+        a = self.seed()
+        r = self.repo()
+        b = r.add_ext_base("timcsy/Other")
+        r.save_ext_fetch(b, {**FETCH, "paths": ["knowledge/x.md"], "items": []})
+        r.sync_ext_lessons(a, ["甲的判準句"]); r.sync_ext_lessons(b, ["乙的判準句"])
+        r.delete_ext_base(a)
+        left = [x["repo"] for x in r.list_ext_bases()]
+        lessons = [x["text"] for x in r.ext_lessons_missing_vectors("T")]
+        r.close()
+        self.assertEqual(left, ["timcsy/Other"])
+        self.assertEqual(lessons, ["乙的判準句"])
+
+    def test_anointed_borrowed_criteria_survive(self):
+        """⚠️ 你冊封過的借來判準是**你的**——移除來源不該把它帶走。"""
+        bid = self.seed()
+        self.c.post("/api/borrowed/import", json={"groups": [
+            {"claim": "一條借來的判準", "members": [{"base": "VizGPT", "text": "原文"}]}]})
+        r = self.repo()
+        w = r.list_why_nodes("candidate")[0]
+        r.anoint_why_node(w.id)
+        r.delete_ext_base(bid)
+        claims = [x.claim for x in r.list_why_nodes("anointed")]
+        r.close()
+        self.assertIn("一條借來的判準", claims)
+
+    def test_cannot_remove_someone_elses(self):
+        bid = self.seed()
+        other = Repository(self.db, owner=999)
+        self.assertFalse(other.delete_ext_base(bid))
+        other.close()
+        self.assertEqual(len(self.repo().list_ext_bases()), 1)
+
+    def test_route_404s_for_unknown(self):
+        self.assertEqual(self.c.delete("/api/bases/999999").status_code, 404)
+
+    def test_route_removes(self):
+        bid = self.seed()
+        self.assertEqual(self.c.delete(f"/api/bases/{bid}").status_code, 200)
+        self.assertEqual(self.c.get("/api/bases").json()["bases"], [])

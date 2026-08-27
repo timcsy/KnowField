@@ -211,6 +211,35 @@ class TestUiInvariants(unittest.TestCase):
         self.assertNotIn("text-left text-xs", code)
         self.assertNotIn("text-[10px]", code)
 
+    def test_managing_projects_lives_inside_dev_mode(self):
+        """⚠️ 使用者：「管理專案那邊也要修一下，更好融入現在的開發 UI」。
+
+        不融入的**根本原因不是樣式**：那一頁在 `/bases`，而 `dev` 是
+        `pathname.startsWith("/dev")` ⇒ 點進去側欄整個切回互動那套。
+        ⇒ 判準：**「它算哪個模式」是路由的事，不是樣式的事。**
+        """
+        main = self._read("main.tsx")
+        self.assertIn('path="dev/bases"', main)
+        self.assertIn('path="bases"', main)          # 舊連結還要指得到
+        self.assertIn("Navigate", main)
+        for f in ("components/DevSidebar.tsx", "pages/DevPage.tsx"):
+            self.assertNotIn('to="/bases"', self._read(f))
+
+    def test_sidebar_knows_where_you_are(self):
+        """⚠️ 用 `useLocation` 不用 `window.location`——後者不隨路由更新，
+        於是「我在哪」會停在你第一次進來的那一頁。"""
+        code = self._read("components/DevSidebar.tsx")
+        self.assertIn("useLocation", code)
+        self.assertNotIn("window.location", code)
+
+    def test_removing_a_base_says_what_survives(self):
+        """⚠️ 刪除的對話框要講**留下什麼**——不然人不敢按，或按了才後悔。"""
+        code = self._read("pages/BasesPage.tsx")
+        self.assertIn("baseRemove", code)
+        self.assertIn("confirm(", code)
+        self.assertIn("不受影響", code)          # 已冊封的借來判準
+        self.assertIn("重新加回來", code)        # 它是快照，不是唯一副本
+
     def test_mode_lives_in_the_url(self):
         """FR-002：可分享、上一頁有用、重整不掉。"""
         code = self._read("components/ModeSwitch.tsx")

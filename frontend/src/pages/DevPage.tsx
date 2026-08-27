@@ -39,7 +39,7 @@ export default function DevPage() {
       <div className="flex h-full items-center justify-center px-6 text-center">
         <p className="max-w-sm text-sm text-muted-foreground">
           這裡讀的是你其他專案的知識庫。還沒有任何一個——
-          到 <Link to="/bases" className="text-primary hover:underline">⚙ 管理專案</Link> 加一個進來。
+          到 <Link to="/dev/bases" className="text-primary hover:underline">⚙ 管理專案</Link> 加一個進來。
         </p>
       </div>
     )

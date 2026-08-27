@@ -922,6 +922,14 @@ def create_app() -> FastAPI:
                                  int(b.get("top") or 15), bool(b.get("dry"))))
 
     # spec 074：開發模式的閱讀入口——⚠️ **唯讀**。外部知識不編輯、不進檢索語料。
+    @app.delete("/api/bases/{bid}")
+    async def api_base_delete(bid: int):
+        repo = app.state.repo_factory(app.state.config)
+        ok = repo.delete_ext_base(bid)
+        repo.close()
+        return _JSON({"ok": True}) if ok else _JSON({"error": "沒有這個知識庫。"},
+                                                    status_code=404)
+
     @app.get("/api/bases/{bid}/tree")
     async def api_base_tree(bid: int):
         repo = app.state.repo_factory(app.state.config)
