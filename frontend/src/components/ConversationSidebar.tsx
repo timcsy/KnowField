@@ -93,7 +93,7 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
          style={{ borderLeftColor: personaColor || "transparent" }}>
       <div className="flex items-center justify-between gap-2 px-1">
         <Link to="/" onClick={onNavigate} className="min-w-0 truncate py-1 text-lg font-bold">🧠 KnowField</Link>
-        <ModeSwitch onNavigate={onNavigate} />
+        <ModeSwitch />
         {onNavigate && <button onClick={onNavigate} aria-label="關閉" className="px-1 text-muted-foreground">✕</button>}
       </div>
       {/* spec 067：身分在**最上面**，導航列之上。同一條理由的更硬版本——

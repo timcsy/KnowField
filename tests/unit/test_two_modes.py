@@ -187,6 +187,30 @@ class TestUiInvariants(unittest.TestCase):
         self.assertNotIn("別的知識庫", code)
         self.assertIn("管理專案", self._read("components/DevSidebar.tsx"))
 
+    def test_switching_mode_does_not_close_the_mobile_drawer(self):
+        """⚠️ 使用者：「行動版切換到開發的時候，側邊欄會自己縮回去」。
+
+        原因：`ModeSwitch` 拿到 `onNavigate` 就在點擊時關抽屜。
+        而「選了一個目的地」才該關它——**切模式正好相反**：你切過去就是
+        要看新的那份側欄（開發那邊是專案清單）。關掉等於把你要看的東西收走。
+        ⇒ 判準：**「導覽到某處」關抽屜；「換一組導覽」不關。**
+        """
+        code = self._read("components/ModeSwitch.tsx")
+        self.assertNotIn("onNavigate", code)
+        self.assertIn("<ModeSwitch />", self._read("components/ConversationSidebar.tsx"))
+
+    def test_mode_switch_reachable_without_opening_the_drawer(self):
+        """手機頂端那條也要有——不然切模式要先點漢堡。"""
+        self.assertIn("<ModeSwitch />", self._read("Layout.tsx"))
+
+    def test_tree_text_is_not_tiny(self):
+        """⚠️ 使用者：「樹的字有點小」。檔案樹是**要一直讀**的東西，不是註腳。"""
+        code = self._read("components/FileTree.tsx")
+        self.assertIn("text-sm", code)
+        # 檔名那一行不該是 text-xs／更小
+        self.assertNotIn("text-left text-xs", code)
+        self.assertNotIn("text-[10px]", code)
+
     def test_mode_lives_in_the_url(self):
         """FR-002：可分享、上一頁有用、重整不掉。"""
         code = self._read("components/ModeSwitch.tsx")

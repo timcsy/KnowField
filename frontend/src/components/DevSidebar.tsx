@@ -34,9 +34,9 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col gap-1">
       <p className="px-2 pt-1 text-xs font-medium text-muted-foreground">專案</p>
       {bases === null ? (
-        <p className="px-2 text-xs text-muted-foreground">載入中…</p>
+        <p className="px-2 text-sm text-muted-foreground">載入中…</p>
       ) : bases.length === 0 ? (
-        <p className="px-2 text-xs text-muted-foreground">
+        <p className="px-2 text-sm text-muted-foreground">
           還沒有專案。到{" "}
           <Link to="/bases" onClick={onNavigate} className="text-primary hover:underline">⚙ 管理專案</Link>
           {" "}加一個進來。
@@ -56,7 +56,7 @@ export function DevSidebar({ onNavigate }: { onNavigate?: () => void }) {
         </ul>
       )}
       <Link to="/bases" onClick={onNavigate}
-        className="rounded-lg px-3 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+        className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
         ⚙ 管理專案
       </Link>
     </div>

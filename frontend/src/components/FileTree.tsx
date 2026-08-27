@@ -67,11 +67,11 @@ function Row({ n, depth, sel, open, toggle, pick }: {
         onClick={() => (isDir ? toggle(n.path) : pick(n.id!))}
         title={n.name}
         style={{ paddingLeft: `${depth * 0.75 + 0.4}rem` }}
-        className={cn("flex w-full items-center gap-1 rounded py-0.5 pr-2 text-left text-xs hover:bg-muted",
+        className={cn("flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-sm hover:bg-muted",
           !isDir && n.id === sel && "bg-muted font-medium")}>
-        <span className="w-3 shrink-0 text-muted-foreground">{isDir ? (shown ? "▾" : "▸") : ""}</span>
+        <span className="w-3 shrink-0 text-xs text-muted-foreground">{isDir ? (shown ? "▾" : "▸") : ""}</span>
         <span className="min-w-0 flex-1 truncate">{isDir ? `${n.name}/` : n.name}</span>
-        {isDir && <span className="shrink-0 text-[10px] text-muted-foreground">{n.count}</span>}
+        {isDir && <span className="shrink-0 text-xs text-muted-foreground">{n.count}</span>}
       </button>
       {shown && n.children!.map((c) => (
         <Row key={c.path + (c.id ?? "")} n={c} depth={depth + 1} sel={sel}
@@ -97,7 +97,7 @@ export function FileTree({ items, sel, onPick }: {
       n.has(p) || forced.has(p) ? n.delete(p) : n.add(p)
       return n
     })
-  if (items.length === 0) return <p className="px-2 py-1 text-xs text-muted-foreground">這個專案還沒有知識檔。</p>
+  if (items.length === 0) return <p className="px-2 py-1 text-sm text-muted-foreground">這個專案還沒有知識檔。</p>
   return (
     <div className="space-y-px">
       {tree.map((n) => (

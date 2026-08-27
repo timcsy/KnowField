@@ -47,10 +47,10 @@ export default function DevPage() {
   return (
     <div className="flex h-full min-h-0">
       {/* ── 檔案樹（手機：選了檔就讓位給預覽）── */}
-      <div className={cn("flex min-h-0 w-full flex-col md:w-56 md:border-r lg:w-64",
+      <div className={cn("flex min-h-0 w-full flex-col md:w-64 md:border-r lg:w-72",
                          iid && "hidden md:flex")}>
         {base && (
-          <p className="truncate border-b px-3 py-1.5 text-xs text-muted-foreground">
+          <p className="truncate border-b px-3 py-2 text-sm text-muted-foreground">
             📁 {base.name || base.repo} · {base.branch}
           </p>
         )}
@@ -65,7 +65,7 @@ export default function DevPage() {
           <>
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur md:px-6">
               <button onClick={() => go({ doc: "" })}
-                      className="shrink-0 text-xs text-muted-foreground hover:text-foreground md:hidden">
+                      className="-ml-1 shrink-0 rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:hidden">
                 ← 檔案
               </button>
               {/* ⚠️ 每一份都標它來自哪個 repo——看不出是誰的，就等於冒充你自己的知識 */}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Outlet, useLocation } from "react-router-dom"
 import { installMathCopy } from "@/components/Markdown"
 import { ConversationSidebar } from "@/components/ConversationSidebar"
+import { ModeSwitch } from "@/components/ModeSwitch"
 import { CommandPalette } from "@/components/CommandPalette"
 
 export default function Layout() {
@@ -25,7 +26,9 @@ export default function Layout() {
       {/* 手機：頂部漢堡 bar */}
       <header className="flex shrink-0 items-center gap-2 border-b bg-sidebar px-2 py-2 md:hidden">
         <button onClick={() => setDrawer(true)} aria-label="選單" className="px-1 text-xl">☰</button>
-        <span className="font-bold">🧠 KnowField</span>
+        <span className="min-w-0 flex-1 truncate font-bold">🧠 KnowField</span>
+        {/* 手機上不用開抽屜就切得了模式 */}
+        <ModeSwitch />
       </header>
       {/* 手機：側欄抽屜 */}
       {drawer && (
