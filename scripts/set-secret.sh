@@ -18,10 +18,20 @@
 #     KEY=@路徑   從檔案讀（給 .pem 這種多行的用這個）
 #     KEY         **不給值 ⇒ 安靜地問你**，不回顯、不進 history ← 秘密用這個
 #
+#   FROM_ENV=1  bare KEY 改成**從 .env 讀**（填完 .env 之後生 secret 用這個）
+#     ⚠️ **只推你點名的 key，永遠不整份同步**——.env 裡有只該留在本機的東西，
+#        其中 KNOWFIELD_AUTH_DISABLED=1 推上正式會**把登入牆整個關掉**。
+#        底下有一份拒絕清單，硬擋。
+#     ⓘ 點名 KNOWFIELD_GITHUB_PRIVATE_KEY 而 .env 只有 ..._PATH 時，
+#        會去讀那個檔案、把**內容**推上去（容器裡沒有那個檔案）。
+#
 #   環境變數：NS（預設 knowfield）· SECRET（預設 knowfield-env）· LOCAL=1 同時寫 .env
 set -euo pipefail
 NS="${NS:-knowfield}"; SECRET="${SECRET:-knowfield-env}"
 [ $# -gt 0 ] || { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+
+# ⚠️ 只該留在本機的 key——推上正式會出事，硬擋
+DENY="KNOWFIELD_AUTH_DISABLED:KNOWFIELD_DATABASE_URL:KNOWFIELD_GITHUB_PRIVATE_KEY_PATH"
 
 PATCH=$(mktemp); ENVTMP=$(mktemp); chmod 600 "$PATCH" "$ENVTMP"
 cleanup(){ rm -f "$PATCH" "$ENVTMP"; }; trap cleanup EXIT
@@ -32,7 +42,7 @@ echo "$BEFORE" | sed 's/^/    /'
 
 # 收集 key=value 進一個暫存檔（NUL 分隔），值不經過 argv ⇒ ps 看不到
 : > "$ENVTMP"
-KEYS=()
+KEYS=(); FROMENV=()
 for arg in "$@"; do
   case "$arg" in
     *=@*) k="${arg%%=*}"; f="${arg#*=@}"; f="${f/#\~/$HOME}"
@@ -40,12 +50,24 @@ for arg in "$@"; do
           printf '%s\0' "$k" >> "$ENVTMP"; cat "$f" >> "$ENVTMP"; printf '\0' >> "$ENVTMP" ;;
     *=*)  k="${arg%%=*}"; v="${arg#*=}"
           printf '%s\0%s\0' "$k" "$v" >> "$ENVTMP" ;;
-    *)    k="$arg"; printf '  %s = ' "$k" >&2; read -rs v; echo >&2
-          [ -n "$v" ] || { echo "  （空的，跳過）" >&2; continue; }
-          printf '%s\0%s\0' "$k" "$v" >> "$ENVTMP" ;;
+    *)    k="$arg"
+          case ":$DENY:" in *":$arg:"*)
+            echo "⚠️ 拒絕：$arg 只該留在本機，推上正式會出事" >&2; exit 1 ;; esac
+          if [ "${FROM_ENV:-}" = "1" ]; then
+            FROMENV+=("$arg")            # ⓘ 集中到最後一次讀，別在迴圈裡開 heredoc
+          else
+            printf '  %s = ' "$arg" >&2; read -rs v; echo >&2
+            [ -n "$v" ] || { echo "  （空的，跳過）" >&2; continue; }
+            printf '%s\0%s\0' "$arg" "$v" >> "$ENVTMP"
+          fi ;;
   esac
   KEYS+=("$k")
 done
+
+# .env 的部分集中在一次呼叫（PRIVATE_KEY 會把 ..._PATH 指的檔案讀成內容）
+if [ ${#FROMENV[@]} -gt 0 ]; then
+  python3 "$(dirname "$0")/_env_to_pairs.py" "$ENVTMP" .env "${FROMENV[@]}"
+fi
 
 # ⚠️ 用 stringData 做 **merge patch**：只碰列到的 key，其餘原封不動。
 python3 - "$ENVTMP" "$PATCH" <<'PY'
