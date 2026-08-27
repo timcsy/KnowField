@@ -13,7 +13,8 @@ import json
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Query, Request, UploadFile
+from fastapi import (BackgroundTasks, FastAPI, File, Form, Query, Request,
+                     UploadFile)
 from fastapi.responses import (
     PlainTextResponse,
     RedirectResponse,
@@ -782,6 +783,97 @@ def create_app() -> FastAPI:
         r = repo.import_borrowed(groups)
         repo.close()
         return _JSON({"added": len(r["added"]), "skipped": r["skipped"]})
+
+    # ══ spec 072（階段 68）：場自己去 GitHub 拿別的專案的 knowledge/ ══
+    # ⚠️ 這一整組**沒有** tarball／zipball／clone——只有 `knowledge/**` 的 blob 會被請求。
+    #    那讓「場從來沒有拿過你的程式碼」是一句**掃程式碼就能驗證**的話，而不是一句紀律。
+    def _github():
+        from ..github import app_from_config
+        return app_from_config(app.state.config)
+
+    def _parse_repo(text: str) -> str:
+        """`https://github.com/a/b(.git)` ／ `git@github.com:a/b` ／ `a/b` → `a/b`。"""
+        t = (text or "").strip().rstrip("/")
+        for pre in ("https://github.com/", "http://github.com/", "git@github.com:"):
+            if t.startswith(pre):
+                t = t[len(pre):]
+        if t.endswith(".git"):
+            t = t[:-4]
+        parts = [x for x in t.split("/") if x]
+        # ⚠️ 剝完前綴還帶 `:` 或 `.` 的，就不是 GitHub 的 owner/name
+        #    （`https://example.com/` 剝不掉，會變成 `https:/example.com` 而混過去）
+        if len(parts) < 2 or any(c in parts[0] + parts[1] for c in ":."):
+            return ""
+        return "/".join(parts[:2])
+
+    def _fetch_base(bid: int, repo_full: str, persona):
+        """背景抓取（實測 17s/base ⇒ **不能塞在一個 request 裡**）。
+
+        ⚠️ 自己開 Repository：背景任務不保證還在原本的 contextvar 裡，
+        而漏掉 persona 就是跨身分寫入——那不會報錯。
+        """
+        r = Repository(app.state.config.database_url or None, persona=persona)
+        try:
+            gh = _github()
+            if gh is None:
+                r.set_ext_status(bid, "error", "沒有設定 GitHub App")
+                return
+            r.set_ext_status(bid, "fetching")
+            r.save_ext_fetch(bid, gh.fetch(repo_full))
+        except Exception as e:                     # noqa: BLE001 —— 錯誤要留在那一列上給人看
+            r.set_ext_status(bid, "error", str(e))
+        finally:
+            r.close()
+
+    @app.get("/api/github/repos")
+    async def api_github_repos():
+        gh = _github()
+        if gh is None:
+            return _JSON({"enabled": False, "repos": []})
+        try:
+            return _JSON({"enabled": True, "repos": gh.repos()})
+        except Exception as e:                     # noqa: BLE001
+            return _JSON({"enabled": True, "repos": [], "error": str(e)}, status_code=502)
+
+    @app.get("/api/bases")
+    async def api_bases():
+        repo = app.state.repo_factory(app.state.config)
+        out = []
+        for b in repo.list_ext_bases():
+            b["layers"] = repo.ext_layer_counts(int(b["id"]))
+            out.append(b)
+        repo.close()
+        return _JSON({"bases": out, "enabled": _github() is not None})
+
+    @app.post("/api/bases")
+    async def api_bases_add(request: Request, background: BackgroundTasks):
+        b = await request.json()
+        full = _parse_repo(str(b.get("repo") or ""))
+        if not full:
+            return _JSON({"error": "看不懂那個 repo——給 owner/name 或 GitHub 網址。"},
+                         status_code=400)
+        repo = app.state.repo_factory(app.state.config)
+        bid = repo.add_ext_base(full)
+        repo.close()
+        background.add_task(_fetch_base, bid, full, _CURRENT_PERSONA.get())
+        return _JSON({"id": bid, "repo": full})
+
+    @app.post("/api/bases/{bid}/refresh")
+    async def api_bases_refresh(bid: int, background: BackgroundTasks):
+        repo = app.state.repo_factory(app.state.config)
+        row = next((x for x in repo.list_ext_bases() if int(x["id"]) == bid), None)
+        repo.close()
+        if not row:
+            return _JSON({"error": "沒有這個知識庫。"}, status_code=404)
+        background.add_task(_fetch_base, bid, row["repo"], _CURRENT_PERSONA.get())
+        return _JSON({"ok": True})
+
+    @app.get("/api/bases/{bid}/dead-refs")
+    async def api_bases_dead_refs(bid: int):
+        repo = app.state.repo_factory(app.state.config)
+        out = repo.dead_refs(bid)
+        repo.close()
+        return _JSON(out) if out else _JSON({"error": "沒有這個知識庫。"}, status_code=404)
 
     # ══ /api：其餘頁（re-platform 里程碑二）——共用既有 repo/service ══
     @app.post("/api/whynode/anoint")

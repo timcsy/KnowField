@@ -121,6 +121,13 @@ export function ConversationSidebar({ onNavigate }: { onNavigate?: () => void })
             </Link>
           )
         })}
+        {/* spec 072：別人的知識庫——⚠️ 刻意**不放進上面那組**：
+            那一組是「當前領域底下的**你的**知識」，而這是外來的、還沒收進場的。 */}
+        <Link to="/bases" onClick={onNavigate}
+          className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+            isActive("/bases") && "bg-sidebar-accent font-medium")}>
+          <span className="min-w-0 flex-1 truncate">🌍 別的知識庫</span>
+        </Link>
       </nav>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">

@@ -164,6 +164,48 @@ CREATE TABLE IF NOT EXISTS articles (
     owner_id INTEGER DEFAULT 1,       -- spec 063：每一列有主人
     persona_id INTEGER               -- spec 067：NULL ＝ 共用（預設共用，隔離是選擇）
 );
+
+-- spec 072（階段 68）：**別人的** knowie base——場自己去 GitHub 拿回來的。
+-- ⚠️ 跟自己的知識**分開放**：它是外來的、不可信的文字（下一刀會餵給 LLM 消化）。
+--    混在同一張表裡，之後就分不清哪一條是你自己的場。
+CREATE TABLE IF NOT EXISTS ext_bases (
+    id SERIAL PRIMARY KEY,
+    repo TEXT NOT NULL,                  -- owner/name
+    name TEXT DEFAULT '',                -- 顯示名（預設取 repo 尾段）
+    branch TEXT DEFAULT '',              -- 抓的時候用的 default_branch（**不寫死 main**）
+    private INTEGER DEFAULT 0,
+    installation_id TEXT DEFAULT '',
+    fetched_at TEXT DEFAULT '',          -- ⚠️ 樹一抓下來就開始過期，用到它的輸出要顯示這個
+    tree_truncated INTEGER DEFAULT 0,    -- ⚠️ GitHub 截斷了要說，不能靜默給不完整的樹
+    n_paths INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending',       -- pending｜fetching｜ok｜error
+    error TEXT DEFAULT '',
+    created_at TEXT,
+    owner_id INTEGER DEFAULT 1,
+    persona_id INTEGER
+);
+
+-- `knowledge/**` 的內容（六層全收）。layer 由路徑導出：experience｜concepts｜principles
+-- ｜vision｜history｜episodes｜other
+CREATE TABLE IF NOT EXISTS ext_items (
+    id SERIAL PRIMARY KEY,
+    base_id INTEGER NOT NULL,
+    layer TEXT DEFAULT '',
+    path TEXT NOT NULL,
+    body TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1,
+    persona_id INTEGER
+);
+
+-- ⚠️ 第三種東西：**查證用的事實**，不給人讀、不進收件匣、不當判準。
+--    只回答一件事：「這個路徑還在嗎」。所以只存路徑，**沒有 body 欄**。
+CREATE TABLE IF NOT EXISTS ext_paths (
+    id SERIAL PRIMARY KEY,
+    base_id INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    owner_id INTEGER DEFAULT 1,
+    persona_id INTEGER
+);
 """
 
 

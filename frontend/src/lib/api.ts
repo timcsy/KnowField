@@ -131,6 +131,18 @@ export type SuggestedFolder = {
   suggest_apply: boolean
   lonely?: boolean
 }
+export type GhRepo = { repo: string; private: boolean; branch: string }
+// spec 072：別人的 base。⚠️ `fetched_at` 與 `tree_truncated` **一定要顯示出來**——
+// 沒有它們，死指標報告就是一份看起來很權威的過期漏報。
+export type ExtBase = {
+  id: number; repo: string; name: string; branch: string; private: number
+  fetched_at: string; tree_truncated: number; n_paths: number; n_items: number
+  status: string; error: string; layers: Record<string, number>
+}
+export type DeadRefs = {
+  repo: string; fetched_at: string; truncated: boolean; n_paths: number
+  dead: { file: string; ref: string }[]; error?: string
+}
 export type Persona = { id: number; name: string; color: string }
 export type DomainContext = {
   crossings: { domain_id: number | null; name: string; count: number }[]
@@ -177,6 +189,14 @@ export const pages = {
   whynodeAnoint: (id: number, claim?: string, kind?: string, domain_id?: number | null) =>
     post("/api/whynode/anoint", { id, claim, kind, domain_id }),
   whynodeRemove: (id: number) => post("/api/whynode/remove", { id }),
+  // spec 072：場自己去 GitHub 拿別的專案的 knowledge/
+  ghRepos: (): Promise<{ enabled: boolean; repos: GhRepo[]; error?: string }> =>
+    fetch("/api/github/repos").then(json),
+  bases: (): Promise<{ bases: ExtBase[]; enabled: boolean }> => fetch("/api/bases").then(json),
+  baseAdd: (repo: string): Promise<{ id?: number; repo?: string; error?: string }> =>
+    post("/api/bases", { repo }),
+  baseRefresh: (id: number) => post(`/api/bases/${id}/refresh`, {}),
+  deadRefs: (id: number): Promise<DeadRefs> => fetch(`/api/bases/${id}/dead-refs`).then(json),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>

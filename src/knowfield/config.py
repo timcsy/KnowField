@@ -38,6 +38,17 @@ class Config:
     auth_allowlist: str = ""            # 逗號分隔的授權 Google email（單人＝你自己）
     session_secret: str = ""           # SessionMiddleware 簽章密鑰
     auth_disabled: bool = False        # dev bypass（KNOWFIELD_AUTH_DISABLED=1）：防設錯鎖死自己；正式勿設
+
+    # spec 072（階段 68）：GitHub App——場自己去拿別的專案的 knowledge/。
+    # 沒設 ⇒ 功能不啟用，其餘照常。
+    # ⚠️ private key 兩種給法：本機用 `_PATH`（.env 是**逐行**的，多行 PEM 貼進去會被截斷、
+    #    而且 base64 那幾行含 `=` 會被當成 key=value 污染環境變數——實測過）；
+    #    正式用 `_KEY`（k8s secret 吃得下多行）。
+    github_app_id: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    github_private_key: str = ""
+    github_private_key_path: str = ""
     digest_limit: int = 15               # SC-007 預設上限
     relevance_threshold: float = 0.10    # 低於此相關性即濾除
     dedup_similarity: float = 0.82       # 語義去重 cosine 門檻
@@ -95,6 +106,11 @@ class Config:
             auth_allowlist=os.environ.get("KNOWFIELD_AUTH_ALLOWLIST", ""),
             session_secret=os.environ.get("KNOWFIELD_SESSION_SECRET", ""),
             auth_disabled=os.environ.get("KNOWFIELD_AUTH_DISABLED", "") == "1",
+            github_app_id=os.environ.get("KNOWFIELD_GITHUB_APP_ID", ""),
+            github_client_id=os.environ.get("KNOWFIELD_GITHUB_CLIENT_ID", ""),
+            github_client_secret=os.environ.get("KNOWFIELD_GITHUB_CLIENT_SECRET", ""),
+            github_private_key=os.environ.get("KNOWFIELD_GITHUB_PRIVATE_KEY", ""),
+            github_private_key_path=os.environ.get("KNOWFIELD_GITHUB_PRIVATE_KEY_PATH", ""),
             digest_limit=int(os.environ.get("KNOWFIELD_LIMIT", "15")),
             backend=backend,
             api_base_url=base.rstrip("/"),

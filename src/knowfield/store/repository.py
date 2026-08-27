@@ -36,7 +36,8 @@ def _iso(value: datetime | None) -> str | None:
 #: spec 063（階段 58）：帶 `owner_id` 的表——**每一個**碰到它們的查詢都要帶 owner 條件。
 #: ⚠️ join 表（`entry_embeddings`／`article_roots`）刻意不在內：它們**只經父 id 存取**，
 #: 而父 id 一定來自一個已經過濾過的查詢 ⇒ 加 owner 只是重複，不加也不會外洩。
-OWNED_TABLES = ("domains", "why_nodes", "articles", "conversations", "digest_entries")
+OWNED_TABLES = ("domains", "why_nodes", "articles", "conversations",
+                "digest_entries", "ext_bases", "ext_items", "ext_paths")
 
 #: 既有的單一使用者。⚠️ 補欄的 `DEFAULT 1` 讓「加欄」本身就是 backfill。
 DEFAULT_OWNER = 1
@@ -650,6 +651,127 @@ class Repository:
             f"UPDATE why_nodes SET {', '.join(sets)} WHERE {self._OWN} AND id=%s", tuple(args))
         self.conn.commit()
         return cur.rowcount > 0
+
+    # ══ spec 072：別人的 base——場自己去 GitHub 拿回來的 ══
+    def add_ext_base(self, repo: str, name: str = "", now: str = "") -> int:
+        """登記一個要抓的 repo（狀態 pending）。同一個 repo 重複加＝回既有那筆。"""
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        r = self.conn.execute(
+            f"SELECT id FROM ext_bases WHERE {self._OWN} AND repo=%s", (repo,)).fetchone()
+        if r:
+            return int(r["id"])
+        bid = self._insert_id(
+            "INSERT INTO ext_bases (repo, name, status, created_at, owner_id, persona_id)"
+            f" VALUES (%s,%s,'pending',%s,{self.owner},{self._P})",
+            (repo, name or repo.rsplit("/", 1)[-1], now))
+        self.conn.commit()      # ⚠️ 少了這行：列在，但別的連線看不到 ⇒ 背景任務找不到它
+        return bid
+
+    def list_ext_bases(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT b.*,"
+            " (SELECT COUNT(*) FROM ext_items i WHERE i.base_id=b.id) AS n_items"
+            f" FROM ext_bases b WHERE {self._own('b')} ORDER BY b.id").fetchall()
+        return [dict(r) for r in rows]
+
+    def set_ext_status(self, bid: int, status: str, error: str = "") -> None:
+        self.conn.execute(
+            f"UPDATE ext_bases SET status=%s, error=%s WHERE {self._OWN} AND id=%s",
+            (status, error[:500], bid))
+        self.conn.commit()
+
+    def save_ext_fetch(self, bid: int, fetched: dict, now: str = "") -> None:
+        """一次抓取的結果落庫。**整批取代**——重抓就是重新對齊，不是累積。"""
+        from datetime import datetime, timezone
+        now = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for t in ("ext_items", "ext_paths"):
+            self.conn.execute(f"DELETE FROM {t} WHERE {self._OWN} AND base_id=%s", (bid,))
+        for it in fetched["items"]:
+            self.conn.execute(
+                "INSERT INTO ext_items (base_id, layer, path, body, owner_id, persona_id)"
+                f" VALUES (%s,%s,%s,%s,{self.owner},{self._P})",
+                (bid, it["layer"], it["path"], it["body"]))
+        for path in fetched["paths"]:
+            self.conn.execute(
+                "INSERT INTO ext_paths (base_id, path, owner_id, persona_id)"
+                f" VALUES (%s,%s,{self.owner},{self._P})", (bid, path))
+        self.conn.execute(
+            "UPDATE ext_bases SET branch=%s, private=%s, fetched_at=%s, tree_truncated=%s,"
+            f" n_paths=%s, status='ok', error='' WHERE {self._OWN} AND id=%s",
+            (fetched["branch"], 1 if fetched["private"] else 0, now,
+             1 if fetched["truncated"] else 0, len(fetched["paths"]), bid))
+        self.conn.commit()
+
+    def ext_layer_counts(self, bid: int) -> dict:
+        rows = self.conn.execute(
+            f"SELECT layer, COUNT(*) AS n FROM ext_items WHERE {self._OWN} AND base_id=%s"
+            " GROUP BY layer", (bid,)).fetchall()
+        return {r["layer"]: int(r["n"]) for r in rows}
+
+    #: 只有這些副檔名算「路徑主張」。⚠️ 這是**機械可判**的界線——
+    #: 不設的話會把 `3/64`（分數）、`why_nodes.kind`（欄位）、`id/topic/title`（欄位列表）
+    #: 全報成死指標。實跑 KnowField 一度得到 296 條，其中真的只有個位數。
+    _CODE_EXT = ("py", "ts", "tsx", "js", "mjs", "jsx", "json", "yaml", "yml", "toml",
+                 "sh", "sql", "html", "css", "md", "txt", "cfg", "ini", "lock")
+    #: 知識庫內部的相對引用（`history/040`、`concepts`）——沒有副檔名，靠前綴解。
+    _KN_DIRS = ("history", "concepts", "episodes", "draft", "skills")
+
+    def dead_refs(self, bid: int) -> dict:
+        """知識檔案裡指到的路徑，而**那個路徑不在樹裡**。
+
+        ⚠️ 只報**機器可判**的：有已知副檔名、或知識庫內部的相對引用。
+        「這條來源寫得好不好」「該不該有來源」是語意判斷 ⇒ 不擋、不評分、不報。
+        ⚠️ 而樹有抓取時間 ⇒ 回傳一定帶 `fetched_at`／`truncated`，
+        否則這份報告會變成一份看起來很權威的過期漏報。
+        """
+        import re
+        KN = "knowledge/"
+        b = self.conn.execute(
+            f"SELECT * FROM ext_bases WHERE {self._OWN} AND id=%s", (bid,)).fetchone()
+        if not b:
+            return {}
+        paths = {r["path"] for r in self.conn.execute(
+            f"SELECT path FROM ext_paths WHERE {self._OWN} AND base_id=%s", (bid,)).fetchall()}
+        dirs = set()
+        for x in paths:
+            parts = x.split("/")
+            for i in range(1, len(parts)):
+                dirs.add("/".join(parts[:i]))
+        # 知識檔案裡的引用多半**相對於 `knowledge/`**（`history/040`、`experience.md`）
+        rel = {x[len(KN):] for x in paths | dirs if x.startswith(KN)}
+        # ⚠️ 人會寫**部分路徑**（`store/schema.py` 指的是 `src/knowfield/store/schema.py`）
+        #    ⇒ 用**後綴**比對，不是逐字相等。不這樣的話真的存在的檔案會被報成死的。
+        by_name: dict[str, list[str]] = {}
+        for x in paths:
+            by_name.setdefault(x.rsplit("/", 1)[-1], []).append(x)
+
+        def alive(ref: str) -> bool:
+            if ref in paths or ref in dirs or ref in rel:
+                return True
+            if any(x.startswith((ref + "-", ref + ".", KN + ref + "-", KN + ref + "."))
+                   for x in paths):                       # `history/040` ＝ 前綴
+                return True
+            return any(x == ref or x.endswith("/" + ref)
+                       for x in by_name.get(ref.rsplit("/", 1)[-1], []))
+
+        ext = "|".join(self._CODE_EXT)
+        pat = re.compile(rf"`([A-Za-z0-9_./-]+\.(?:{ext})|(?:{'|'.join(self._KN_DIRS)})/[A-Za-z0-9_.-]+)`")
+        out = []
+        for r in self.conn.execute(
+                f"SELECT path, body FROM ext_items WHERE {self._OWN} AND base_id=%s",
+                (bid,)).fetchall():
+            seen = set()
+            for m in pat.finditer(r["body"] or ""):
+                ref = m.group(1).rstrip("/")
+                if ref in seen or "://" in ref:
+                    continue
+                seen.add(ref)
+                if not alive(ref):
+                    out.append({"file": r["path"], "ref": ref})
+        return {"repo": b["repo"], "fetched_at": b["fetched_at"] or "",
+                "truncated": bool(b["tree_truncated"]), "n_paths": len(paths),
+                "dead": sorted(out, key=lambda x: (x["file"], x["ref"]))}
 
     # ══ spec 071：跨 base 判準的收件匣 ══
     # ⚠️ **沒有新表。** 借來的判準就是一條 `status='candidate'` 的理解——
