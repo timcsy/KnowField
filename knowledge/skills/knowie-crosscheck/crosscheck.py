@@ -23,78 +23,31 @@ def find_bases(roots: list[str]) -> dict[str, pathlib.Path]:
     return out
 
 
-# ⚠️ **借來的標記——「寫」與「讀」共用同一個常數。**
-# 這一支同時是產生器（`emit_lesson`）與讀取器（`lessons`）。兩邊各寫一份字串，
-# 有一天會不一致，而**不一致不會報錯**：借來的判準被讀成「這個 base 也獨立撞到了」，
-# 群數虛增、排序被自己餵大 ⇒ 那就是馬太迴圈。一個常數，兩邊都用。
-BORROWED_MARK = "⚠️ **借來的**"
-
-# ⚠️ 各個 base 的**私有記號**不能跟著判準跑到別人那裡去。
-# 實測 1,358 條標題：`🔴`×356 · `⭐`×102 · `⚠`×48，**275 條以它們開頭**——
-# 那是某些 base 的嚴重度慣例，換一個 base 就沒有意義（而且很醜）。
-# ⚠️ 但 `→ ≠ ⇒ ∃ ∀ ⊊` 是**內容**（「批准 ≠ 打到需求」）⇒ **只剝開頭那一串**，
-#    不是見到符號就剝。失敗方向也對：剝不乾淨只是留一個記號，剝過頭會改掉判準本身。
-_LEAD = re.compile(r"^[\U0001F300-\U0001FAFF\u2b00-\u2bff\u26a0\u2714\u274c\ufe0f\s]+")
-_HTML = re.compile(r"</?[a-zA-Z][^>]*>")          # `<u>…</u>` 之類，40 條標題有
-
-
-def _clean(title: str) -> str:
-    """`### ` 後面那一段 → 可攜的判準句。"""
-    return _LEAD.sub("", _HTML.sub("", re.sub(r"[*`#]", "", title))).strip()
-
+# ⚠️ **運算全部搬到 `src/knowfield/organize/crossbase.py` 了**（spec 073）。
+# 這裡只留「**在你的機器上**才有意義」的部分：掃磁碟找 base、CLI、以及 SKILL.md 的紀律。
+# 各寫一份會漂——而漂掉不會報錯，只會讓兩邊的群數慢慢不一樣。
+_here = pathlib.Path(__file__).resolve()
+for _up in _here.parents:
+    if (_up / "src" / "knowfield").is_dir():
+        sys.path.insert(0, str(_up / "src"))
+        break
+from knowfield.organize.crossbase import (  # noqa: E402
+    BORROWED_MARK, clean as _clean, emit_lesson, group as _group,
+    lessons_from)
 
 
 def lessons(base_dir: pathlib.Path) -> list[str]:
-    """`experience.md` 的每個 `###` ＝ 一條教訓；標題就是那句判準。
-
-    ⚠️ **借來的不算。** draft §八 的原話：「只算『撞到』，不算『借走』——
-    否則推薦餵回計數、計數又餵回推薦，那就是馬太。」
-    ⇒ 一條教訓的內文帶 `BORROWED_MARK` ＝ 它是從別的 base 借來的，
-    **在這個 base 真的撞到之前不算這個 base 的經驗**，不進跨 base 計數。
-    """
+    """`experience.md` ＋ `concepts/` → 判準句（借來的不算）。"""
+    out = []
     f = base_dir / "experience.md"
-    if not f.exists():
-        return []
-    out, title, body = [], "", []
-
-    def flush():
-        if title and BORROWED_MARK not in "\n".join(body):
-            out.append(title)
-
-    for line in f.read_text(encoding="utf-8").splitlines():
-        if line.startswith("### "):
-            flush()
-            t = _clean(line[4:])
-            title, body = (t if len(t) >= 6 else ""), []
-        elif line.startswith("## "):
-            flush()
-            title, body = "", []
-        else:
-            body.append(line)
-    flush()
+    if f.exists():
+        out += lessons_from([{"path": "knowledge/experience.md", "layer": "experience",
+                              "body": f.read_text(encoding="utf-8")}])
+    cdir = base_dir / "concepts"
+    if cdir.is_dir():
+        out += lessons_from([{"path": f"knowledge/concepts/{x.name}", "layer": "concepts",
+                              "body": ""} for x in sorted(cdir.glob("*.md"))])
     return out
-
-
-def emit_lesson(group: dict) -> str:
-    """一群 → 可貼進新 base `experience.md` 的區塊。
-
-    ⚠️ 格式不是排版問題：標記寫壞了，下一次量測就把它算成獨立撞到，
-    **而沒有人會發現**。所以由這裡產生，不由人手打。
-    """
-    bases = sorted({m["base"] for m in group["members"]})
-    lines = [f"### {group['claim']}", "",
-             f"- {BORROWED_MARK}（`from: {', '.join(bases)}`）"
-             f"——**在這個專案真的撞到之前，它不算這個專案的經驗**。",
-             "- **各自撞到的原文**："]
-    lines += [f"  - `{m['base']}` {m['text']}" for m in group["members"]]
-    lines += ["- **來源**：借自個人場的跨 base 量測（`knowie-crosscheck`）。",
-              "  ⇒ **這個 base 真的撞到之後**：刪掉上面那整行、換成這裡的實際出處"
-              "（commit／history），它才開始算這個 base 的經驗。", ""]
-    block = "\n".join(lines)
-    # ⚠️ **標記只能出現一次。** 出現兩次的話，照說明刪掉標記行的人升格會失敗——
-    #    另一處還在，量測照樣跳過它，而**沒有人會發現**。這一行擋住那個。
-    assert block.count(BORROWED_MARK) == 1, "借來的標記在一個區塊裡只能出現一次"
-    return block
 
 
 # ⚠️ 向量已 L2 正規化（`OpenAIEmbedder` 保證）⇒ 餘弦就是點積，不用再開根號。

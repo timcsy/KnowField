@@ -868,6 +868,59 @@ def create_app() -> FastAPI:
         background.add_task(_fetch_base, bid, row["repo"], _CURRENT_PERSONA.get())
         return _JSON({"ok": True})
 
+    # spec 073：場自己算跨 base 群 → 落進**既有的收件匣**（不繞過那道閘門）
+    #: ⚠️ 校驗配對是**人給的**：兩個獨立的人各自寫下同一條判準，用字幾乎不會重疊
+    #:    ——這件事沒有先驗值可以查。預設這一對是實測過的（0.617 vs 噪音 0.27–0.42）。
+    _CALIB = [("沒有東西會叫的失敗", "沉默的失敗不會自己現形")]
+
+    def _crosscheck(persona, threshold: float, top: int, dry: bool):
+        from ..backends.factory import make_embedder
+        from ..organize import crossbase as cb
+        from ..rag.service import embedder_tag
+        r = Repository(app.state.config.database_url or None, persona=persona)
+        try:
+            emb = make_embedder(app.state.config)
+            tag = embedder_tag(emb)
+            for b in r.list_ext_bases():
+                if b["status"] == "ok":
+                    r.sync_ext_lessons(int(b["id"]), cb.lessons_from(r.ext_items_of(int(b["id"]))))
+            missing = r.ext_lessons_missing_vectors(tag)
+            for i in range(0, len(missing), 64):
+                chunk = missing[i:i + 64]
+                r.save_ext_vectors(
+                    list(zip([m["id"] for m in chunk],
+                             emb.embed_many([m["text"] for m in chunk]))), tag)
+            bases, vec = r.ext_lesson_vectors(tag)
+            for a, b2 in _CALIB:                      # 校驗配對也要有向量才量得了
+                for t in (a, b2):
+                    if t not in vec:
+                        vec[t] = emb.embed(t)
+            items = [(n, t) for n, ts in bases.items() for t in ts]
+            cal = cb.calibrate(vec, items, _CALIB)
+            if not cal["calibration"]:
+                # ⚠️ 結構性禁令：**沒有校驗就不給群**。一個沒校驗的門檻會給你一個
+                #    看起來很專業的錯結論（0.78 ⇒「幾乎沒有複利」）。
+                return {"error": "沒有校驗配對——沒有已知答案就不知道門檻該落在哪。",
+                        **cal}
+            g = cb.group(bases, vec, threshold, top=top)
+            out = {**cal, "threshold": threshold, "n_groups": g["n_groups"],
+                   "largest": g["largest"], "n_lessons": len(items),
+                   "bases": {k: len(v) for k, v in bases.items()}}
+            if dry:
+                out["groups"] = g["groups"]
+                return out
+            out["imported"] = r.import_borrowed(g["groups"])
+            return out
+        finally:
+            r.close()
+
+    @app.post("/api/bases/crosscheck")
+    async def api_bases_crosscheck(request: Request):
+        b = await request.json()
+        th = float(b.get("threshold") or 0.62)
+        return _JSON(_crosscheck(_CURRENT_PERSONA.get(), th,
+                                 int(b.get("top") or 15), bool(b.get("dry"))))
+
     @app.get("/api/bases/{bid}/dead-refs")
     async def api_bases_dead_refs(bid: int):
         repo = app.state.repo_factory(app.state.config)

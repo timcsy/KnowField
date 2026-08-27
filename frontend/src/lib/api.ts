@@ -139,6 +139,12 @@ export type ExtBase = {
   fetched_at: string; tree_truncated: number; n_paths: number; n_items: number
   status: string; error: string; layers: Record<string, number>
 }
+// spec 073：⚠️ 兩個界都要顯示——只給一個數字，使用者沒辦法判斷門檻對不對。
+export type CrossCheck = {
+  error?: string; threshold?: number; n_groups?: number; largest?: number
+  n_lessons?: number; noise_hi?: number; floor?: number
+  bases?: Record<string, number>; imported?: { added: number[]; skipped: number }
+}
 export type DeadRefs = {
   repo: string; fetched_at: string; truncated: boolean; n_paths: number
   dead: { file: string; ref: string }[]; error?: string
@@ -197,6 +203,9 @@ export const pages = {
     post("/api/bases", { repo }),
   baseRefresh: (id: number) => post(`/api/bases/${id}/refresh`, {}),
   deadRefs: (id: number): Promise<DeadRefs> => fetch(`/api/bases/${id}/dead-refs`).then(json),
+  // spec 073：場自己算跨 base 群 → 落進收件匣（⚠️ 不繞過那道閘門）
+  crosscheck: (threshold?: number): Promise<CrossCheck> =>
+    post("/api/bases/crosscheck", { threshold }),
   // spec 071：把借來的判準送進**收件匣**（來源目前是 `knowie-crosscheck` 算出來的跨 base 群）。
   // ⚠️ 匯入是批次的、**收下不是**——收下一律走上面那條 whynodeAnoint，一條一條。
   borrowedImport: (groups: unknown[]): Promise<{ added: number; skipped: number; error?: string }> =>

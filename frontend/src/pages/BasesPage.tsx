@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { pages, type DeadRefs, type ExtBase, type GhRepo } from "@/lib/api"
+import { pages, type CrossCheck as CrossCheckT, type DeadRefs, type ExtBase, type GhRepo } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -50,6 +50,45 @@ function Dead({ id }: { id: number }) {
         </div>
       ))}
     </div>
+  )
+}
+
+function CrossCheck() {
+  const [r, setR] = useState<CrossCheckT | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function run() {
+    setBusy(true); setR(null)
+    try { setR(await pages.crosscheck()) } finally { setBusy(false) }
+  }
+  return (
+    <section className="space-y-2 rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">🧭 找出大家各自撞到的同一條</h2>
+          <p className="text-xs text-muted-foreground">
+            幾個獨立的知識庫都撞到的判準，最值得帶走。找到的會停在「💡 你的理解」的收件匣，
+            由你一條一條決定。
+          </p>
+        </div>
+        <Button size="sm" disabled={busy} onClick={run}>{busy ? "算…" : "開始找"}</Button>
+      </div>
+      {r?.error && <p className="text-xs text-destructive">{r.error}</p>}
+      {r && !r.error && (
+        <div className="space-y-1 border-t pt-2 text-xs text-muted-foreground">
+          <p>
+            比了 {r.n_lessons} 條判準 · 找到 {r.n_groups} 群 ·
+            送進收件匣 {r.imported?.added.length ?? 0} 條
+            {(r.imported?.skipped ?? 0) > 0 && `（${r.imported?.skipped} 條先前已處理過）`}
+          </p>
+          {/* ⚠️ 兩個界都顯示：只給一個數字，你沒辦法判斷這個門檻對不對 */}
+          <p>
+            門檻 {r.threshold} · 已知同義的一對量到 {r.floor?.toFixed(2)}（門檻不能高過它）·
+            隨機配對上緣 {r.noise_hi?.toFixed(2)} · 最大一群 {r.largest} 條
+            {(r.largest ?? 0) > 15 && <b className="text-destructive">（黏成一坨了，門檻太鬆）</b>}
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -116,6 +155,8 @@ export default function BasesPage() {
           )}
         </section>
       )}
+
+      {data.bases.filter((b) => b.status === "ok").length >= 2 && <CrossCheck />}
 
       {data.bases.length === 0 ? (
         <p className="text-sm text-muted-foreground">還沒有。加一個進來，它會把那個專案的 knowledge/ 抓過來。</p>

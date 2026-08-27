@@ -36,8 +36,8 @@ def _iso(value: datetime | None) -> str | None:
 #: spec 063（階段 58）：帶 `owner_id` 的表——**每一個**碰到它們的查詢都要帶 owner 條件。
 #: ⚠️ join 表（`entry_embeddings`／`article_roots`）刻意不在內：它們**只經父 id 存取**，
 #: 而父 id 一定來自一個已經過濾過的查詢 ⇒ 加 owner 只是重複，不加也不會外洩。
-OWNED_TABLES = ("domains", "why_nodes", "articles", "conversations",
-                "digest_entries", "ext_bases", "ext_items", "ext_paths")
+OWNED_TABLES = ("domains", "why_nodes", "articles", "conversations", "digest_entries",
+                "ext_bases", "ext_items", "ext_paths", "ext_lessons")
 
 #: 既有的單一使用者。⚠️ 補欄的 `DEFAULT 1` 讓「加欄」本身就是 backfill。
 DEFAULT_OWNER = 1
@@ -772,6 +772,59 @@ class Repository:
         return {"repo": b["repo"], "fetched_at": b["fetched_at"] or "",
                 "truncated": bool(b["tree_truncated"]), "n_paths": len(paths),
                 "dead": sorted(out, key=lambda x: (x["file"], x["ref"]))}
+
+    # ══ spec 073：場自己算跨 base 群 ══
+    def ext_items_of(self, bid: int) -> list[dict]:
+        return [dict(r) for r in self.conn.execute(
+            "SELECT path, layer, body FROM ext_items"
+            f" WHERE {self._OWN} AND base_id=%s", (bid,)).fetchall()]
+
+    def sync_ext_lessons(self, bid: int, lessons: list[str]) -> None:
+        """把抽出來的判準句對齊到 `ext_lessons`。
+
+        ⚠️ **保留既有的向量**：只刪不見的、只加新的。整批重建的話，
+        每次重算都要重新 embedding 一次——而那是真金白銀，還會慢到沒人願意按。
+        """
+        have = {r["text"]: r["id"] for r in self.conn.execute(
+            f"SELECT id, text FROM ext_lessons WHERE {self._OWN} AND base_id=%s",
+            (bid,)).fetchall()}
+        want = set(lessons)
+        for text, lid in have.items():
+            if text not in want:
+                self.conn.execute(f"DELETE FROM ext_lessons WHERE {self._OWN} AND id=%s", (lid,))
+        for text in want - set(have):
+            self.conn.execute(
+                "INSERT INTO ext_lessons (base_id, text, owner_id, persona_id)"
+                f" VALUES (%s,%s,{self.owner},{self._P})", (bid, text))
+        self.conn.commit()
+
+    def ext_lessons_missing_vectors(self, tag: str) -> list[dict]:
+        return [dict(r) for r in self.conn.execute(
+            f"SELECT id, text FROM ext_lessons WHERE {self._OWN}"
+            " AND (tag<>%s OR COALESCE(vector_json,'')='')", (tag,)).fetchall()]
+
+    def save_ext_vectors(self, rows: list[tuple[int, list]], tag: str) -> None:
+        import json as _json
+        for lid, vec in rows:
+            self.conn.execute(
+                f"UPDATE ext_lessons SET tag=%s, vector_json=%s WHERE {self._OWN} AND id=%s",
+                (tag, _json.dumps(vec), lid))
+        self.conn.commit()
+
+    def ext_lesson_vectors(self, tag: str) -> tuple[dict, dict]:
+        """回 `({base_name: [判準句…]}, {判準句: 向量})`。"""
+        import json as _json
+        bases: dict = {}
+        vec: dict = {}
+        for r in self.conn.execute(
+                "SELECT b.repo, l.text, l.vector_json FROM ext_lessons l"
+                " JOIN ext_bases b ON b.id=l.base_id"
+                f" WHERE {self._own('l')} AND l.tag=%s AND COALESCE(l.vector_json,'')<>''",
+                (tag,)).fetchall():
+            name = r["repo"].rsplit("/", 1)[-1]
+            bases.setdefault(name, []).append(r["text"])
+            vec[r["text"]] = _json.loads(r["vector_json"])
+        return bases, vec
 
     # ══ spec 071：跨 base 判準的收件匣 ══
     # ⚠️ **沒有新表。** 借來的判準就是一條 `status='candidate'` 的理解——

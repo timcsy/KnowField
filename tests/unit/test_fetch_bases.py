@@ -338,7 +338,13 @@ class TestBasesPageScan(unittest.TestCase):
         import re
         self.assertIsNone(re.search(r">\s*[^<]*\*\*[^<]*<", self.code))
 
-    def test_does_not_call_it_your_knowledge(self):
-        """⚠️ 外來的知識不能長得像你自己的——收進場是**另一個動作**（下一刀）。"""
-        self.assertNotIn("你的理解", self.code)
-        self.assertNotIn("收進", self.code)
+    def test_cannot_accept_anything_into_the_field(self):
+        """⚠️ 外來的東西**進不了場**——收下是收件匣的動作，不是這一頁的。
+
+        ⓘ 這條原本寫成「不准出現『你的理解』這四個字」，而它擋掉了一個**好答案**：
+        「找到的會停在『💡 你的理解』的收件匣」——那句話正是在**區分**外來與自己的。
+        ⇒ 用「有沒有出現某個詞」當代理指標，會擋掉它測不到的東西。
+        改成守**結構**：這一頁呼叫不到任何把東西收進場的 API。
+        """
+        for forbidden in ("whynodeAnoint", "anoint", "importBorrowed"):
+            self.assertNotIn(forbidden, self.code)

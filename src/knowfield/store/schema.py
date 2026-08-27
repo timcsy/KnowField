@@ -197,6 +197,21 @@ CREATE TABLE IF NOT EXISTS ext_items (
     persona_id INTEGER
 );
 
+-- spec 073：從 `ext_items` 抽出來的判準句 ＋ 它的向量。
+-- ⚠️ 獨立一張表而不是塞進 `entry_embeddings`：那張的 id 空間已經被
+--    digest_entries（正）與 why_nodes（負）佔了，再擠進去就是等著碰撞。
+--    而這裡的向量**跟著那個 base 的重抓一起作廢**，語意剛好對得上。
+CREATE TABLE IF NOT EXISTS ext_lessons (
+    id SERIAL PRIMARY KEY,
+    base_id INTEGER NOT NULL,
+    layer TEXT DEFAULT '',
+    text TEXT NOT NULL,
+    tag TEXT DEFAULT '',
+    vector_json TEXT DEFAULT '',
+    owner_id INTEGER DEFAULT 1,
+    persona_id INTEGER
+);
+
 -- ⚠️ 第三種東西：**查證用的事實**，不給人讀、不進收件匣、不當判準。
 --    只回答一件事：「這個路徑還在嗎」。所以只存路徑，**沒有 body 欄**。
 CREATE TABLE IF NOT EXISTS ext_paths (
