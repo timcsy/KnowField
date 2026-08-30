@@ -521,7 +521,9 @@ def create_app() -> FastAPI:
         if domain is not None:
             _r = app.state.repo_factory(cfg)
             try:
-                _d = next((d for d in _r.list_domains() if int(d["id"]) == int(domain)), None)
+                # projects=True：站在專案的領域裡聊天時，**要**找得到它的名字
+                _d = next((d for d in _r.list_domains(projects=True)
+                           if int(d["id"]) == int(domain)), None)
             finally:
                 _r.close()
             _project = (_d["name"] or "") if _d else ""
@@ -849,7 +851,9 @@ def create_app() -> FastAPI:
         from ..ingest.service import ContentIngestService
         cfg = app.state.config
         name = repo_full.rsplit("/", 1)[-1]
-        did = next((d["id"] for d in r.list_domains() if d["name"] == name), None)
+        # projects=True：這裡要找的**就是**專案的領域（濾掉它就會每次重建一個新的）
+        did = next((d["id"] for d in r.list_domains(projects=True)
+                    if d["name"] == name), None)
         if did is None:
             did = r.create_domain(name)
         # ⚠️ **記在 base 上**——聊天要縮到這個領域，靠名字回頭撈的話，
@@ -1559,9 +1563,15 @@ def create_app() -> FastAPI:
 
     @app.get("/api/domains")
     async def api_domains():
+        """⚠️ 這支餵的是**領域選單**與**領域管理頁**——思考模式的兩個入口。
+
+        它不經過 `domain_view` ⇒ 那條線要在這裡自己問一次，否則專案的領域
+        會出現在選單裡，而**你一站進去，它的幾百筆來源就全出來了**
+        （2026-08-30 使用者實際撞到：「來源竟然跑到思考模式那邊去了」）。
+        """
         repo = app.state.repo_factory(app.state.config)
         try:
-            ds = repo.list_domains()
+            ds = repo.list_domains(projects=False)
             out = [{**d, "path": repo.domain_path(d["id"])} for d in ds]
         finally:
             repo.close()
@@ -1773,10 +1783,11 @@ def create_app() -> FastAPI:
         ——那三支各有自己的消費者，為整理台加欄會把它們綁在一起。
         ⓘ spec 052 起改用 `repo._inventory_rows()`，與領域視野**共用一份定義**
         （兩份定義會慢慢漂開，而漂開不會報錯）。
+        ⚠️ 整理台是思考模式的東西 ⇒ 專案的不進來（同 `/api/domains`）。
         """
         repo = app.state.repo_factory(app.state.config)
         try:
-            out = repo._inventory_rows()
+            out = repo._inventory_rows(projects=False)
         finally:
             repo.close()
         return _JSON({"ok": True, "items": out})

@@ -103,6 +103,60 @@ class TestInteractionCannotSeeProjects(Base):
         self.assertEqual(d["n_projects"], 1)
 
 
+class TestEveryEntryPointAsksTheLine(Base):
+    """⚠️ 2026-08-30：「我剛剛新增了一個專案，發現來源竟然跑到思考模式那邊去了」。
+
+    後端那條線是對的（`domain_view` 濾了、來源頁濾了），**漏的是兩個不經過
+    `domain_view` 的入口**：`/api/domains`（餵領域選單與領域管理頁）與
+    `/api/knowledge/inventory`（整理台）。專案的領域出現在選單裡
+    ⇒ **你一站進去，它的幾百筆來源就全出來了**。
+
+    ⇒ 判準要收緊一格：不是「每一格都問那條線」，是
+    **「每一個回傳領域或知識清單的端點都要問」**——`domain_view` 不是唯一出口。
+    """
+
+    def test_the_domain_list_that_feeds_the_selector(self):
+        """⚠️ 側欄根層的數字是對的，所以它看起來沒事——直到你從選單走進去。"""
+        names = {d["name"] for d in self.c.get("/api/domains").json()["domains"]}
+        self.assertIn("我的領域", names)
+        self.assertNotIn("Demo", names, "專案的領域出現在思考模式的領域選單裡")
+
+    def test_the_inventory_that_feeds_the_organiser(self):
+        items = self.c.get("/api/knowledge/inventory").json()["items"]
+        labels = {i["label"] for i in items}
+        self.assertIn("我自己的判準", labels)
+        for gone in ("借來的判準", "專案的應用"):
+            self.assertNotIn(gone, labels, f"專案的東西漏進整理台：{gone}")
+
+    def test_the_default_stays_unfiltered(self):
+        """⚠️ `list_domains` 預設**必須**是 True——`project_domain_ids()`
+
+        自己要用它建樹，預設 False 會**無限遞迴**（而那會是啟動就爆，不是靜默）。
+        """
+        r = self.repo()
+        self.assertIn("Demo", {d["name"] for d in r.list_domains()})
+        self.assertEqual(sorted(r.project_domain_ids()), [self.pdid])
+        r.close()
+
+    def test_a_new_endpoint_cannot_forget(self):
+        """掃描層：任何端點呼叫這兩支而**沒有寫 `projects=`**，就是下一個漏的入口。
+
+        ⓘ 這條守的是**未來新增的端點**——上面那幾條行為測試只認得我列出的那幾支。
+        """
+        import inspect
+        import re
+
+        from knowfield.web import app as mod
+        # ⚠️ 先剝掉 docstring 與註解——不然掃到的是**說明文字裡的名字**，
+        #    那會是一條假紅（而假紅會讓人開始無視這條測試）。
+        src = re.sub(r'#.*$', '', re.sub(r'"""[\s\S]*?"""', '',
+                                         inspect.getsource(mod)), flags=re.M)
+        for name in ("list_domains", "_inventory_rows"):
+            for m in re.finditer(rf"\.{name}\(([^)]*)\)", src):
+                self.assertIn("projects=", m.group(1),
+                              f"有端點呼叫 {name}() 卻沒說要不要專案：{m.group(0)}")
+
+
 class TestDevModeSeesItsWholeProject(Base):
     """⚠️ 反過來也要成立：**站在專案裡就要看得到它的四種知識**。
 

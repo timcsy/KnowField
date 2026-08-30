@@ -1150,11 +1150,20 @@ class Repository:
         self.conn.commit()
         return cid
 
-    def list_domains(self) -> list[dict]:
-        """**活的**領域樹。⚠️ 已封存的不在裡面——遺骸不是位置（spec 055 FR-003）。"""
-        return [dict(r) for r in self.conn.execute(
+    def list_domains(self, projects: bool = True) -> list[dict]:
+        """**活的**領域樹。⚠️ 已封存的不在裡面——遺骸不是位置（spec 055 FR-003）。
+
+        ⚠️ `projects=False` ＝ 濾掉專案的領域（同 `list_source_groups`）。
+        **預設是 True**，因為 `project_domain_ids()` 自己要用它建樹
+        ——預設 False 會無限遞迴。
+        """
+        rows = [dict(r) for r in self.conn.execute(
             f"SELECT id, name, parent_id, created_at FROM domains"
             f" WHERE {self._OWN} AND {self._LIVE} ORDER BY id")]
+        if projects:
+            return rows
+        hide = self.project_domain_ids()
+        return [d for d in rows if d["id"] not in hide]
 
     def rename_domain(self, did: int, name: str) -> None:
         self.conn.execute(f"UPDATE domains SET name=%s WHERE {self._OWN} AND id=%s", (name.strip(), did))
@@ -1260,12 +1269,15 @@ class Repository:
         return {"children": children, "items": items, "outward": outward,
                 "path": [] if did is None else self.domain_path(did)}
 
-    def _inventory_rows(self) -> list[dict]:
+    def _inventory_rows(self, projects: bool = True) -> list[dict]:
         """四種知識的扁平清冊（整理台與領域視野共用一份定義）。
 
         `at`＝那件東西的時間（spec 057：檔案總管要有「更新時間」欄才排得了序）。
         ⚠️ 四種的時間欄名字**不一樣**——對話用最後活動、來源用收進日、其餘用建立日。
         假設它們同名的話，缺的那幾種會安靜地排在最後面。
+
+        ⚠️ `projects=False` ＝ 濾掉專案領域底下的（同 `list_domains`）。
+        **預設 True**：`domain_view` 自己會依立足點決定要不要濾。
         """
         out = []
         for r in self.conn.execute(
@@ -1294,7 +1306,10 @@ class Repository:
             out.append({"kind": "source", "ref": r["url"],
                         "label": r["title"] or r["url"], "domain_id": r["domain_id"],
                         "at": r["at"] or ""})
-        return out
+        if projects:
+            return out
+        hide = self.project_domain_ids()
+        return [r for r in out if r["domain_id"] not in hide]
 
     def place_new(self, kind: str, ref, current: int | None = None) -> int | None:
         """把一件**剛出生**的知識放到它該在的領域，回放到哪。
